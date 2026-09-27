@@ -1,0 +1,190 @@
+## SDDプロジェクトのベース作成ツールが配置する .gitignore
+##
+## 種別（MFC / Web）を区別せず、常にこの内容を新規作成する (002 FR-106)。
+## プロジェクトの種別は /speckit-constitution が判定して憲章に記録するため、
+## 本ツールは種別を判断しない。内容が対象フォルダに依存しないことで、
+## 「書き込む時点で種別を知る必要」そのものが存在しなくなる。
+##
+## 本ファイルは RCDATA リソース IDR_GITIGNORE として実行ファイルに埋め込まれる。
+## 重複パターンはセクション1へ集約済み (002 research.md R-101)。
+
+# ============================================================
+# 1. 共通（Windows / macOS のシェル生成物、エディタ、環境変数）
+# ============================================================
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+*.log
+*.swp
+*.rsuser
+*.suo
+*.user
+
+.idea/
+.vs/
+
+.env
+.env.*
+*.local.env
+# 例示ファイルは追跡する（.env.* の否定。順序が重要なため直後に置く）
+!.env.example
+
+[Bb]in/
+[Oo]bj/
+artifacts/
+project.lock.json
+
+# ============================================================
+# 2. Visual Studio / .NET（MFC・C++・C#・ASP.NET Core）
+# ============================================================
+
+# ユーザー固有のファイル
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# ビルド結果
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# テスト結果
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+BenchmarkDotNet.Artifacts/
+
+# .NET
+project.fragment.lock.json
+
+# C++ のビルド中間ファイル
+*.obj
+*.pch
+*.pdb
+*.idb
+*.ilk
+*.tlog
+*.lastbuildstate
+*.tli
+*.tlh
+*.res
+*.iobj
+*.ipdb
+
+# C++ リソース エディタの中間ファイル
+*.aps
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# 出力バイナリ
+*.exe
+*.dll
+*.lib
+*.exp
+*.map
+*.ipch
+
+# Visual Studio プロファイラ / トレース
+*.psess
+*.vsp
+*.vspx
+*.sap
+*.e2e
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# バックアップとアップグレードの残骸
+*~
+*.bak
+*.tmp
+*.orig
+Backup*/
+_UpgradeReport_Files/
+UpgradeLog*.XML
+UpgradeLog*.htm
+
+# ============================================================
+# 3. Node / Web（npm・yarn・pnpm、各種フレームワーク）
+# ============================================================
+
+# 依存パッケージ
+node_modules/
+jspm_packages/
+bower_components/
+web_modules/
+
+# ログ
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 実行時データ
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# テストとカバレッジ
+coverage/
+*.lcov
+.nyc_output/
+
+# ビルド成果物
+dist/
+build/
+out/
+.next/
+.nuxt/
+.svelte-kit/
+.output/
+.vercel/
+.turbo/
+
+# キャッシュ
+.npm/
+.eslintcache
+.stylelintcache
+.cache/
+.parcel-cache/
+.rpt2_cache/
+*.tsbuildinfo
+
+# エディタ
+*.swo
+
+# ---- Spec Kit ----
+# feature.json は作業中の機能を指すマシンローカルな状態。
+# 複数PCで同じ機能を続けるなら、除外せずコミットする選択もある
+# .specify/feature.json
+
+# ---- このプロジェクト固有 ----
+*.pdf
