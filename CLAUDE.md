@@ -37,7 +37,7 @@ msbuild MFCApplication1\MFCApplication1.sln /p:Configuration=Release /p:Platform
 7. `/speckit.implement` — `tasks.md` に基づき実装を実行
 8. `/speckit.converge` — 実装後、仕様に対して未完了の作業がないか突き合わせる（任意）
 
-各機能ディレクトリの成果物（`spec.md`, `plan.md`, `tasks.md`, `research.md` など）は `.specify/` 配下の機能ディレクトリに生成されます。現在の機能コンテキストは `.specify/feature.json`（`feature_directory` キー）または環境変数 `SPECIFY_FEATURE_DIRECTORY` で解決されます（`.specify/scripts/powershell/common.ps1` の `Get-FeaturePathsEnv` 参照）。
+各機能ディレクトリの成果物（`spec.md`, `plan.md`, `tasks.md`, `research.md` など）は、リポジトリ直下の `specs/<NNN>-<機能名>/`（連番は `.specify/init-options.json` の `feature_numbering: sequential` による 3 桁）に生成されます。`.specify/` 自体はツール本体（スクリプト・テンプレート・憲章）の置き場です。現在の機能コンテキストは `.specify/feature.json`（`feature_directory` キー）または環境変数 `SPECIFY_FEATURE_DIRECTORY` で解決されます（`.specify/scripts/powershell/common.ps1` の `Get-FeaturePathsEnv` 参照）。
 
 PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプレート解決・前提条件チェック・新規機能ブランチ作成などを担っています。テンプレートは優先順位付きで解決されます: `overrides/` → `presets/`（`.registry` の優先度順）→ `extensions/` → コアの `.specify/templates/`。
 
