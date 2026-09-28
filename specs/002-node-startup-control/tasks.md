@@ -11,8 +11,9 @@ description: "Task list template for feature implementation"
 
 **Tests**: `spec.md` はテストタスクを明示的に要求していないため、テストタスクは含めない
 （`plan.md` の Technical Context に従い、自動テスト基盤は本フェーズでも導入しない）。検証は
-`quickstart.md` の手順で行い、必要に応じて `cl.exe` による一時的な検証ハーネス（リポジトリには
-含めない）を使う。
+`quickstart.md` の手順で行い、`cl.exe` で直接ビルドする検証ハーネスを併用する。実装完了後、この
+ハーネスは `tools/cansim_runner/` としてリポジトリに含めた（`MFCApplication1.sln` には含まれない
+手動ビルドの開発補助ツール）。
 
 **Organization**: タスクは `spec.md` のユーザーストーリー（US1〜US3）ごとにグループ化する。
 

@@ -27,7 +27,8 @@
 
 **Testing**: 機能 001 と同じ方針。自動テストフレームワーク・専用テストプロジェクトは導入しない。
 `CanSim/` は MFC 非依存のプレーン C++ を維持し、`cl.exe` で直接ビルドできる状態を保つ（この性質を
-使った検証手順は `quickstart.md` を参照）。
+使った検証手順は `quickstart.md` を参照）。実装完了後、その検証ツールは `tools/cansim_runner/`
+としてリポジトリに含めた（`MFCApplication1.sln` には含まれない手動ビルドの開発補助ツール）。
 
 **Target Platform**: Windows 10/11 デスクトップ（Win32 / x64、Debug / Release）
 

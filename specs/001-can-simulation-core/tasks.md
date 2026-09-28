@@ -170,8 +170,9 @@ Project Structure 参照）。新規ソースは `MFCApplication1/CanSim/` に�
   ため、実際には T007（`Network.cpp`）の時点で完全実装済み。T016（Status/Retry_Count/
   Overwrite_Count のログ反映）も `SimulationEngine.cpp` の `HandleTxComplete` に実装済み。
   T018 の検証は、GUI 手動操作の代わりに、CanSim を UI 非依存にプレーン C++ として実装した
-  利点を活かし、`cl.exe` で直接ビルドした一時的な検証ハーネス（リポジトリには含めない、
-  scratchpad 上のみ）で自動化して実施した。結果: `sample_appendix_a.cfg`（6ノード・10秒）で
+  利点を活かし、`cl.exe` で直接ビルドした検証ハーネスで自動化して実施した（当初はスクラッチ領域
+  のみに置いていたが、機能 002 完了後に `tools/cansim_runner/` としてリポジトリへ移した。
+  research.md 決定3 の改定を参照）。結果: `sample_appendix_a.cfg`（6ノード・10秒）で
   0x080 の初回 `Tx_Start`=140us、0x100 の初回 `Tx_Start`=576us で 0x080 が先行し、0x100 側に
   `Status=ARBITRATION_LOST_RETRY` と `Retry_Count>=1` を確認した（21件のチェックすべて PASS。
   再現性 SC-001、調停順 SC-002、送信回数 SC-004、ビットスタッフィング SC-003、構成拒否

@@ -30,7 +30,23 @@ msbuild MFCApplication1\MFCApplication1.sln /p:Configuration=Debug /p:Platform=x
 - `framework.h` で `NOMINMAX` を定義済み。`CanSim/` 配下で `std::min`/`std::max`/`std::numeric_limits<T>::max()` などを使う際は、Windows ヘッダーの `min`/`max` マクロとの衝突を避けるためにこれに依存してよい（新たに `#undef min`/`#undef max` を個別ファイルに書く必要はない）
 - `CanSim/` 配下の新規ソースは日本語コメント・文字列リテラルを含めない（ASCII のみ）こと。`.cpp` は PCH（`pch.h`）を経由して `framework.h` を取り込む都合上、BOM なし UTF-8 で保存されるとコンパイラが実行時ロケール（日本語環境では コードページ 932）でソースを解釈し、非 ASCII 文字が文字化けする（警告 C4819）。UI 表示文字列は `MFCApplication1.rc`（UTF-16LE、BOM 付き）側の日本語ラベル・文字列テーブルに閉じ込め、`CanSim/`・`MFCApplication1Dlg.cpp` 側は英語の識別子・メッセージのみを扱う方針としている
 - `MFCApplication1.rc` は UTF-16LE（BOM 付き、CRLF）のバイナリに近いテキストファイル。編集する際は Read/Edit ツールでの直接編集を避け、PowerShell の `Get-Content -Encoding Unicode` / `[System.IO.File]::WriteAllText(path, text, (New-Object System.Text.UnicodeEncoding($false,$true)))` のようにエンコーディングを明示して読み書きすること（さもないと文字化けで壊れる）
-- 自動テスト・Lint の仕組みは現時点で未整備です（テストフレームワークやテストプロジェクトは存在しません）。`CanSim/` は UI 非依存のプレーン C++ のため、`cl.exe` で直接（MFC 抜きで）コンパイル・リンクして検証することが可能です（`specs/001-can-simulation-core/tasks.md` の T018 実装メモ参照）。テストの仕組みを正式に追加した場合は、このファイルに実行コマンドを追記してください。
+- 正式なテストフレームワーク・テストプロジェクトは導入していません（`MFCApplication1.sln` にテストは含まれません）。代わりに、`CanSim/` が UI 非依存のプレーン C++ である性質を利用した検証ツールを `tools/cansim_runner/` に置いています。GUI を操作せずに成功基準（SC-001〜SC-006 ほか）を一括検証できます。
+
+```bat
+REM 「x64 Native Tools Command Prompt for VS 2022」等でリポジトリのルートから実行
+set OUT=%TEMP%\cansim_tools
+mkdir "%OUT%" 2>nul
+
+REM 検証ツールのビルド
+cl /nologo /std:c++14 /EHsc /I tools\cansim_runner /I MFCApplication1\CanSim ^
+   /Fo"%OUT%\\" /Fe"%OUT%\checks.exe" ^
+   tools\cansim_runner\checks.cpp MFCApplication1\CanSim\*.cpp
+
+REM 成功基準の一括検証（終了コード 0 で全パス）
+"%OUT%\checks.exe" MFCApplication1\CanSim\SampleConfigs "%OUT%"
+```
+
+  単発のシミュレーション実行には同ディレクトリの `runner.cpp` を同様にビルドして使います。詳細は [tools/cansim_runner/README.md](tools/cansim_runner/README.md) を参照してください。Lint の仕組みは未整備です。
 
 ## Spec Kit（SDD）ワークフロー
 
