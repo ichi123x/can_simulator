@@ -1,0 +1,341 @@
+// SimulationEngine.cpp
+#include "pch.h"
+#include "SimulationEngine.h"
+#include "Network.h"
+#include "FrameTiming.h"
+#include "StartupControl.h"
+
+#include <algorithm>
+
+namespace CanSim
+{
+    SimulationEngine::SimulationEngine(Network network, long long simDurationUs)
+        : m_network(std::move(network))
+        , m_simDurationNs(simDurationUs * 1000)
+    {
+    }
+
+    void SimulationEngine::Run(Logger& logger)
+    {
+        m_queue = EventQueue();
+        m_busBusy = false;
+        m_completedTxUs.clear();
+        m_bitTimeNs = m_network.BitRateBps > 0 ? (1000000000LL / m_network.BitRateBps) : 0;
+        m_recessiveRunStartNs = 0; // bus is idle from the start of the run
+
+        // FR-021: schedule the periodic requests and the end-of-simulation marker.
+        for (std::size_t i = 0; i < m_network.Nodes.size(); ++i)
+        {
+            Node& node = m_network.Nodes[i];
+
+            // 002 FR-002/FR-003: every node starts powered off and is woken at
+            // its configured power-on time.
+            node.Startup = StartupState::PoweredOff;
+            node.InitDoneUs = -1;
+            node.NormalEntryUs = -1;
+            node.SyncTargetNs = -1;
+
+            Event powerOn;
+            powerOn.TimeNs = node.PowerOnTimeUs * 1000;
+            powerOn.Kind = EventKind::PowerOn;
+            powerOn.NodeIndex = static_cast<int>(i);
+            m_queue.Push(powerOn);
+
+            for (std::size_t j = 0; j < node.Frames.size(); ++j)
+            {
+                Event e;
+                e.TimeNs = node.Frames[j].InitialOffsetUs * 1000;
+                e.Kind = EventKind::TxRequest;
+                e.NodeIndex = static_cast<int>(i);
+                e.FrameDefIndex = j;
+                m_queue.Push(e);
+            }
+        }
+
+        Event endEvent;
+        endEvent.TimeNs = m_simDurationNs;
+        endEvent.Kind = EventKind::SimulationEnd;
+        endEvent.NodeIndex = -1;
+        m_queue.Push(endEvent);
+
+        while (!m_queue.Empty())
+        {
+            Event e = m_queue.PopNext();
+            if (e.Kind == EventKind::SimulationEnd || e.TimeNs > m_simDurationNs)
+                break;
+
+            switch (e.Kind)
+            {
+            case EventKind::TxRequest:
+                HandleTxRequest(e);
+                break;
+            case EventKind::BusIdle:
+                HandleBusIdle(e);
+                break;
+            case EventKind::TxComplete:
+                HandleTxComplete(e, logger);
+                break;
+            case EventKind::IntermissionEnd:
+                HandleIntermissionEnd(e);
+                break;
+            case EventKind::PowerOn:
+                HandlePowerOn(e);
+                break;
+            case EventKind::InitDone:
+                HandleInitDone(e);
+                break;
+            case EventKind::SyncComplete:
+                HandleSyncComplete(e);
+                break;
+            default:
+                break; // RxProcess: value is computed inline in HandleTxComplete, no separate event needed yet.
+            }
+        }
+    }
+
+    void SimulationEngine::HandleTxRequest(const Event& e)
+    {
+        Node& node = m_network.Nodes[static_cast<std::size_t>(e.NodeIndex)];
+        EnqueueTxRequest(node, e.FrameDefIndex, e.TimeNs / 1000);
+
+        // Schedule the next period (FR-006), if it still falls within the run.
+        const long long nextNs = e.TimeNs + node.Frames[e.FrameDefIndex].PeriodUs * 1000;
+        if (nextNs <= m_simDurationNs)
+        {
+            Event next;
+            next.TimeNs = nextNs;
+            next.Kind = EventKind::TxRequest;
+            next.NodeIndex = e.NodeIndex;
+            next.FrameDefIndex = e.FrameDefIndex;
+            m_queue.Push(next);
+        }
+
+        if (!m_busBusy)
+        {
+            Event busIdle;
+            busIdle.TimeNs = e.TimeNs;
+            busIdle.Kind = EventKind::BusIdle;
+            busIdle.NodeIndex = -1;
+            m_queue.Push(busIdle);
+        }
+    }
+
+    void SimulationEngine::HandleBusIdle(const Event& e)
+    {
+        if (m_busBusy)
+            return;
+
+        ArbitrationResult r = RunArbitration(m_network);
+        if (!r.HasWinner)
+            return; // FR-012/014: nothing pending, bus stays idle.
+
+        const FrameDefinition& fd =
+            m_network.Nodes[static_cast<std::size_t>(r.WinnerNodeIndex)].Frames[r.WinnerFrameDefIndex];
+        const FrameTimingResult timing =
+            ComputeFrameTiming(fd.CanId, fd.Dlc, r.WinnerPending.CurrentData, m_network.BitRateBps);
+
+        const long long txStartNs = e.TimeNs;
+        const long long txEndNs = txStartNs + timing.TxDurationNs;
+
+        m_busBusy = true;
+        m_currentTx.NodeIndex = r.WinnerNodeIndex;
+        m_currentTx.FrameDefIndex = r.WinnerFrameDefIndex;
+        m_currentTx.Pending = r.WinnerPending;
+        m_currentTx.TxStartUs = txStartNs / 1000;
+        m_currentTx.TxEndUs = txEndNs / 1000;
+        m_currentTx.IntermissionNs = timing.IntermissionNs;
+
+        // 002: this transmission ends the current recessive run; the next one
+        // starts at its ACK delimiter (TxEnd - 8 bit times).
+        m_recessiveRunStartNs = ComputeRecessiveRunStartNs(txEndNs, timing.BitTimeNs);
+
+        // 002 FR-007: any node still counting recessive bits has just seen a
+        // dominant bit, so its count restarts. Reschedule it against the new
+        // recessive run; the event already queued becomes stale and is dropped
+        // by the SyncTargetNs check (research.md decision 2 - no queue
+        // cancellation mechanism).
+        for (std::size_t i = 0; i < m_network.Nodes.size(); ++i)
+        {
+            if (m_network.Nodes[i].Startup == StartupState::BusSyncDetecting)
+                ScheduleSyncComplete(i, e.TimeNs);
+        }
+
+        Event complete;
+        complete.TimeNs = txEndNs;
+        complete.Kind = EventKind::TxComplete;
+        complete.NodeIndex = r.WinnerNodeIndex;
+        m_queue.Push(complete);
+    }
+
+    void SimulationEngine::HandleTxComplete(const Event& e, Logger& logger)
+    {
+        const InFlight tx = m_currentTx;
+        const long long txEndUs = e.TimeNs / 1000;
+
+        m_completedTxUs.emplace_back(tx.TxStartUs, txEndUs);
+        const double busLoadPct = ComputeBusLoadPct(txEndUs);
+
+        const Node& txNode = m_network.Nodes[static_cast<std::size_t>(tx.NodeIndex)];
+        const FrameDefinition& fd = txNode.Frames[tx.FrameDefIndex];
+        const std::string status = (tx.Pending.RetryCount > 0) ? "ARBITRATION_LOST_RETRY" : "SUCCESS";
+
+        bool anyReceiver = false;
+        for (std::size_t i = 0; i < m_network.Nodes.size(); ++i)
+        {
+            if (static_cast<int>(i) == tx.NodeIndex)
+                continue;
+            const Node& rxNode = m_network.Nodes[i];
+            // 002 FR-009: only nodes that reached Normal receive frames.
+            if (rxNode.Startup != StartupState::Normal)
+                continue;
+            if (!NodeAcceptsCanId(rxNode, fd.CanId))
+                continue;
+
+            anyReceiver = true;
+            const long long rxProcessUs = txEndUs + rxNode.ReceiveDelayUs;
+
+            LogRow row;
+            row.TimestampUs = rxProcessUs; // FR-017: representative time = Rx process time
+            row.CanId = fd.CanId;
+            row.Dlc = fd.Dlc;
+            row.TxNodeId = txNode.NodeId;
+            row.RxNodeId = rxNode.NodeId;
+            row.TxRequestUs = tx.Pending.TxRequestUs;
+            row.TxStartUs = tx.TxStartUs;
+            row.TxEndUs = txEndUs;
+            row.RxStartUs = tx.TxStartUs;  // FR-041 equivalent: Rx start == Tx start
+            row.RxEndUs = txEndUs;         // Rx end == Tx end
+            row.RxProcessUs = rxProcessUs;
+            row.BusLoadPct = busLoadPct;
+            row.Status = status;
+            row.RetryCount = tx.Pending.RetryCount;
+            row.OverwriteCount = tx.Pending.OverwriteCount;
+            logger.AddRow(row);
+        }
+
+        if (!anyReceiver)
+        {
+            LogRow row;
+            row.TimestampUs = txEndUs; // FR-017: no receiver -> Tx end time
+            row.CanId = fd.CanId;
+            row.Dlc = fd.Dlc;
+            row.TxNodeId = txNode.NodeId;
+            row.RxNodeId = -1;
+            row.TxRequestUs = tx.Pending.TxRequestUs;
+            row.TxStartUs = tx.TxStartUs;
+            row.TxEndUs = txEndUs;
+            row.RxStartUs = 0;
+            row.RxEndUs = 0;
+            row.RxProcessUs = 0;
+            row.BusLoadPct = busLoadPct;
+            row.Status = status;
+            row.RetryCount = tx.Pending.RetryCount;
+            row.OverwriteCount = tx.Pending.OverwriteCount;
+            logger.AddRow(row);
+        }
+
+        Event intermissionEnd;
+        intermissionEnd.TimeNs = e.TimeNs + tx.IntermissionNs;
+        intermissionEnd.Kind = EventKind::IntermissionEnd;
+        intermissionEnd.NodeIndex = tx.NodeIndex;
+        m_queue.Push(intermissionEnd);
+    }
+
+    void SimulationEngine::HandleIntermissionEnd(const Event& e)
+    {
+        m_busBusy = false;
+
+        Event busIdle;
+        busIdle.TimeNs = e.TimeNs;
+        busIdle.Kind = EventKind::BusIdle;
+        busIdle.NodeIndex = -1;
+        m_queue.Push(busIdle);
+    }
+
+    void SimulationEngine::HandlePowerOn(const Event& e)
+    {
+        Node& node = m_network.Nodes[static_cast<std::size_t>(e.NodeIndex)];
+        if (node.Startup != StartupState::PoweredOff)
+            return;
+
+        node.Startup = StartupState::Initializing; // 002 FR-003
+
+        Event initDone;
+        initDone.TimeNs = e.TimeNs + node.InitDurationUs * 1000;
+        initDone.Kind = EventKind::InitDone;
+        initDone.NodeIndex = e.NodeIndex;
+        m_queue.Push(initDone);
+    }
+
+    void SimulationEngine::HandleInitDone(const Event& e)
+    {
+        Node& node = m_network.Nodes[static_cast<std::size_t>(e.NodeIndex)];
+        if (node.Startup != StartupState::Initializing)
+            return;
+
+        node.Startup = StartupState::BusSyncDetecting; // 002 FR-004
+        node.InitDoneUs = e.TimeNs / 1000;
+
+        ScheduleSyncComplete(static_cast<std::size_t>(e.NodeIndex), e.TimeNs);
+    }
+
+    void SimulationEngine::ScheduleSyncComplete(std::size_t nodeIndex, long long detectStartNs)
+    {
+        Node& node = m_network.Nodes[nodeIndex];
+        const long long target =
+            ComputeSyncCompleteNs(detectStartNs, m_recessiveRunStartNs, m_bitTimeNs);
+        node.SyncTargetNs = target;
+
+        Event sync;
+        sync.TimeNs = target;
+        sync.Kind = EventKind::SyncComplete;
+        sync.NodeIndex = static_cast<int>(nodeIndex);
+        m_queue.Push(sync);
+    }
+
+    void SimulationEngine::HandleSyncComplete(const Event& e)
+    {
+        Node& node = m_network.Nodes[static_cast<std::size_t>(e.NodeIndex)];
+
+        // 002 research.md decision 2: lazy invalidation. A stale event (the
+        // recessive run was interrupted and the node was rescheduled) is
+        // simply dropped.
+        if (node.Startup != StartupState::BusSyncDetecting || e.TimeNs != node.SyncTargetNs)
+            return;
+
+        node.Startup = StartupState::Normal; // 002 FR-005/FR-006
+        node.NormalEntryUs = e.TimeNs / 1000;
+        node.SyncTargetNs = -1;
+
+        // The node may already be holding requests that were queued while it
+        // was starting up (002 FR-010). Without this, a configuration whose
+        // requests all fired before the node became Normal would never see an
+        // arbitration trigger again.
+        if (!m_busBusy && !node.PendingFrames.empty())
+        {
+            Event busIdle;
+            busIdle.TimeNs = e.TimeNs;
+            busIdle.Kind = EventKind::BusIdle;
+            busIdle.NodeIndex = -1;
+            m_queue.Push(busIdle);
+        }
+    }
+
+    double SimulationEngine::ComputeBusLoadPct(long long atUs)
+    {
+        const long long windowStart = atUs - kBusLoadWindowUs;
+
+        while (!m_completedTxUs.empty() && m_completedTxUs.front().second <= windowStart)
+            m_completedTxUs.erase(m_completedTxUs.begin());
+
+        long long sum = 0;
+        for (const auto& p : m_completedTxUs)
+        {
+            const long long start = std::max(p.first, windowStart);
+            const long long end = std::min(p.second, atUs);
+            if (end > start)
+                sum += (end - start);
+        }
+        return (static_cast<double>(sum) / static_cast<double>(kBusLoadWindowUs)) * 100.0;
+    }
+}

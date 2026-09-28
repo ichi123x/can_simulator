@@ -4,6 +4,10 @@
 #define VC_EXTRALEAN            // Windows ヘッダーから使用されていない部分を除外します。
 #endif
 
+#ifndef NOMINMAX
+#define NOMINMAX                 // std::min/std::max と衝突する min/max マクロを無効化します。
+#endif
+
 #include "targetver.h"
 
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS      // 一部の CString コンストラクターは明示的です。
