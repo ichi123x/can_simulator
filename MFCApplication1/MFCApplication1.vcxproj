@@ -189,6 +189,15 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="CanSim\CanTypes.h" />
+    <ClInclude Include="CanSim\EventQueue.h" />
+    <ClInclude Include="CanSim\FrameTiming.h" />
+    <ClInclude Include="CanSim\ConfigLoader.h" />
+    <ClInclude Include="CanSim\Network.h" />
+    <ClInclude Include="CanSim\SimulationEngine.h" />
+    <ClInclude Include="CanSim\Logger.h" />
+    <ClInclude Include="CanSim\MetricsAggregator.h" />
+    <ClInclude Include="CanSim\StartupControl.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MFCApplication1.cpp" />
@@ -199,12 +208,22 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="CanSim\EventQueue.cpp" />
+    <ClCompile Include="CanSim\FrameTiming.cpp" />
+    <ClCompile Include="CanSim\ConfigLoader.cpp" />
+    <ClCompile Include="CanSim\Network.cpp" />
+    <ClCompile Include="CanSim\SimulationEngine.cpp" />
+    <ClCompile Include="CanSim\Logger.cpp" />
+    <ClCompile Include="CanSim\MetricsAggregator.cpp" />
+    <ClCompile Include="CanSim\StartupControl.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MFCApplication1.rc" />
   </ItemGroup>
   <ItemGroup>
     <None Include="res\MFCApplication1.rc2" />
+    <None Include="CanSim\SampleConfigs\sample_appendix_a.cfg" />
+    <None Include="CanSim\SampleConfigs\sample_collision.cfg" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\MFCApplication1.ico" />

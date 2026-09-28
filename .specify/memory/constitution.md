@@ -1,50 +1,153 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+Version change: 1.0.0 → 1.1.0
+Modified principles: none (existing I–V unchanged)
+Added sections:
+  - VI. CAN バスドメイン仕様準拠 (Core Principles)
+  - CAN バスシミュレータ ドメイン仕様 (new top-level section: 参照資料 / スコープ境界)
+Removed sections: none
+Rationale for MINOR bump: Doc/CANバスシミュレータ仕様.md の仕様ポイント①〜⑤とスコープ境界を、
+今後のすべての機能仕様 (spec.md) を拘束する原則として新規追加したため（既存原則の破壊的変更なし）。
+Follow-up TODOs: none — 詳細な機能要件 (FR-xxx) は Doc/CANバスシミュレータ仕様.md 本体、および
+今後 /speckit.specify で作成される各機能の spec.md 側で管理し、本憲章には転記しない。
+-->
+
+# CAN Simulator (MFCApplication1) Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Spec Kit ワークフロー準拠
+機能追加や仕様変更は、思いつきでの実装を避け、必ず Spec Kit のワークフロー
+（`/speckit.specify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement`、
+必要に応じて `/speckit.clarify` / `/speckit.analyze` / `/speckit.converge` を併用）に沿って
+進めなければならない (MUST)。要求は `spec.md`、設計は `plan.md`、作業分解は `tasks.md` として
+`specs/<NNN>-<機能名>/` に明文化してから着手する。
+Rationale: 本リポジトリは Spec Kit (SDD) を導入済みであり、CLAUDE.md がこのワークフローを
+開発の前提として明記している。仕様策定を経ずに実装すると、仕様と実装の乖離や手戻りが生じる。
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. MFC/C++ ネイティブプラットフォーム規約の遵守
+Visual Studio 2022 (`PlatformToolset` v143) を前提とし、`Win32` / `x64` の両プラットフォーム、
+`Debug` / `Release` の両構成で常にビルド可能な状態を維持しなければならない (MUST)。文字セットは
+Unicode、MFC の使用方法は動的リンク (`UseOfMfc=Dynamic`) を用いる。プロジェクト設定
+(`.vcxproj`) と矛盾する変更を行う場合は、設定ファイル自体を明示的に更新する。
+Rationale: 既存のプロジェクト設定がこれらを前提にしており、逸脱するとビルド不能または未定義動作
+を招く。
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. テスト可能性の段階的確保
+現時点で自動テストの仕組みは存在しないが、CAN フレームの送受信・解析などのビジネスロジックを
+追加する際は、MFC ダイアログクラス (`CMFCApplication1Dlg`) の UI ハンドラに直接ロジックを
+埋め込むのではなく、UI から分離可能な形で実装しなければならない (MUST)。テストフレームワーク
+またはテストプロジェクトを導入した場合は、実行コマンドを CLAUDE.md に追記しなければならない
+(MUST)。
+Rationale: ダイアログイベントハンドラに直接ロジックを書くと、後からテストを導入する際の分離
+コストが高くなる。今のうちに分離を原則化することで、将来のテスト導入を妨げない。
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. シンプルさ優先 (YAGNI)
+現在のダイアログベースアーキテクチャ（単一ダイアログ `IDD_MFCAPPLICATION1_DIALOG` が UI そのもの）
+を維持し、Document/View アーキテクチャへの移行など、必要性が具体的に生じていない抽象化・
+再設計を導入してはならない (MUST NOT)。CAN シミュレータ機能は、そのときに必要な範囲で
+最小限の変更として追加する。
+Rationale: 現状はウィザード生成の雛形のみであり、将来の要件を先取りした複雑化はメンテナンス
+コストを増大させ、Spec Kit の「必要になってから作る」という進め方とも矛盾する。
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. ドキュメントとの同期
+アーキテクチャ、ビルド手順、テスト方法に実質的な変更が生じた場合は、その変更と同じ作業の中で
+CLAUDE.md を更新しなければならない (MUST)。Spec Kit の成果物 (`spec.md` / `plan.md` /
+`tasks.md` など) は、対応する機能ブランチ・`specs/<NNN>-<機能名>/` ディレクトリと一致した
+状態を保つ。
+Rationale: CLAUDE.md は Claude Code がこのプロジェクトを理解するための一次情報源であり、
+実態との乖離は誤った支援や手戻りに直結する。
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### VI. CAN バスドメイン仕様準拠
+`Doc/CANバスシミュレータ仕様.md` に記録された次の仕様ポイントは、個別機能の `spec.md` や
+実装がこれを覆してはならない、プロジェクト全体を拘束する決定事項である (MUST)。これらを変更
+する場合は、当該ドキュメントの改定に加えて本憲章の改定 (`/speckit.constitution`) を伴わなければ
+ならない (MUST)。
+- **[P①]** プロトコルは CAN 2.0A 標準フォーマット（11ビットID）に準拠する。拡張フォーマット
+  （29ビットID）・CAN FD・リモートフレーム・オーバーロードフレームは初期版のスコープ外とする。
+- **[P②]** ノードの状態遷移は、スタートアップ制御・メッセージ送信制御（送信・調停）・エラー
+  状態制御の3系統で構成する。エラー状態制御は初期版では枠（入口・状態遷移の型）のみ用意し、
+  実際のエラー発生・遷移は実装しない。
+- **[P③]** シミュレーション方式はイベント駆動型（Discrete Event Simulation）とし、イベントは
+  ビット単位ではなくフレーム単位で発生させる。同一時刻のイベントは定められた順序（FR-013）と
+  ノード番号順で決定的に処理し、同一構成からは常に同一結果を得る（再現性）。
+- **[P④]** 通信仕様とログ仕様は `Doc/CANバスシミュレータ仕様.md` が参照する「CAN通信 性能評価・
+  ログ設計仕様書」に従う。電気的な物理層（差動電圧・終端抵抗・伝搬遅延・ビットタイミング・
+  クロック誤差）は模擬せず、全ノードが理想的に同期しているものとみなす。
+- **[P⑤]** 接続ノード数は最大16とし、17ノード以上の構成は読み込み時に拒否する。
+Rationale: これらはI.Hが確定させた仕様ポイントであり、CAN シミュレータとしての本質的な
+振る舞い（何を模擬し、何を模擬しないか）を定義する。原則として明文化しておくことで、個別機能の
+実装や `spec.md` 作成の際に、スコープを逸脱した設計判断（例: CAN FD 対応やビット単位の物理層
+シミュレーション）が紛れ込むことを防ぐ。
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+## CAN バスシミュレータ ドメイン仕様
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+`Doc/CANバスシミュレータ仕様.md`（状態: Draft v1.0、2026-09-28）が、CAN シミュレータ機能の
+ドメイン仕様における一次情報源である。同ドキュメントは「プロジェクト全体の仕様であり、本憲章と
+各機能の `spec.md`（`/speckit.specify` で作成）の参照元とする」ことを明記しており、個別機能の
+詳細な機能要件（FR-xxx）・ユーザーシナリオ・成功基準・未決事項は同ドキュメントおよび今後作成
+される各 `spec.md` 側で管理する（本憲章には転記しない）。
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### 参照資料
+機能実装・仕様策定にあたっては、次の資料を一次情報源として参照する。
+
+| 略称 | 資料 | リポジトリ内の場所 |
+|---|---|---|
+| [図] | CANバスイメージ図（ECU 6台、CAN BUS 500 kbps、両端120Ω終端） | `Doc/references/CANバスイメージ図.jpg` |
+| [Bosch] | Bosch CAN Specification 2.0 Part A | `Doc/references/Bosch_CAN20A.pdf` |
+| [入門] | ベクター・ジャパン「はじめてのCAN/CAN FD」 | `Doc/references/For_Beginners_CAN_CANFD.pdf` |
+| [状態遷移] | CANプロトコル状態遷移（送信・調停／スタートアップ／エラー状態） | `Doc/references/CANプロトコル状態遷移.pdf` |
+| [性能・ログ] | CAN通信 性能評価・ログ設計仕様書 | `Doc/references/CAN通信 性能評価・ログ設計仕様書.pdf` |
+
+### スコープ境界（初期版）
+`Doc/CANバスシミュレータ仕様.md` §1.3 に基づき、初期版のスコープを次のとおり定める。個別機能の
+`spec.md` はこの境界の中で詳細化するものとし、境界を拡張する場合は本憲章の改定を伴う (MUST)。
+
+| 区分 | 対象 |
+|---|---|
+| 対象（初期版） | CAN 2.0A 標準フォーマットのデータフレーム、ID による調停、自動再送信、スタートアップ制御、ビットスタッフィングを含む伝送時間の計算、[性能・ログ] 形式のログ、評価指標の算出 |
+| 枠だけ用意（中身は初期版では搭載しない） | エラー状態制御（エラーアクティブ／パッシブ／バスオフ、TEC/REC）、エラー発生の入口 |
+| 対象外（初期版） | 拡張フォーマット（29ビットID）、CAN FD、リモートフレーム、オーバーロードフレーム、物理層、実機との接続 |
+
+## 技術スタック制約
+
+- 言語・フレームワーク: ネイティブ C++ / MFC（.NET や他の GUI フレームワークへの置き換えは
+  本憲章の改定なしに行わない）。
+- 対象 OS: Windows のみを前提とする。クロスプラットフォーム対応は現時点でスコープ外。
+- ビルドツール: Visual Studio または `MSBuild`（コマンド例は CLAUDE.md 参照）。CI/Lint の
+  仕組みは未整備であり、導入した場合は CLAUDE.md にコマンドを追記する。
+- リソース変更（ダイアログレイアウト、アイコン、文字列テーブル等）は Visual Studio の
+  リソースエディタまたは `.rc` ファイルの直接編集で行う。
+
+## 開発ワークフロー
+
+- 新機能は Spec Kit のスラッシュコマンド群（Core Principles I 参照）を経て実装する。
+- `.specify/memory/constitution.md` は本ファイルであり、`.specify/templates/` 以下の
+  テンプレートやコアスクリプトは Spec Kit ツール本体として扱い、機能実装作業では変更しない。
+- 実装が完了した機能について、仕様に対する未完了作業がないかを `/speckit.converge` で
+  確認することを推奨する（任意）。
+- コードレビュー・品質チェックの仕組み（Lint/CI 等）を追加する場合は、本憲章および
+  CLAUDE.md の両方を更新する。
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+本憲章はプロジェクトにおける他の慣行・判断に優先する (Constitution supersedes all other
+practices)。Spec Kit のテンプレートやコマンドはこの憲章を実行時に参照するが、本憲章自体は
+`/speckit.constitution` コマンドを通じてのみ改定する。
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+- **改定手続き**: 改定は `/speckit.constitution` コマンドで行い、変更内容を Sync Impact
+  Report（本ファイル冒頭のコメント）に記録する。
+- **バージョニング方針**: セマンティックバージョニングに従う。
+  - MAJOR: 原則の後方互換性のない削除・再定義。
+  - MINOR: 新しい原則やセクションの追加、既存ガイダンスの実質的拡張。
+  - PATCH: 文言修正・明確化など非意味的な変更。
+- **コンプライアンスレビュー**: `/speckit.plan` の Constitution Check、および `/speckit.analyze`
+  によるクロスアーティファクト整合性チェックの際に、本憲章との整合性を確認する。矛盾する
+  複雑さの導入は、代替案がない理由を `plan.md` 等に明記して正当化しなければならない (MUST)。
+- **ドメイン仕様の位置付け**: `Doc/CANバスシミュレータ仕様.md` は本憲章および各機能 `spec.md`
+  のドメイン知識の一次情報源として扱う。同ドキュメントの仕様ポイント①〜⑤・スコープ境界を
+  変更する場合は、同ドキュメントの改定に加えて本憲章の改定を伴わなければならない (MUST)。
+  FR-xxx 単位の詳細要件・未決事項 (Q-1〜) は `/speckit.specify` を通じて各機能の `spec.md` に
+  引き継ぐ。
+
+**Version**: 1.1.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-28

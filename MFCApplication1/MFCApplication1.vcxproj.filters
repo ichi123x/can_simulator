@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="CanSim">
+      <UniqueIdentifier>{2E4B6B0A-6A2E-4B7B-9C7B-1A6E9D8F3C11}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MFCApplication1.h">
@@ -33,6 +36,33 @@
     <ClInclude Include="pch.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="CanSim\CanTypes.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\EventQueue.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\FrameTiming.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\ConfigLoader.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\Network.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\SimulationEngine.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\Logger.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\MetricsAggregator.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\StartupControl.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MFCApplication1.cpp">
@@ -44,6 +74,30 @@
     <ClCompile Include="pch.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="CanSim\EventQueue.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\FrameTiming.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\ConfigLoader.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\Network.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\SimulationEngine.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\Logger.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\MetricsAggregator.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\StartupControl.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MFCApplication1.rc">
@@ -53,6 +107,12 @@
   <ItemGroup>
     <None Include="res\MFCApplication1.rc2">
       <Filter>リソース ファイル</Filter>
+    </None>
+    <None Include="CanSim\SampleConfigs\sample_appendix_a.cfg">
+      <Filter>CanSim</Filter>
+    </None>
+    <None Include="CanSim\SampleConfigs\sample_collision.cfg">
+      <Filter>CanSim</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
