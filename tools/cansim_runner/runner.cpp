@@ -1,13 +1,16 @@
 // runner.cpp (tools/cansim_runner)
-// Runs one simulation exactly the way MFCApplication1Dlg does, but from the
-// command line and without MFC.
+// Runs one simulation exactly the way MFCApplication1Dlg does ("Simulation >
+// Start"), but from the command line and without MFC.
 //
-//   runner.exe <config path> <duration seconds> <output prefix>
+//   runner.exe <project path (.canprj)> <output prefix> [duration seconds]
 //
-// writes <output prefix>.log.csv, .summary.csv and .startup.csv.
+// The duration defaults to the project's DurationSec. The simulated network
+// is built from the project's EcuCount (feature 004 FR-011).
+// Writes <output prefix>.log.csv, .summary.csv and .startup.csv.
 
 #include "pch.h"
 #include "ConfigLoader.h"
+#include "ProjectFile.h"
 #include "SimulationEngine.h"
 #include "Logger.h"
 #include "MetricsAggregator.h"
@@ -25,32 +28,33 @@ static std::wstring Widen(const std::string& s)
 
 int main(int argc, char** argv)
 {
-    if (argc < 4)
+    if (argc < 3)
     {
-        std::cout << "usage: runner.exe <config path> <duration seconds> <output prefix>\n";
+        std::cout << "usage: runner.exe <project path (.canprj)> <output prefix> [duration seconds]\n";
         return 2;
     }
 
-    const std::wstring configPath = Widen(argv[1]);
-    const long long seconds = std::stoll(argv[2]);
-    const std::wstring prefix = Widen(argv[3]);
+    const std::wstring projectPath = Widen(argv[1]);
+    const std::wstring prefix = Widen(argv[2]);
 
-    ConfigLoadResult cfg = LoadConfig(configPath);
-    if (!cfg.Success)
+    ConfigLoadResult project = LoadConfig(projectPath);
+    if (!project.Success)
     {
-        std::cout << "CONFIG ERROR: " << cfg.ErrorMessage << "\n";
+        std::cout << "PROJECT ERROR: " << project.ErrorMessage << "\n";
         return 1;
     }
+    const long long seconds = (argc >= 4) ? std::stoll(argv[3]) : project.Project.DurationSec;
 
-    SimulationEngine engine(cfg.Config, seconds * 1000000LL);
+    const Network network = BuildRunNetwork(project.Project, project.Config);
+    SimulationEngine engine(network, seconds * 1000000LL);
     Logger logger;
     engine.Run(logger);
 
     logger.WriteCsv(prefix + L".log.csv");
-    WriteMetricsCsv(ComputeMetrics(logger.Rows(), cfg.Config), prefix + L".summary.csv");
+    WriteMetricsCsv(ComputeMetrics(logger.Rows(), network), prefix + L".summary.csv");
     WriteStartupCsv(BuildStartupRecords(engine.GetNetwork()), prefix + L".startup.csv");
 
     std::cout << "rows=" << logger.Rows().size()
-              << " nodes=" << cfg.Config.Nodes.size() << "\n";
+              << " ecus=" << network.Nodes.size() << "\n";
     return 0;
 }

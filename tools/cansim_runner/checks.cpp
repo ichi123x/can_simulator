@@ -14,6 +14,9 @@
 #include "MetricsAggregator.h"
 #include "StartupControl.h"
 #include "FrameTiming.h"
+#include "BusDiagramLayout.h"
+#include "ProjectFile.h"
+#include "FrameEvents.h"
 
 #include <algorithm>
 #include <fstream>
@@ -120,17 +123,17 @@ namespace
     void CheckFeature001()
     {
         std::cout << "\n== feature 001: CAN simulation core ==\n";
-        const std::string cfgPath = Join(g_sampleDir, "sample_appendix_a.cfg");
+        const std::string cfgPath = Join(g_sampleDir, "sample_appendix_a.canprj");
         const long long tenSeconds = 10 * 1000000LL;
 
         RunResult run1 = RunConfigFile(cfgPath, tenSeconds);
-        Check(run1.Loaded, "sample_appendix_a.cfg loads");
+        Check(run1.Loaded, "sample_appendix_a.canprj loads");
         if (!run1.Loaded)
         {
             std::cout << "  error: " << run1.Error << "\n";
             return;
         }
-        Check(run1.Config.Nodes.size() == 6, "sample_appendix_a.cfg has 6 nodes");
+        Check(run1.Config.Nodes.size() == 6, "sample_appendix_a.canprj has 6 nodes");
         Check(!run1.Rows.empty(), "US1 AS#1: the run produces log rows");
 
         // SC-001 reproducibility
@@ -236,11 +239,11 @@ namespace
     void CheckFeature002()
     {
         std::cout << "\n== feature 002: node startup control ==\n";
-        const std::string startupCfg = Join(g_sampleDir, "sample_startup.cfg");
+        const std::string startupCfg = Join(g_sampleDir, "sample_startup.canprj");
 
         // SC-001 / SC-003: power-on + init + 11 bit times (22 us at 500 kbps)
         RunResult run = RunConfigFile(startupCfg, 1000000LL);
-        Check(run.Loaded, "sample_startup.cfg loads");
+        Check(run.Loaded, "sample_startup.canprj loads");
         if (!run.Loaded)
         {
             std::cout << "  error: " << run.Error << "\n";
@@ -335,9 +338,9 @@ namespace
 
         // SC-004 / FR-007: joining a bus that is already busy
         {
-            const std::string path = Join(g_sampleDir, "sample_startup_latejoin.cfg");
+            const std::string path = Join(g_sampleDir, "sample_startup_latejoin.canprj");
             RunResult lj = RunConfigFile(path, 1000000LL);
-            Check(lj.Loaded, "sample_startup_latejoin.cfg loads");
+            Check(lj.Loaded, "sample_startup_latejoin.canprj loads");
             if (lj.Loaded)
             {
                 const Node* a = FindNode(lj.EndState, 1);
@@ -387,20 +390,316 @@ namespace
                 "FR-011: 5 periods elapse while node 6 waits for startup, so Overwrite_Count is 5");
         }
     }
+    // ---- feature 003: bus diagram layout ----
+    bool InsideDiagram(const DiagramRect& r)
+    {
+        return r.Left >= 0 && r.Top >= 0 && r.Right <= kDiagramWidth && r.Bottom <= kDiagramHeight;
+    }
+
+    void CheckFeature003()
+    {
+        std::cout << "\n== feature 003: bus diagram layout ==\n";
+
+        const int counts[] = { 0, 1, 6, 16 };
+        bool countsOk = true;
+        for (int n : counts)
+            countsOk = countsOk && ComputeBusDiagramLayout(n).Ecus.size() == static_cast<std::size_t>(n);
+        Check(countsOk, "003 SC-002: ECU count 0/1/6/16 matches the number of placed ECUs");
+
+        const BusDiagramLayout full = ComputeBusDiagramLayout(16);
+        bool sideOk = true, pitchOk = true, insideOk = InsideDiagram(full.BusLine), clearOk = true;
+        for (std::size_t i = 0; i < full.Ecus.size(); ++i)
+        {
+            const EcuPlacement& e = full.Ecus[i];
+            sideOk = sideOk && e.Number == static_cast<int>(i) + 1 && e.OnTop == (e.Number % 2 == 1) &&
+                     (e.OnTop ? e.Box.Bottom <= full.BusLine.Top : e.Box.Top >= full.BusLine.Bottom);
+            if (i > 0)
+                pitchOk = pitchOk && e.LineX - full.Ecus[i - 1].LineX == kEcuPitch;
+            insideOk = insideOk && InsideDiagram(e.Box);
+            clearOk = clearOk && e.LineX > kCaptionRight;
+        }
+        Check(sideOk, "003 FR-005: odd ECUs above the bus, even ECUs below, in number order");
+        Check(pitchOk, "003 FR-009: ECU center pitch is a constant 56 px");
+        Check(full.Ecus.front().LineX == 150 && full.Ecus.back().LineX == 990,
+            "003 FR-011: ECU 01 stub at x=150 and ECU 16 stub at x=990 (140 px margin at both bus ends)");
+        Check(full.Ecus.front().LineX - full.BusLine.Left == full.BusLine.Right - full.Ecus.back().LineX,
+            "003 FR-011: the bus margin is symmetric");
+        Check(clearOk, "003 SC-006: every stub line is right of the CAN BUS caption (x > 118)");
+        Check(insideOk, "003 SC-001: bus and all 16 ECU boxes fit inside the 1140x216 diagram");
+
+        bool stableOk = true;
+        for (int n = 1; n <= 16; ++n)
+        {
+            const BusDiagramLayout part = ComputeBusDiagramLayout(n);
+            for (std::size_t i = 0; i < part.Ecus.size(); ++i)
+            {
+                const EcuPlacement& a = part.Ecus[i];
+                const EcuPlacement& b = full.Ecus[i];
+                stableOk = stableOk && a.LineX == b.LineX && a.Box.Left == b.Box.Left &&
+                           a.Box.Top == b.Box.Top && a.OnTop == b.OnTop;
+            }
+        }
+        Check(stableOk, "003 FR-009: ECU n keeps its position whatever the ECU count is");
+
+        Check(ComputeBusDiagramLayout(-1).Ecus.empty() && ComputeBusDiagramLayout(17).Ecus.size() == 16,
+            "003: ECU count is clamped to 0..16 (-1 -> 0, 17 -> 16)");
+    }
+
+    // ---- feature 004: .canprj project, run network, frame events ----
+    std::string g_baselineDir; // optional: CSVs produced before feature 004 (SC-009)
+
+    std::string ReadTextFile(const std::string& path)
+    {
+        std::ifstream f(path.c_str(), std::ios::binary);
+        std::ostringstream buf;
+        buf << f.rdbuf();
+        return buf.str();
+    }
+
+    // Runs a project the way the dialog does (Simulation > Start) and writes
+    // the three CSVs to <prefix>.log.csv / .summary.csv / .startup.csv.
+    bool RunProjectToCsv(const std::string& projectPath, const std::string& prefix,
+        long long durationUs, std::vector<LogRow>* rowsOut = nullptr)
+    {
+        ConfigLoadResult project = LoadConfig(Widen(projectPath));
+        if (!project.Success)
+            return false;
+        const Network network = BuildRunNetwork(project.Project, project.Config);
+        SimulationEngine engine(network, durationUs);
+        Logger logger;
+        engine.Run(logger);
+        const std::wstring p = Widen(prefix);
+        const bool ok = logger.WriteCsv(p + L".log.csv") &&
+            WriteMetricsCsv(ComputeMetrics(logger.Rows(), network), p + L".summary.csv") &&
+            WriteStartupCsv(BuildStartupRecords(engine.GetNetwork()), p + L".startup.csv");
+        if (rowsOut)
+            *rowsOut = logger.Rows();
+        return ok;
+    }
+
+    // Drops the lines of a startup CSV that start with "<nodeId>,".
+    std::string DropStartupRow(const std::string& csv, int nodeId)
+    {
+        std::istringstream in(csv);
+        std::string line, out;
+        const std::string prefix = std::to_string(nodeId) + ",";
+        while (std::getline(in, line))
+        {
+            if (line.compare(0, prefix.size(), prefix) == 0)
+                continue;
+            out += line + "\n";
+        }
+        return out;
+    }
+
+    ConfigLoadResult LoadText(const std::string& name, const std::string& text)
+    {
+        const std::string path = Join(g_tempDir, name);
+        WriteTextFile(path, text);
+        return LoadConfig(Widen(path));
+    }
+
+    void CheckFeature004()
+    {
+        std::cout << "\n== feature 004: project file / run network / frame events ==\n";
+
+        // Defaults and validation of [Project] (FR-005, FR-006, FR-010)
+        {
+            ConfigLoadResult r = LoadText("p_default.canprj", "[Network]\r\nBitRateBps=250000\r\n");
+            Check(r.Success && r.Project.EcuCount == 2 && r.Project.DurationSec == 10 &&
+                      !r.Project.FrameDisplay && r.Config.Nodes.empty() && r.Config.BitRateBps == 250000,
+                "004 FR-006: [Project] defaults are EcuCount=2, DurationSec=10, FrameDisplay=0; zero nodes allowed");
+
+            const char* bad[] = { "EcuCount=17", "EcuCount=-1", "DurationSec=0", "DurationSec=601",
+                                  "FrameDisplay=2", "EcuCount=abc" };
+            bool allRejected = true;
+            for (const char* kv : bad)
+            {
+                ConfigLoadResult b = LoadText("p_bad.canprj", std::string("[Project]\r\n") + kv + "\r\n");
+                allRejected = allRejected && !b.Success && b.ErrorMessage.find("[Project]") != std::string::npos;
+            }
+            Check(allRejected, "004 FR-010: out-of-range [Project] values are rejected with a reason");
+
+            ConfigLoadResult edge = LoadText("p_edge.canprj",
+                "[Project]\r\nEcuCount=16\r\nDurationSec=600\r\nFrameDisplay=1\r\n");
+            Check(edge.Success && edge.Project.EcuCount == 16 && edge.Project.DurationSec == 600 &&
+                      edge.Project.FrameDisplay,
+                "004 FR-005: boundary values EcuCount=16, DurationSec=600, FrameDisplay=1 are accepted");
+        }
+
+        // Save -> reload round trip (SC-003)
+        {
+            ConfigLoadResult src = LoadConfig(Widen(Join(g_sampleDir, "sample_collision.canprj")));
+            ProjectSettings s;
+            s.EcuCount = 5;
+            s.DurationSec = 20;
+            s.FrameDisplay = true;
+            src.Config.BitRateBps = 250000;
+            const std::string path = Join(g_tempDir, "roundtrip.canprj");
+            const bool saved = SaveProject(Widen(path), s, src.Config);
+            ConfigLoadResult back = LoadConfig(Widen(path));
+            bool same = saved && back.Success && back.Project.EcuCount == 5 && back.Project.DurationSec == 20 &&
+                        back.Project.FrameDisplay && back.Config.BitRateBps == 250000 &&
+                        back.Config.Nodes.size() == src.Config.Nodes.size();
+            for (std::size_t i = 0; same && i < src.Config.Nodes.size(); ++i)
+            {
+                const Node& a = src.Config.Nodes[i];
+                const Node& b = back.Config.Nodes[i];
+                same = a.NodeId == b.NodeId && a.Name == b.Name && a.RxFilterAll == b.RxFilterAll &&
+                       a.RxFilter == b.RxFilter && a.ReceiveDelayUs == b.ReceiveDelayUs &&
+                       a.PowerOnTimeUs == b.PowerOnTimeUs && a.InitDurationUs == b.InitDurationUs &&
+                       a.Frames.size() == b.Frames.size();
+                for (std::size_t f = 0; same && f < a.Frames.size(); ++f)
+                    same = a.Frames[f].CanId == b.Frames[f].CanId && a.Frames[f].Dlc == b.Frames[f].Dlc &&
+                           a.Frames[f].Data == b.Frames[f].Data && a.Frames[f].PeriodUs == b.Frames[f].PeriodUs &&
+                           a.Frames[f].InitialOffsetUs == b.Frames[f].InitialOffsetUs;
+            }
+            Check(same, "004 SC-003: save then reload restores the 4 settings and every node/frame definition");
+        }
+
+        // BuildRunNetwork (FR-011)
+        {
+            ConfigLoadResult src = LoadConfig(Widen(Join(g_sampleDir, "sample_collision.canprj")));
+            ProjectSettings s = src.Project;
+
+            s.EcuCount = 5;
+            Network up = BuildRunNetwork(s, src.Config);
+            bool upOk = up.Nodes.size() == 5 && up.BitRateBps == src.Config.BitRateBps;
+            for (int n = 1; upOk && n <= 5; ++n)
+                upOk = up.Nodes[n - 1].NodeId == n;
+            upOk = upOk && up.Nodes[3].Frames.empty() && up.Nodes[3].Name == "ECU4" && up.Nodes[2].Frames.size() == 1;
+            Check(upOk, "004 FR-011: ECUs without a definition are added (no frames), numbered 1..EcuCount");
+
+            s.EcuCount = 2;
+            Network down = BuildRunNetwork(s, src.Config);
+            Check(down.Nodes.size() == 2 && FindNode(down, 3) == nullptr,
+                "004 FR-011: definitions above EcuCount (ECU 3) are not simulated");
+
+            s.EcuCount = 0;
+            Check(BuildRunNetwork(s, src.Config).Nodes.empty(), "004 FR-011: EcuCount=0 gives an empty network");
+        }
+
+        // Runs with no ECU / no frames produce header-only CSVs (US3 AS5)
+        {
+            ConfigLoadResult empty = LoadText("p_zero.canprj", "[Project]\r\nEcuCount=0\r\n");
+            ConfigLoadResult noFrames = LoadText("p_noframes.canprj", "[Project]\r\nEcuCount=2\r\n");
+            bool ok = empty.Success && noFrames.Success;
+            std::vector<LogRow> rows0, rows2;
+            ok = ok && RunProjectToCsv(Join(g_tempDir, "p_zero.canprj"), Join(g_tempDir, "p_zero"), 1000000LL, &rows0);
+            ok = ok && RunProjectToCsv(Join(g_tempDir, "p_noframes.canprj"), Join(g_tempDir, "p_noframes"), 1000000LL, &rows2);
+            ok = ok && rows0.empty() && rows2.empty() &&
+                 !ReadTextFile(Join(g_tempDir, "p_zero.log.csv")).empty() &&
+                 !ReadTextFile(Join(g_tempDir, "p_noframes.summary.csv")).empty();
+            Check(ok, "004 US3 AS5: ECU count 0 and ECUs without frames run and write header-only CSVs");
+        }
+
+        // BuildFrameEvents (data-model.md)
+        {
+            std::vector<LogRow> rows;
+            ConfigLoadResult a = LoadConfig(Widen(Join(g_sampleDir, "sample_appendix_a.canprj")));
+            SimulationEngine engine(BuildRunNetwork(a.Project, a.Config), 100000LL);
+            Logger logger;
+            engine.Run(logger);
+            rows = logger.Rows();
+            const std::vector<FrameEvent> events = BuildFrameEvents(rows);
+
+            std::size_t rxTotal = 0;
+            bool sorted = true, noSelf = true;
+            for (std::size_t i = 0; i < events.size(); ++i)
+            {
+                for (int rx : events[i].RxNodeIds)
+                {
+                    ++rxTotal;
+                    noSelf = noSelf && rx != events[i].TxNodeId;
+                }
+                if (i > 0)
+                    sorted = sorted && events[i - 1].TxStartUs <= events[i].TxStartUs;
+            }
+            std::size_t rowsWithRx = 0;
+            for (const LogRow& r : rows)
+                if (r.RxNodeId != -1)
+                    ++rowsWithRx;
+            Check(!events.empty() && events.size() < rows.size() && rxTotal == rowsWithRx && sorted && noSelf,
+                "004: BuildFrameEvents merges rows per frame, keeps every receiver and sorts by Tx_Start");
+
+            std::vector<LogRow> single(1);
+            single[0].TxNodeId = 1;
+            single[0].RxNodeId = -1;
+            single[0].TxStartUs = 5;
+            const std::vector<FrameEvent> one = BuildFrameEvents(single);
+            Check(one.size() == 1 && one[0].RxNodeIds.empty(),
+                "004: a frame without receivers becomes an event with no receiver");
+
+            // Stop at the start of event k (FR-018 / SC-008): re-running up to
+            // t = Tx_Start keeps exactly the frames completed by t.
+            const std::size_t k = events.size() / 2;
+            const long long t = events[k].TxStartUs;
+            SimulationEngine stopEngine(BuildRunNetwork(a.Project, a.Config), t);
+            Logger stopLogger;
+            stopEngine.Run(stopLogger);
+            bool completedOnly = true;
+            std::size_t expected = 0;
+            for (const LogRow& r : rows)
+                if (r.TxEndUs <= t)
+                    ++expected;
+            for (const LogRow& r : stopLogger.Rows())
+                completedOnly = completedOnly && r.TxEndUs <= t;
+            std::cout << "  stop at t=" << t << " us: rows=" << stopLogger.Rows().size()
+                      << " expected=" << expected << "\n";
+            Check(completedOnly && stopLogger.Rows().size() == expected,
+                "004 SC-008: stopping at t keeps exactly the frames whose transmission completed by t");
+        }
+
+        // SC-009: migrated samples give the same results as before feature 004
+        if (!g_baselineDir.empty())
+        {
+            const char* samples[] = { "sample_appendix_a", "sample_collision", "sample_startup",
+                                      "sample_startup_latejoin" };
+            for (const char* name : samples)
+            {
+                const std::string prefix = Join(g_tempDir, std::string("sc009_") + name);
+                const bool ran = RunProjectToCsv(Join(g_sampleDir, std::string(name) + ".canprj"), prefix,
+                    10 * 1000000LL);
+                bool same = ran;
+                const char* kinds[] = { ".log.csv", ".summary.csv", ".startup.csv" };
+                for (const char* kind : kinds)
+                {
+                    std::string now = ReadTextFile(prefix + kind);
+                    std::string before = ReadTextFile(Join(g_baselineDir, std::string(name) + kind));
+                    // sample_collision gained the idle ECU 2 (see the comment in the sample).
+                    if (std::string(name) == "sample_collision" && std::string(kind) == ".startup.csv")
+                    {
+                        now = DropStartupRow(now, 2);
+                        before = DropStartupRow(before, 2);
+                    }
+                    same = same && !before.empty() && now == before;
+                }
+                Check(same, std::string("004 SC-009: ") + name + ".canprj reproduces the feature 001/002 CSVs");
+            }
+        }
+        else
+        {
+            std::cout << "  (SC-009 skipped: no baseline directory given)\n";
+        }
+    }
 }
 
 int main(int argc, char** argv)
 {
     if (argc < 3)
     {
-        std::cout << "usage: checks.exe <SampleConfigs dir> <temp output dir>\n";
+        std::cout << "usage: checks.exe <SampleConfigs dir> <temp output dir> [baseline dir]\n";
         return 2;
     }
     g_sampleDir = argv[1];
     g_tempDir = argv[2];
+    if (argc >= 4)
+        g_baselineDir = argv[3];
 
     CheckFeature001();
     CheckFeature002();
+    CheckFeature003();
+    CheckFeature004();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

@@ -9,6 +9,11 @@
 ;           -> the count restarts and Normal_Entry_us becomes 558
 ;           (= 552 + 6, the intermission end of that second frame; US3 AS#2 / FR-007).
 
+[Project]
+EcuCount=3
+DurationSec=10
+FrameDisplay=0
+
 [Network]
 BitRateBps=500000
 

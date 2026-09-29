@@ -66,7 +66,7 @@ specs/003-bus-diagram-view/
 
 ```text
 MFCApplication1/
-├── MFCApplication1.rc            # 変更: ダイアログ寸法を図領域に合わせる（約 780×145 DLU）。既存コントロールの削除は機能 004（UTF-16LE 注意）
+├── MFCApplication1.rc            # 変更: ダイアログ寸法を図領域に合わせる（720×152 DLU）。既存コントロールの削除は機能 004（UTF-16LE 注意）
 ├── MFCApplication1Dlg.h / .cpp   # 変更: OnPaint で構成図描画、m_ecuCount（初期 2）保持と SetEcuCount による更新（値の設定元は機能 004）
 ├── MFCApplication1.vcxproj(.filters) # 変更: BusDiagramLayout.h/.cpp を登録
 └── CanSim/

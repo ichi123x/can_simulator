@@ -106,6 +106,7 @@ namespace CanSim
 
         struct RawSections
         {
+            std::map<std::string, std::string> project;                 // key -> value (feature 004)
             std::map<std::string, std::string> network;                 // key -> value
             std::map<int, std::map<std::string, std::string>> nodes;    // nodeId -> key->value
             std::map<int, std::map<int, std::map<std::string, std::string>>> frames; // nodeId -> frameIndex -> key->value
@@ -169,6 +170,10 @@ namespace CanSim
             {
                 raw.network[key] = value;
             }
+            else if (currentSection == "Project")
+            {
+                raw.project[key] = value;
+            }
             else
             {
                 int nodeId = 0, frameIndex = 0;
@@ -184,7 +189,7 @@ namespace CanSim
                 {
                     result.ErrorMessage = "Line " + std::to_string(lineNo) +
                         ": '[" + currentSection + "]' is not a recognized section "
-                        "(expected [Network], [NodeN] or [NodeN.FrameM]).";
+                        "(expected [Project], [Network], [NodeN] or [NodeN.FrameM]).";
                     return result;
                 }
             }
@@ -212,12 +217,41 @@ namespace CanSim
             return result;
         }
 
-        // ---- Nodes (FR-001) ----
-        if (raw.nodes.empty())
+        // ---- [Project] (feature 004 FR-005/FR-006), every key optional ----
+        ProjectSettings project;
+        struct IntKey { const char* Name; int Min; int Max; };
+        const IntKey projectKeys[] = {
+            { "EcuCount", 0, 16 },
+            { "DurationSec", kMinDurationSec, kMaxDurationSec },
+            { "FrameDisplay", 0, 1 },
+        };
+        for (int k = 0; k < 3; ++k)
         {
-            result.ErrorMessage = "Configuration must define at least one [NodeN] section.";
-            return result;
+            const IntKey& key = projectKeys[k];
+            auto it = raw.project.find(key.Name);
+            if (it == raw.project.end())
+                continue;
+            unsigned long v = 0;
+            if (!TryParseULongBase(it->second, 10, v) || v < static_cast<unsigned long>(key.Min) ||
+                v > static_cast<unsigned long>(key.Max))
+            {
+                result.ErrorMessage = std::string("[Project] ") + key.Name + ": '" + it->second +
+                    "' must be an integer between " + std::to_string(key.Min) + " and " +
+                    std::to_string(key.Max) + ".";
+                return result;
+            }
+            const int value = static_cast<int>(v);
+            if (k == 0)
+                project.EcuCount = value;
+            else if (k == 1)
+                project.DurationSec = value;
+            else
+                project.FrameDisplay = value != 0;
         }
+
+        // ---- Nodes (FR-001) ----
+        // Feature 004: a project may define no node at all (ECU count 0, or
+        // ECUs without any frame definition).
         if (raw.nodes.size() > 16)
         {
             result.ErrorMessage = "Too many nodes (" + std::to_string(raw.nodes.size()) +
@@ -431,6 +465,7 @@ namespace CanSim
 
         result.Success = true;
         result.Config = network;
+        result.Project = project;
         return result;
     }
 }

@@ -99,6 +99,19 @@ namespace CanSim
         std::vector<Node> Nodes;        // FR-001: 1..16
     };
 
+    // Project level settings stored in the [Project] section of a .canprj
+    // file (feature 004 data-model.md). The bit rate lives in
+    // Network::BitRateBps so that there is a single source for it.
+    struct ProjectSettings
+    {
+        int EcuCount = 2;           // 0..16
+        int DurationSec = 10;       // 1..600
+        bool FrameDisplay = false;
+    };
+
+    const int kMinDurationSec = 1;
+    const int kMaxDurationSec = 600;
+
     // DES event. NodeIndex == -1 marks a bus-wide event (BusIdle, SimulationEnd).
     // NodeIndex is the *position* of the node within Network::Nodes (which is
     // built sorted by ascending configured Node::NodeId), not Node::NodeId

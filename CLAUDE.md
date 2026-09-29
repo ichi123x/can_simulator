@@ -30,7 +30,7 @@ msbuild MFCApplication1\MFCApplication1.sln /p:Configuration=Debug /p:Platform=x
 - `framework.h` で `NOMINMAX` を定義済み。`CanSim/` 配下で `std::min`/`std::max`/`std::numeric_limits<T>::max()` などを使う際は、Windows ヘッダーの `min`/`max` マクロとの衝突を避けるためにこれに依存してよい（新たに `#undef min`/`#undef max` を個別ファイルに書く必要はない）
 - `CanSim/` 配下の新規ソースは日本語コメント・文字列リテラルを含めない（ASCII のみ）こと。`.cpp` は PCH（`pch.h`）を経由して `framework.h` を取り込む都合上、BOM なし UTF-8 で保存されるとコンパイラが実行時ロケール（日本語環境では コードページ 932）でソースを解釈し、非 ASCII 文字が文字化けする（警告 C4819）。UI 表示文字列は `MFCApplication1.rc`（UTF-16LE、BOM 付き）側の日本語ラベル・文字列テーブルに閉じ込め、`CanSim/`・`MFCApplication1Dlg.cpp` 側は英語の識別子・メッセージのみを扱う方針としている
 - `MFCApplication1.rc` は UTF-16LE（BOM 付き、CRLF）のバイナリに近いテキストファイル。編集する際は Read/Edit ツールでの直接編集を避け、PowerShell の `Get-Content -Encoding Unicode` / `[System.IO.File]::WriteAllText(path, text, (New-Object System.Text.UnicodeEncoding($false,$true)))` のようにエンコーディングを明示して読み書きすること（さもないと文字化けで壊れる）
-- 正式なテストフレームワーク・テストプロジェクトは導入していません（`MFCApplication1.sln` にテストは含まれません）。代わりに、`CanSim/` が UI 非依存のプレーン C++ である性質を利用した検証ツールを `tools/cansim_runner/` に置いています。GUI を操作せずに成功基準（SC-001〜SC-006 ほか）を一括検証できます。
+- 正式なテストフレームワーク・テストプロジェクトは導入していません（`MFCApplication1.sln` にテストは含まれません）。代わりに、`CanSim/` が UI 非依存のプレーン C++ である性質を利用した検証ツールを `tools/cansim_runner/` に置いています。GUI を操作せずに機能 001〜004 の成功基準を一括検証できます。
 
 ```bat
 REM 「x64 Native Tools Command Prompt for VS 2022」等でリポジトリのルートから実行
@@ -42,11 +42,12 @@ cl /nologo /std:c++14 /EHsc /I tools\cansim_runner /I MFCApplication1\CanSim ^
    /Fo"%OUT%\\" /Fe"%OUT%\checks.exe" ^
    tools\cansim_runner\checks.cpp MFCApplication1\CanSim\*.cpp
 
-REM 成功基準の一括検証（終了コード 0 で全パス）
+REM 成功基準の一括検証（終了コード 0 で全パス）。第3引数に機能 004 以前の基準 CSV のディレクトリを
+REM 渡すと、サンプルの結果が変わっていないこと（004 SC-009）も検証する（README 参照）
 "%OUT%\checks.exe" MFCApplication1\CanSim\SampleConfigs "%OUT%"
 ```
 
-  単発のシミュレーション実行には同ディレクトリの `runner.cpp` を同様にビルドして使います。詳細は [tools/cansim_runner/README.md](tools/cansim_runner/README.md) を参照してください。Lint の仕組みは未整備です。
+  単発のシミュレーション実行には同ディレクトリの `runner.cpp` を同様にビルドして使います（`runner.exe <.canprj> <出力接頭辞> [秒数]`）。詳細は [tools/cansim_runner/README.md](tools/cansim_runner/README.md) を参照してください。Lint の仕組みは未整備です。
 
 ## Spec Kit（SDD）ワークフロー
 
@@ -70,7 +71,8 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
 `MFCApplication1/` 配下の構成:
 
 - `MFCApplication1.h` / `.cpp` — `CWinApp` を継承したアプリケーションクラス `CMFCApplication1App`。`InitInstance()` がエントリーポイントで、メインダイアログを生成・表示する
-- `MFCApplication1Dlg.h` / `.cpp` — メインウィンドウとなる `CDialogEx` 派生クラス `CMFCApplication1Dlg`。メッセージマップ（`ON_WM_SYSCOMMAND`, `ON_WM_PAINT`, `ON_WM_QUERYDRAGICON` に加え `ON_BN_CLICKED(IDC_BUTTON_BROWSE, ...)` / `ON_BN_CLICKED(IDC_BUTTON_RUN, ...)`）でウィンドウメッセージを処理する。設定ファイル選択・シミュレーション実行ボタンのハンドラは `CanSim::LoadConfig` → `CanSim::SimulationEngine::Run` → `CanSim::Logger::WriteCsv` / `CanSim::ComputeMetrics` + `WriteMetricsCsv` を呼び出す薄いグルーコードで、UI 固有のロジック（ダイアログ操作・結果表示）以外はここに書かない
+- `MFCApplication1Dlg.h` / `.cpp` — メインウィンドウとなる `CDialogEx` 派生クラス `CMFCApplication1Dlg`。メニュー駆動（機能 004）で、ボタン・入力欄などのコントロールは持たない。メニュー「ファイル（プロジェクト読込み／保存）」「編集（セッティング／フレーム表示）」「シミュレーション（開始／終了）」を `ON_COMMAND` で処理し、項目の有効／無効とチェックは `OnInitMenuPopup` で設定する（ダイアログは `ON_UPDATE_COMMAND_UI` を配送しないため）。各ハンドラは `CanSim::LoadConfig` / `SaveProject` / `BuildRunNetwork` → `SimulationEngine::Run` → CSV 出力、`BuildFrameEvents` を呼ぶ薄いグルーコードで、UI 固有のロジック（ダイアログ操作・通知・描画・再生タイマー）以外はここに書かない。Enter/Esc では閉じず（`OnOK` は空、`PreTranslateMessage` で握りつぶす）、閉じるのは ✖ のみ
+- `SettingsDlg.h` / `.cpp` — 「編集 → セッティング」ダイアログ `CSettingsDlg`（`IDD_SETTINGS`）。ECU 数 0〜16・通信速度 4 種はドロップダウンリスト、シミュレーション時間は 1〜600 秒の整数（範囲外は OK 時に拒否して閉じない）
 - `pch.h` / `pch.cpp` — プリコンパイル済みヘッダー（`framework.h` を include）
 - `framework.h` — MFC/ATL の共通インクルード（`afxwin.h`, `afxext.h` など）。`NOMINMAX` をここで定義している
 - `Resource.h`, `MFCApplication1.rc`, `res/` — リソース定義（ダイアログレイアウト、アイコン、文字列テーブルなど）。ダイアログの見た目を変更する場合は Visual Studio のリソースエディタか `.rc` ファイルを直接編集する（`.rc` は UTF-16LE、上記ビルド節のエンコーディング注意点を参照）
@@ -79,15 +81,22 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
   - `CanTypes.h` — `Network` / `Node` / `FrameDefinition` / `PendingFrame` / `Event` / `LogRow` などの値型（`specs/001-can-simulation-core/data-model.md` 参照）
   - `EventQueue.h/.cpp` — DES イベントキュー（時刻・イベント種別・ノード順で決定的にソート）
   - `FrameTiming.h/.cpp` — CAN CRC-15 計算とビットスタッフィングを反映した実ビット数からのフレーム伝送時間算出
-  - `ConfigLoader.h/.cpp` — `CanSim/SampleConfigs/*.cfg` 形式（`specs/001-can-simulation-core/contracts/config-input-format.md`）の設定ファイル読み込み・検証
+  - `ConfigLoader.h/.cpp` — プロジェクトファイル（`.canprj`）の読み込み・検証。形式は機能 001 の設定ファイル形式（`specs/001-can-simulation-core/contracts/config-input-format.md`）に `[Project]` セクション（`EcuCount`／`DurationSec`／`FrameDisplay`）を足した後継（`specs/004-menu-project-settings/contracts/project-file-format.md`）。ノード 0 個も許容する
+  - `ProjectFile.h/.cpp` — `.canprj` の保存（`SaveProject`、コメントは保存しない）と、実行用ネットワークの生成（`BuildRunNetwork`: ECU 番号 1〜`EcuCount` のノードを作り、定義のない ECU はフレームなしで補い、`EcuCount` を超える番号の定義は実行しない）
+  - `FrameEvents.h/.cpp` — フレームログ（1 フレーム × 受信ノードで 1 行）を 1 フレーム 1 件の再生用イベント列に変換する（フレーム表示用）
   - `Network.h/.cpp` — 調停（ID優先）・自動再送信・上書き（FR-011〜014）・受信フィルタ判定
   - `SimulationEngine.h/.cpp` — 上記を統合する DES メインループ本体
   - `Logger.h/.cpp` — シミュレーションログの CSV 出力（`specs/001-can-simulation-core/contracts/log-output-format.md`）
   - `MetricsAggregator.h/.cpp` — 総送信レイテンシ／送信待ち遅延／フレーム伝送時間／バス負荷率／ジッターの集計・CSV 出力
   - `StartupControl.h/.cpp` — ノードの起動制御（電源投入→初期化→バス同期検出→通常動作）。バス同期成立時刻の算出（`max(検出開始, レセシブ期間開始) + 11ビット時間`）と、起動記録の CSV 出力を担う
-  - `SampleConfigs/` — 動作確認用サンプル設定（`sample_appendix_a.cfg` = ドメイン仕様書 付録A 相当、`sample_collision.cfg` = 調停確認用の衝突構成、`sample_startup.cfg` = 電源投入時刻をずらした起動確認用、`sample_startup_latejoin.cfg` = 送信中のバスへの後発参加確認用）
+  - `BusDiagramLayout.h/.cpp` — メインダイアログの CAN バス構成図の座標計算（ECU 数 0〜16 → バス線・ECU 箱・接続線の位置）。96 dpi 基準のピクセル値を返す純粋関数で、描画（GDI）はダイアログ側が行う（`specs/003-bus-diagram-view/`）
+  - `SampleConfigs/` — 動作確認用サンプルプロジェクト（`.canprj`）。`sample_appendix_a` = ドメイン仕様書 付録A 相当、`sample_collision` = 調停確認用の衝突構成（ECU 1・3 が送信。ECU 2 は何も受信しない待機 ECU として明示し、機能 001 の結果を保つ）、`sample_startup` = 電源投入時刻をずらした起動確認用、`sample_startup_latejoin` = 送信中のバスへの後発参加確認用、`sample_16ecu` = 16 ECU の構成図・フレーム表示の確認用
 
-シミュレーション実行時は、読み込んだ設定ファイルのパスを基準に3つの CSV が出力されます: `<設定ファイル名>.log.csv`（フレームログ）、`.summary.csv`（性能指標の集計）、`.startup.csv`（起動記録）。
+**CAN バス構成図（機能 003）**: `CMFCApplication1Dlg` はクライアント左上に白背景の構成図を描く（`OnPaint` → `DrawBusDiagram`、メモリ DC 経由、DPI/96 でスケール）。表示する ECU 数は `m_ecuCount`（初期値 2）で、`SetEcuCount()` で更新する。変更がキャンセル・失敗した場合は呼ばない約束（003 FR-010）。ダイアログの初期サイズは 16 ECU の図領域が収まる大きさ（`.rc` で 720×152 DLU、メニュー行は含まない）。メニュー行より下のクライアント領域は `OnEraseBkgnd` で常に白く塗る（004 FR-004）。
+
+**プロジェクトと実行（機能 004）**: ダイアログは現在のプロジェクト（`m_settings` = ECU 数・シミュレーション時間・フレーム表示、`m_definitions` = 読み込んだ全ノード定義と通信速度、`m_projectPath`）を持つ。起動時は ECU 数 2・500 kbps・10 秒・フレーム表示 OFF。「開始」は UI スレッドで同期実行する（上限 600 秒で数秒程度、待機カーソル表示）。フレーム表示 ON のときは、実行結果を 1 フレーム 250 ms のタイマーで再生し、送信元 ECU（赤）・受信 ECU（緑）・バス（青）を強調する。再生中の「終了」は、表示中のフレームの送信開始時刻までエンジンを再実行してその時点までの結果を出力する（送信を完了したフレームだけが残る）。再生中にフレーム表示を OFF にすると、その場で全結果を出力して終わる。
+
+シミュレーション実行時は、プロジェクトファイルのパスを基準に3つの CSV が出力されます: `<プロジェクトファイル名>.log.csv`（フレームログ）、`.summary.csv`（性能指標の集計）、`.startup.csv`（起動記録）。プロジェクトを一度も読込み・保存していない状態で「開始」すると、先に保存先を尋ねる。
 
 **起動制御による時刻への影響**: 電源投入時刻・初期化時間が既定値（0）の構成でも、各ノードはバスが空であることを11ビット時間（500 kbps で 22 µs）ぶん観測してから通常動作に入ります。そのため、起動直後にバスが連続して埋まっている区間の送受信時刻はその分だけ後ろにずれます（バスが一度空いて以降は送信要求時刻どおりに戻ります）。送信順序・調停結果・送信回数・ログの行数は影響を受けません。CAN の実挙動に忠実であることを優先しているため、起動を省略する互換モードは意図的に設けていません。
 

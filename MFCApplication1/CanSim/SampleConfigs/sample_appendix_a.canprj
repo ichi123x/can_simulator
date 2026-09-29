@@ -1,6 +1,11 @@
 ; Sample configuration matching Doc/CANバスシミュレータ仕様.md Appendix A
 ; (6 ECUs, 8 frames, 500 kbps). Used by quickstart.md step 1/2/4.
 
+[Project]
+EcuCount=6
+DurationSec=10
+FrameDisplay=0
+
 [Network]
 BitRateBps=500000
 
