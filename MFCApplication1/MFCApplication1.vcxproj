@@ -202,6 +202,7 @@
     <ClInclude Include="CanSim\BusDiagramLayout.h" />
     <ClInclude Include="CanSim\ProjectFile.h" />
     <ClInclude Include="CanSim\FrameEvents.h" />
+    <ClInclude Include="CanSim\ReplayClock.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MFCApplication1.cpp" />
@@ -224,6 +225,7 @@
     <ClCompile Include="CanSim\BusDiagramLayout.cpp" />
     <ClCompile Include="CanSim\ProjectFile.cpp" />
     <ClCompile Include="CanSim\FrameEvents.cpp" />
+    <ClCompile Include="CanSim\ReplayClock.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MFCApplication1.rc" />

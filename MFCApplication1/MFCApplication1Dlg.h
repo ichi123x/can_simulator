@@ -6,7 +6,9 @@
 
 #include "CanSim/CanTypes.h"
 #include "CanSim/FrameEvents.h"
+#include "CanSim/ReplayClock.h"
 
+#include <memory>
 #include <vector>
 
 
@@ -65,6 +67,8 @@ private:
 		const CanSim::Network& endState, CString& logPath, CString& summaryPath, CString& startupPath);
 	void FinishReplay();
 	void StopReplayTimer();
+	void EndRun();
+	long long CurrentSimTimeUs() const;
 
 	int m_ecuCount = 2; // 004 FR-006 initial value
 
@@ -79,7 +83,15 @@ private:
 	CanSim::Network m_runNetwork;             // network of the current run
 	std::vector<CanSim::LogRow> m_runRows;    // full result of the current run
 	CanSim::Network m_runEndState;            // engine state after the full run
-	std::vector<CanSim::FrameEvent> m_events; // replay (004 US4)
-	std::size_t m_playIndex = 0;
+	// Running a simulation on screen (feature 005): the result is computed at
+	// Start, then the simulation time advances with the real elapsed time x
+	// 2^Speed until the end, whether the frame display is on or off.
+	std::vector<CanSim::FrameEvent> m_events;
+	std::unique_ptr<CanSim::ActiveFrameCursor> m_cursor;
+	CanSim::ActiveFrames m_active;   // frames to highlight at this refresh
+	LARGE_INTEGER m_replayStartQpc = {};
+	LARGE_INTEGER m_qpcFrequency = {};
+	long long m_prevSimUs = 0;
+	long long m_curSimUs = 0;
 	UINT_PTR m_replayTimer = 0;
 };

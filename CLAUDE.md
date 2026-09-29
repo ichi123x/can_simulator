@@ -72,7 +72,7 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
 
 - `MFCApplication1.h` / `.cpp` — `CWinApp` を継承したアプリケーションクラス `CMFCApplication1App`。`InitInstance()` がエントリーポイントで、メインダイアログを生成・表示する
 - `MFCApplication1Dlg.h` / `.cpp` — メインウィンドウとなる `CDialogEx` 派生クラス `CMFCApplication1Dlg`。メニュー駆動（機能 004）で、ボタン・入力欄などのコントロールは持たない。メニュー「ファイル（プロジェクト読込み／保存）」「編集（セッティング／フレーム表示）」「シミュレーション（開始／終了）」を `ON_COMMAND` で処理し、項目の有効／無効とチェックは `OnInitMenuPopup` で設定する（ダイアログは `ON_UPDATE_COMMAND_UI` を配送しないため）。各ハンドラは `CanSim::LoadConfig` / `SaveProject` / `BuildRunNetwork` → `SimulationEngine::Run` → CSV 出力、`BuildFrameEvents` を呼ぶ薄いグルーコードで、UI 固有のロジック（ダイアログ操作・通知・描画・再生タイマー）以外はここに書かない。Enter/Esc では閉じず（`OnOK` は空、`PreTranslateMessage` で握りつぶす）、閉じるのは ✖ のみ
-- `SettingsDlg.h` / `.cpp` — 「編集 → セッティング」ダイアログ `CSettingsDlg`（`IDD_SETTINGS`）。ECU 数 0〜16・通信速度 4 種はドロップダウンリスト、シミュレーション時間は 1〜600 秒の整数（範囲外は OK 時に拒否して閉じない）
+- `SettingsDlg.h` / `.cpp` — 「編集 → セッティング」ダイアログ `CSettingsDlg`（`IDD_SETTINGS`）。ECU 数 0〜16・通信速度 4 種はドロップダウンリスト、シミュレーション時間は 1〜600 秒の整数（範囲外は OK 時に拒否して閉じない）、スピードは +10〜-13 のドロップダウンリスト
 - `pch.h` / `pch.cpp` — プリコンパイル済みヘッダー（`framework.h` を include）
 - `framework.h` — MFC/ATL の共通インクルード（`afxwin.h`, `afxext.h` など）。`NOMINMAX` をここで定義している
 - `Resource.h`, `MFCApplication1.rc`, `res/` — リソース定義（ダイアログレイアウト、アイコン、文字列テーブルなど）。ダイアログの見た目を変更する場合は Visual Studio のリソースエディタか `.rc` ファイルを直接編集する（`.rc` は UTF-16LE、上記ビルド節のエンコーディング注意点を参照）
@@ -81,9 +81,10 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
   - `CanTypes.h` — `Network` / `Node` / `FrameDefinition` / `PendingFrame` / `Event` / `LogRow` などの値型（`specs/001-can-simulation-core/data-model.md` 参照）
   - `EventQueue.h/.cpp` — DES イベントキュー（時刻・イベント種別・ノード順で決定的にソート）
   - `FrameTiming.h/.cpp` — CAN CRC-15 計算とビットスタッフィングを反映した実ビット数からのフレーム伝送時間算出
-  - `ConfigLoader.h/.cpp` — プロジェクトファイル（`.canprj`）の読み込み・検証。形式は機能 001 の設定ファイル形式（`specs/001-can-simulation-core/contracts/config-input-format.md`）に `[Project]` セクション（`EcuCount`／`DurationSec`／`FrameDisplay`）を足した後継（`specs/004-menu-project-settings/contracts/project-file-format.md`）。ノード 0 個も許容する
+  - `ConfigLoader.h/.cpp` — プロジェクトファイル（`.canprj`）の読み込み・検証。形式は機能 001 の設定ファイル形式（`specs/001-can-simulation-core/contracts/config-input-format.md`）に `[Project]` セクション（`EcuCount`／`DurationSec`／`FrameDisplay`／`Speed`）を足した後継（`specs/004-menu-project-settings/contracts/project-file-format.md`）。ノード 0 個も許容する
   - `ProjectFile.h/.cpp` — `.canprj` の保存（`SaveProject`、コメントは保存しない）と、実行用ネットワークの生成（`BuildRunNetwork`: ECU 番号 1〜`EcuCount` のノードを作り、定義のない ECU はフレームなしで補い、`EcuCount` を超える番号の定義は実行しない）
   - `FrameEvents.h/.cpp` — フレームログ（1 フレーム × 受信ノードで 1 行）を 1 フレーム 1 件の再生用イベント列に変換する（フレーム表示用）
+  - `ReplayClock.h/.cpp` — 実行中の時計（機能 005）。`SimTimeAtUs` は実経過時間 × 2^スピードでシミュレーション時刻を求め、`ActiveFrameCursor` は画面の書き換え 1 回分の時刻区間に送信中だったフレームの送信元・受信 ECU を集める（送信を優先）
   - `Network.h/.cpp` — 調停（ID優先）・自動再送信・上書き（FR-011〜014）・受信フィルタ判定
   - `SimulationEngine.h/.cpp` — 上記を統合する DES メインループ本体
   - `Logger.h/.cpp` — シミュレーションログの CSV 出力（`specs/001-can-simulation-core/contracts/log-output-format.md`）
@@ -94,7 +95,7 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
 
 **CAN バス構成図（機能 003）**: `CMFCApplication1Dlg` はクライアント左上に白背景の構成図を描く（`OnPaint` → `DrawBusDiagram`、メモリ DC 経由、DPI/96 でスケール）。表示する ECU 数は `m_ecuCount`（初期値 2）で、`SetEcuCount()` で更新する。変更がキャンセル・失敗した場合は呼ばない約束（003 FR-010）。ダイアログの初期サイズは 16 ECU の図領域が収まる大きさ（`.rc` で 720×152 DLU、メニュー行は含まない）。メニュー行より下のクライアント領域は `OnEraseBkgnd` で常に白く塗る（004 FR-004）。
 
-**プロジェクトと実行（機能 004）**: ダイアログは現在のプロジェクト（`m_settings` = ECU 数・シミュレーション時間・フレーム表示、`m_definitions` = 読み込んだ全ノード定義と通信速度、`m_projectPath`）を持つ。起動時は ECU 数 2・500 kbps・10 秒・フレーム表示 OFF。「開始」は UI スレッドで同期実行する（上限 600 秒で数秒程度、待機カーソル表示）。フレーム表示 ON のときは、実行結果を 1 フレーム 250 ms のタイマーで再生し、送信元 ECU（赤）・受信 ECU（緑）・バス（青）を強調する。再生中の「終了」は、表示中のフレームの送信開始時刻までエンジンを再実行してその時点までの結果を出力する（送信を完了したフレームだけが残る）。再生中にフレーム表示を OFF にすると、その場で全結果を出力して終わる。
+**プロジェクトと実行（機能 004）**: ダイアログは現在のプロジェクト（`m_settings` = ECU 数・シミュレーション時間・フレーム表示、`m_definitions` = 読み込んだ全ノード定義と通信速度、`m_projectPath`）を持つ。起動時は ECU 数 2・500 kbps・10 秒・フレーム表示 OFF・スピード 0。「開始」はまずシミュレーションを最後まで UI スレッドで同期計算し（上限 600 秒で数秒程度、待機カーソル表示）、その後、実経過時間 × 2^スピードでシミュレーション時刻を進めて、終端に達したら CSV を書く（機能 005。スピード 0 = 実時間、+10 = 待たずに即時完了、-13 = 1/8192）。時間の進み方はフレーム表示の ON/OFF に関係せず、フレーム表示は強調を描くかどうかだけを決める。画面は 16 ms のタイマーで書き換え（実測 約 40 回/秒）、直前の書き換えから今回までに送信中だったフレームの送信元 ECU（赤）・受信 ECU（緑）・バス（青）をまとめて強調する。時刻はタイマーの回数ではなく `QueryPerformanceCounter` の経過時間で決める。実行中の「終了」は、その時点のシミュレーション時刻までエンジンを再実行してその時点までの結果を出力する（送信を完了したフレームだけが残る）。実行中はセッティング・読込み・開始を受け付けない。
 
 シミュレーション実行時は、プロジェクトファイルのパスを基準に3つの CSV が出力されます: `<プロジェクトファイル名>.log.csv`（フレームログ）、`.summary.csv`（性能指標の集計）、`.startup.csv`（起動記録）。プロジェクトを一度も読込み・保存していない状態で「開始」すると、先に保存先を尋ねる。
 

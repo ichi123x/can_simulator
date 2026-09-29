@@ -75,6 +75,9 @@
     <ClInclude Include="CanSim\FrameEvents.h">
       <Filter>CanSim</Filter>
     </ClInclude>
+    <ClInclude Include="CanSim\ReplayClock.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MFCApplication1.cpp">
@@ -120,6 +123,9 @@
       <Filter>CanSim</Filter>
     </ClCompile>
     <ClCompile Include="CanSim\FrameEvents.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\ReplayClock.cpp">
       <Filter>CanSim</Filter>
     </ClCompile>
   </ItemGroup>

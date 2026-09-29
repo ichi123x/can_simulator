@@ -33,7 +33,8 @@ namespace CanSim
         os << "[Project]\r\n";
         os << "EcuCount=" << settings.EcuCount << "\r\n";
         os << "DurationSec=" << settings.DurationSec << "\r\n";
-        os << "FrameDisplay=" << (settings.FrameDisplay ? 1 : 0) << "\r\n\r\n";
+        os << "FrameDisplay=" << (settings.FrameDisplay ? 1 : 0) << "\r\n";
+        os << "Speed=" << settings.Speed << "\r\n\r\n";
 
         os << "[Network]\r\n";
         os << "BitRateBps=" << definitions.BitRateBps << "\r\n";

@@ -238,17 +238,19 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 
 	const CanSim::BusDiagramLayout layout = CanSim::ComputeBusDiagramLayout(m_ecuCount);
 
-	// Frame being replayed (004 FR-013). Nothing is highlighted when the
-	// frame display is off (004 FR-014) or no replay is running.
-	const CanSim::FrameEvent* current = nullptr;
-	if (m_runState == RunState::Running && m_settings.FrameDisplay && m_playIndex < m_events.size())
-		current = &m_events[m_playIndex];
+	// Frames on the bus since the previous refresh (005 FR-009). Nothing is
+	// highlighted when the frame display is off (005 FR-010) or no
+	// simulation is running.
+	const CanSim::ActiveFrames* active = nullptr;
+	if (m_runState == RunState::Running && m_settings.FrameDisplay)
+		active = &m_active;
+	const bool busBusy = active != nullptr && active->BusBusy;
 
 	// Bus line (003 FR-002); thicker and blue while a frame is on the bus
 	CRect busRect = ScaleRect(layout.BusLine, dpi);
-	if (current != nullptr)
+	if (busBusy)
 		busRect.InflateRect(0, ScalePx(kActiveBusExtraPx, dpi));
-	mem.FillSolidRect(busRect, current != nullptr ? kActiveBusColor : kBusColor);
+	mem.FillSolidRect(busRect, busBusy ? kActiveBusColor : kBusColor);
 
 	// Caption "CAN BUS" above the left end of the bus
 	CFont captionFont;
@@ -271,11 +273,10 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 	CPen activeLinePen(PS_SOLID, ScalePx(3, dpi), kActiveBusColor);
 	for (const CanSim::EcuPlacement& ecu : layout.Ecus)
 	{
-		const bool isSender = current != nullptr && current->TxNodeId == ecu.Number;
-		bool isReceiver = false;
-		if (current != nullptr)
-			for (int rx : current->RxNodeIds)
-				isReceiver = isReceiver || rx == ecu.Number;
+		const bool isSender = active != nullptr &&
+			std::find(active->Senders.begin(), active->Senders.end(), ecu.Number) != active->Senders.end();
+		const bool isReceiver = active != nullptr &&
+			std::find(active->Receivers.begin(), active->Receivers.end(), ecu.Number) != active->Receivers.end();
 
 		CPen* oldPen = mem.SelectObject(isSender ? &activeLinePen : &linePen);
 		const int x = ScalePx(ecu.LineX, dpi);
@@ -329,7 +330,7 @@ HCURSOR CMFCApplication1Dlg::OnQueryDragIcon()
 namespace
 {
 	const UINT_PTR kReplayTimerId = 1;
-	const UINT kReplayStepMs = 250; // one frame per step, idle time skipped (research.md decision 4)
+	const UINT kRefreshMs = 16; // screen refresh target, about 60 per second (005 FR-008)
 
 	CString LoadRcString(UINT id)
 	{
@@ -359,8 +360,7 @@ void CMFCApplication1Dlg::OnCancel()
 {
 	// Reached through the close box / Alt+F4. A running replay is abandoned
 	// without writing any result (004 Edge Cases).
-	StopReplayTimer();
-	m_runState = RunState::Idle;
+	EndRun();
 	CDialogEx::OnCancel();
 }
 
@@ -470,19 +470,17 @@ void CMFCApplication1Dlg::OnEditSettings()
 
 	m_settings.EcuCount = dlg.Settings.EcuCount;
 	m_settings.DurationSec = dlg.Settings.DurationSec;
+	m_settings.Speed = dlg.Settings.Speed;
 	m_definitions.BitRateBps = dlg.BitRateBps;
 	SetEcuCount(m_settings.EcuCount);
 }
 
 void CMFCApplication1Dlg::OnEditFrameDisplay()
 {
+	// Only decides whether the traffic is drawn; a running simulation keeps
+	// going at the same pace (005 FR-007, FR-010).
 	m_settings.FrameDisplay = !m_settings.FrameDisplay;
-
-	// Switching it off during a replay ends the replay at once and writes the
-	// full result: nothing may be highlighted any more (004 FR-014) and the
-	// result does not depend on the display (004 FR-015).
-	if (!m_settings.FrameDisplay && m_runState == RunState::Running)
-		FinishReplay();
+	InvalidateRect(GetDiagramRect(), FALSE);
 }
 
 bool CMFCApplication1Dlg::WriteResults(const std::vector<CanSim::LogRow>& rows,
@@ -544,20 +542,26 @@ void CMFCApplication1Dlg::OnSimStart()
 		m_runEndState = engine.GetNetwork();
 	}
 
-	if (m_settings.FrameDisplay)
+	// Speed +10 does not wait at all (005 FR-004).
+	if (m_settings.Speed >= CanSim::kInstantSpeed)
 	{
-		m_events = CanSim::BuildFrameEvents(m_runRows);
-		if (!m_events.empty())
-		{
-			m_playIndex = 0;
-			m_runState = RunState::Running;
-			m_replayTimer = SetTimer(kReplayTimerId, kReplayStepMs, nullptr);
-			InvalidateRect(GetDiagramRect(), FALSE);
-			return;
-		}
+		FinishReplay();
+		return;
 	}
 
-	FinishReplay();
+	// Otherwise the simulated time runs at real time x 2^Speed, with or
+	// without the frame display, and even when no frame is sent at all
+	// (005 FR-003, FR-006, FR-007).
+	m_events = CanSim::BuildFrameEvents(m_runRows);
+	m_cursor.reset(new CanSim::ActiveFrameCursor(m_events));
+	m_active = CanSim::ActiveFrames();
+	m_prevSimUs = 0;
+	m_curSimUs = 0;
+	QueryPerformanceFrequency(&m_qpcFrequency);
+	QueryPerformanceCounter(&m_replayStartQpc);
+	m_runState = RunState::Running;
+	m_replayTimer = SetTimer(kReplayTimerId, kRefreshMs, nullptr);
+	InvalidateRect(GetDiagramRect(), FALSE);
 }
 
 void CMFCApplication1Dlg::StopReplayTimer()
@@ -569,13 +573,21 @@ void CMFCApplication1Dlg::StopReplayTimer()
 	}
 }
 
-// Writes the full result of the current run and returns to Idle.
-void CMFCApplication1Dlg::FinishReplay()
+// Leaves the running state and forgets the on-screen progress.
+void CMFCApplication1Dlg::EndRun()
 {
 	StopReplayTimer();
 	m_runState = RunState::Idle;
+	m_cursor.reset();
 	m_events.clear();
+	m_active = CanSim::ActiveFrames();
 	InvalidateRect(GetDiagramRect(), FALSE);
+}
+
+// Writes the full result of the current run and returns to Idle.
+void CMFCApplication1Dlg::FinishReplay()
+{
+	EndRun();
 
 	CString logPath, summaryPath, startupPath;
 	CWaitCursor wait;
@@ -588,6 +600,20 @@ void CMFCApplication1Dlg::FinishReplay()
 	}
 }
 
+// Simulated time reached by now: based on the real elapsed time, never on the
+// number of timer ticks (005 FR-005). Clamped to the simulation duration.
+long long CMFCApplication1Dlg::CurrentSimTimeUs() const
+{
+	LARGE_INTEGER now;
+	QueryPerformanceCounter(&now);
+	const long long ticks = now.QuadPart - m_replayStartQpc.QuadPart;
+	const long long elapsedUs = (m_qpcFrequency.QuadPart > 0)
+		? static_cast<long long>(static_cast<double>(ticks) * 1000000.0 / static_cast<double>(m_qpcFrequency.QuadPart))
+		: 0;
+	const long long endUs = m_settings.DurationSec * 1000000LL;
+	return (std::min)(CanSim::SimTimeAtUs(elapsedUs, m_settings.Speed), endUs);
+}
+
 void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 {
 	if (nIDEvent != kReplayTimerId || m_runState != RunState::Running)
@@ -596,8 +622,13 @@ void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 		return;
 	}
 
-	++m_playIndex;
-	if (m_playIndex >= m_events.size())
+	// Highlight every frame that was on the bus since the previous refresh
+	// (005 FR-009).
+	m_curSimUs = CurrentSimTimeUs();
+	m_active = m_cursor->Collect(m_prevSimUs, m_curSimUs);
+	m_prevSimUs = m_curSimUs;
+
+	if (m_curSimUs >= m_settings.DurationSec * 1000000LL)
 	{
 		FinishReplay();
 		return;
@@ -605,19 +636,16 @@ void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 	InvalidateRect(GetDiagramRect(), FALSE);
 }
 
-// Stops the replay at the frame currently shown. The run is repeated up to
-// that frame's Tx_Start so that the result holds exactly the frames whose
-// transmission completed by then (004 FR-018, SC-008).
+// Stops at the current simulated time. The run is repeated up to that time
+// so that the result holds exactly the frames whose transmission completed
+// by then (005 FR-012).
 void CMFCApplication1Dlg::OnSimStop()
 {
 	if (m_runState != RunState::Running)
 		return;
 
-	StopReplayTimer();
-	const long long stopUs = m_events[m_playIndex].TxStartUs;
-	m_runState = RunState::Idle;
-	m_events.clear();
-	InvalidateRect(GetDiagramRect(), FALSE);
+	const long long stopUs = CurrentSimTimeUs();
+	EndRun();
 
 	CWaitCursor wait;
 	CanSim::SimulationEngine engine(m_runNetwork, stopUs);

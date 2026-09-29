@@ -17,6 +17,9 @@
 #include "BusDiagramLayout.h"
 #include "ProjectFile.h"
 #include "FrameEvents.h"
+#include "ReplayClock.h"
+
+#include <climits>
 
 #include <algorithm>
 #include <fstream>
@@ -682,6 +685,108 @@ namespace
             std::cout << "  (SC-009 skipped: no baseline directory given)\n";
         }
     }
+
+    // ---- feature 005: speed setting and replay clock ----
+    void CheckFeature005()
+    {
+        std::cout << "\n== feature 005: speed / replay clock ==\n";
+
+        // Speed in [Project] (FR-001, FR-002)
+        {
+            ConfigLoadResult def = LoadText("s_default.canprj", "[Project]\r\nEcuCount=2\r\n");
+            Check(def.Success && def.Project.Speed == 0, "005 FR-002: Speed defaults to 0 when absent");
+
+            struct Case { const char* Text; int Expected; };
+            const Case ok[] = { { "+3", 3 }, { "-3", -3 }, { "10", 10 }, { "-13", -13 }, { "0", 0 } };
+            bool accepted = true;
+            for (const Case& c : ok)
+            {
+                ConfigLoadResult r = LoadText("s_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n");
+                accepted = accepted && r.Success && r.Project.Speed == c.Expected;
+            }
+            Check(accepted, "005 FR-002: Speed +3 / -3 / 10 / -13 / 0 are accepted");
+
+            const char* bad[] = { "11", "-14", "1.5", "abc", "", "+", "--1" };
+            bool rejected = true;
+            for (const char* text : bad)
+            {
+                ConfigLoadResult r = LoadText("s_bad.canprj", std::string("[Project]\r\nSpeed=") + text + "\r\n");
+                rejected = rejected && !r.Success && r.ErrorMessage.find("Speed") != std::string::npos;
+            }
+            Check(rejected, "005 FR-002: Speed 11 / -14 / 1.5 / abc / empty are rejected with a reason");
+
+            ProjectSettings s;
+            s.Speed = -13;
+            const std::string path = Join(g_tempDir, "s_roundtrip.canprj");
+            ConfigLoadResult back;
+            const bool saved = SaveProject(Widen(path), s, Network());
+            back = LoadConfig(Widen(path));
+            Check(saved && back.Success && back.Project.Speed == -13, "005 FR-002: Speed survives save then reload");
+        }
+
+        // SimTimeAtUs (FR-003)
+        {
+            const long long e = 1000000; // 1 s of real time
+            Check(SimTimeAtUs(e, 0) == e && SimTimeAtUs(e, 1) == 2 * e && SimTimeAtUs(e, -1) == e / 2 &&
+                      SimTimeAtUs(e, -10) == e / 1024 && SimTimeAtUs(e, -13) == e / 8192 &&
+                      SimTimeAtUs(e, 9) == 512 * e && SimTimeAtUs(0, 5) == 0,
+                "005 FR-003: simulated time = real time x 2^speed (0, +1, -1, -10, -13, +9)");
+            Check(SimTimeAtUs(LLONG_MAX / 2, 9) == LLONG_MAX, "005: SimTimeAtUs saturates instead of overflowing");
+        }
+
+        // ActiveFrameCursor (FR-009)
+        {
+            std::vector<FrameEvent> ev(3);
+            ev[0].TxStartUs = 100; ev[0].TxEndUs = 200; ev[0].TxNodeId = 1; ev[0].RxNodeIds = { 2, 3 };
+            ev[1].TxStartUs = 300; ev[1].TxEndUs = 400; ev[1].TxNodeId = 2; ev[1].RxNodeIds = { 1, 3 };
+            ev[2].TxStartUs = 1000; ev[2].TxEndUs = 1100; ev[2].TxNodeId = 3; ev[2].RxNodeIds = { 1, 2 };
+
+            ActiveFrameCursor cursor(ev);
+            ActiveFrames a = cursor.Collect(0, 500);
+            Check(a.BusBusy && a.Senders == std::vector<int>({ 1, 2 }) && a.Receivers == std::vector<int>({ 3 }),
+                "005 FR-009: two frames in one refresh -> both senders; an ECU that also sent is shown as sender");
+            ActiveFrames idle = cursor.Collect(500, 900);
+            Check(!idle.BusBusy && idle.Senders.empty() && idle.Receivers.empty(),
+                "005 FR-009: an idle interval highlights nothing");
+            ActiveFrames third = cursor.Collect(900, 1050);
+            Check(third.Senders == std::vector<int>({ 3 }) && third.Receivers == std::vector<int>({ 1, 2 }),
+                "005 FR-009: a frame still on the bus at the end of the interval is highlighted");
+            ActiveFrames still = cursor.Collect(1050, 1060);
+            Check(still.Senders == std::vector<int>({ 3 }), "005 SC-004: a long frame stays highlighted across refreshes");
+        }
+
+        // Every frame is highlighted at least once, whatever the refresh step is
+        {
+            ConfigLoadResult a = LoadConfig(Widen(Join(g_sampleDir, "sample_appendix_a.canprj")));
+            SimulationEngine engine(BuildRunNetwork(a.Project, a.Config), 1000000LL);
+            Logger logger;
+            engine.Run(logger);
+            const std::vector<FrameEvent> events = BuildFrameEvents(logger.Rows());
+
+            const long long steps[] = { 16000, 1000 };
+            bool allSeen = !events.empty();
+            for (long long step : steps)
+            {
+                std::map<std::pair<long long, int>, bool> seen;
+                ActiveFrameCursor cursor(events);
+                std::size_t next = 0;
+                for (long long t = step; t <= 1000000 + step; t += step)
+                {
+                    ActiveFrames f = cursor.Collect(t - step, t);
+                    // mark every event overlapping this interval whose sender is shown
+                    while (next < events.size() && events[next].TxStartUs <= t)
+                    {
+                        const bool shown = std::find(f.Senders.begin(), f.Senders.end(), events[next].TxNodeId) != f.Senders.end();
+                        if (shown)
+                            seen[std::make_pair(events[next].TxStartUs, events[next].TxNodeId)] = true;
+                        ++next;
+                    }
+                }
+                allSeen = allSeen && seen.size() == events.size();
+            }
+            Check(allSeen, "005 FR-009: at 16 ms and 1 ms refresh steps every frame is highlighted at least once");
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -700,6 +805,7 @@ int main(int argc, char** argv)
     CheckFeature002();
     CheckFeature003();
     CheckFeature004();
+    CheckFeature005();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

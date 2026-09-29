@@ -107,10 +107,17 @@ namespace CanSim
         int EcuCount = 2;           // 0..16
         int DurationSec = 10;       // 1..600
         bool FrameDisplay = false;
+        int Speed = 0;              // -13..10 (feature 005); 0 = real time
     };
 
     const int kMinDurationSec = 1;
     const int kMaxDurationSec = 600;
+
+    // Feature 005: the simulation time runs at 2^Speed times the real time.
+    // kInstantSpeed does not wait at all.
+    const int kMinSpeed = -13;
+    const int kMaxSpeed = 10;
+    const int kInstantSpeed = 10;
 
     // DES event. NodeIndex == -1 marks a bus-wide event (BusIdle, SimulationEnd).
     // NodeIndex is the *position* of the node within Network::Nodes (which is

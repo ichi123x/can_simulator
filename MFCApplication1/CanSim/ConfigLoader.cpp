@@ -249,6 +249,27 @@ namespace CanSim
                 project.FrameDisplay = value != 0;
         }
 
+        // Speed is signed (feature 005 FR-002): an optional '+' or '-' sign
+        // followed by digits, kMinSpeed..kMaxSpeed.
+        auto speedIt = raw.project.find("Speed");
+        if (speedIt != raw.project.end())
+        {
+            const std::string& text = speedIt->second;
+            const bool negative = !text.empty() && text[0] == '-';
+            const std::string digits = (!text.empty() && (text[0] == '-' || text[0] == '+')) ? text.substr(1) : text;
+            unsigned long magnitude = 0;
+            const bool isNumber = !digits.empty() && digits.find_first_not_of("0123456789") == std::string::npos &&
+                                  TryParseULongBase(digits, 10, magnitude) && magnitude <= 100;
+            const long value = negative ? -static_cast<long>(magnitude) : static_cast<long>(magnitude);
+            if (!isNumber || value < kMinSpeed || value > kMaxSpeed)
+            {
+                result.ErrorMessage = "[Project] Speed: '" + text + "' must be an integer between " +
+                    std::to_string(kMinSpeed) + " and " + std::to_string(kMaxSpeed) + ".";
+                return result;
+            }
+            project.Speed = static_cast<int>(value);
+        }
+
         // ---- Nodes (FR-001) ----
         // Feature 004: a project may define no node at all (ECU count 0, or
         // ECUs without any frame definition).
