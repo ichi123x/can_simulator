@@ -17,6 +17,7 @@
 #include "CanSim/ProjectFile.h"
 #include "CanSim/FrameEvents.h"
 #include "SettingsDlg.h"
+#include "FrameEditDlg.h"
 
 #include <algorithm>
 
@@ -83,6 +84,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_COMMAND(ID_FILE_LOAD_PROJECT, &CMFCApplication1Dlg::OnFileLoadProject)
 	ON_COMMAND(ID_FILE_SAVE_PROJECT, &CMFCApplication1Dlg::OnFileSaveProject)
 	ON_COMMAND(ID_EDIT_SETTINGS, &CMFCApplication1Dlg::OnEditSettings)
+	ON_COMMAND(ID_EDIT_FRAMES, &CMFCApplication1Dlg::OnEditFrames)
 	ON_COMMAND(ID_EDIT_FRAME_DISPLAY, &CMFCApplication1Dlg::OnEditFrameDisplay)
 	ON_COMMAND(ID_SIM_START, &CMFCApplication1Dlg::OnSimStart)
 	ON_COMMAND(ID_SIM_STOP, &CMFCApplication1Dlg::OnSimStop)
@@ -394,6 +396,7 @@ void CMFCApplication1Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL b
 	const UINT runningOnly = MF_BYCOMMAND | (running ? MF_ENABLED : MF_GRAYED);
 	pPopupMenu->EnableMenuItem(ID_FILE_LOAD_PROJECT, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_SETTINGS, idleOnly);
+	pPopupMenu->EnableMenuItem(ID_EDIT_FRAMES, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_SIM_START, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_SIM_STOP, runningOnly);
 	pPopupMenu->CheckMenuItem(ID_EDIT_FRAME_DISPLAY,
@@ -473,6 +476,16 @@ void CMFCApplication1Dlg::OnEditSettings()
 	m_settings.Speed = dlg.Settings.Speed;
 	m_definitions.BitRateBps = dlg.BitRateBps;
 	SetEcuCount(m_settings.EcuCount);
+}
+
+// Data frame editor (feature 006). Edits go straight into the project's
+// definitions; they are written to the file by "Save project".
+void CMFCApplication1Dlg::OnEditFrames()
+{
+	if (m_runState == RunState::Running)
+		return; // 006 FR-001: not while a simulation runs
+	CFrameEditDlg dlg(m_definitions, m_settings.EcuCount, this);
+	dlg.DoModal();
 }
 
 void CMFCApplication1Dlg::OnEditFrameDisplay()

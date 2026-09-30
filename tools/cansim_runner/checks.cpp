@@ -18,6 +18,7 @@
 #include "ProjectFile.h"
 #include "FrameEvents.h"
 #include "ReplayClock.h"
+#include "FrameEditor.h"
 
 #include <climits>
 
@@ -290,8 +291,11 @@ namespace
             }
             std::cout << "  node6 first frame: Tx_Request=" << firstRequest
                       << " Tx_Start=" << firstStart << "\n";
-            Check(late != nullptr && firstRequest == 0 && firstStart == late->NormalEntryUs,
-                "FR-010: a request queued during startup keeps Tx_Request and is sent at Normal entry");
+            // Feature 006 FR-015 (domain spec FR-020a): requests are counted from
+            // the Normal entry, so node 6 (power-on 50 ms) raises its first
+            // request at Normal entry instead of holding one raised at 0.
+            Check(late != nullptr && firstRequest == late->NormalEntryUs && firstStart == late->NormalEntryUs,
+                "006 FR-015 (was 002 FR-010): the first request of a late node is raised at its Normal entry");
         }
 
         // SC-005: reproducibility including the startup records
@@ -355,13 +359,18 @@ namespace
                 Check(a && a->NormalEntryUs == 22, "node 1 syncs on an idle bus at 22 us");
                 Check(b && b->NormalEntryUs == 280,
                     "SC-004: a node joining mid-frame syncs at the intermission end (280 us)");
-                Check(c && c->NormalEntryUs == 558,
-                    "FR-007: a node interrupted by a new frame restarts and syncs at 558 us");
+                // Feature 006: node 1's second request moved from 300 to 322 us
+                // (Normal 22 + period 300) and node 3 now powers on at 305 us, so
+                // its window (305 + 22 = 327) is cut by the frame 322 -> 574 and
+                // it syncs at 574 - 16 + 22 = 580 us.
+                Check(c && c->NormalEntryUs == 580,
+                    "FR-007: a node interrupted by a new frame restarts and syncs at 580 us");
             }
         }
 
-        // FR-011 still applies while a node waits for startup: repeated periods
-        // overwrite the queued frame instead of piling up.
+        // Feature 006 FR-015: no request is raised before the node is Normal, so
+        // nothing piles up while it waits for startup (the 002 case of 5
+        // overwrites during startup no longer occurs).
         {
             std::ifstream src(startupCfg.c_str(), std::ios::binary);
             std::ostringstream buf;
@@ -389,8 +398,8 @@ namespace
                 }
             }
             std::cout << "  node6 first frame Overwrite_Count=" << firstOverwrite << "\n";
-            Check(firstOverwrite == 5,
-                "FR-011: 5 periods elapse while node 6 waits for startup, so Overwrite_Count is 5");
+            Check(firstOverwrite == 0,
+                "006 FR-015: a node waiting for startup has no request yet, so Overwrite_Count is 0");
         }
     }
     // ---- feature 003: bus diagram layout ----
@@ -653,7 +662,9 @@ namespace
                 "004 SC-008: stopping at t keeps exactly the frames whose transmission completed by t");
         }
 
-        // SC-009: migrated samples give the same results as before feature 004
+        // SC-009: the samples give the same results as a baseline. Feature 006
+        // changed the results (0xFF data, requests counted from the Normal
+        // entry), so the baseline must be produced by feature 006 or later.
         if (!g_baselineDir.empty())
         {
             const char* samples[] = { "sample_appendix_a", "sample_collision", "sample_startup",
@@ -677,7 +688,7 @@ namespace
                     }
                     same = same && !before.empty() && now == before;
                 }
-                Check(same, std::string("004 SC-009: ") + name + ".canprj reproduces the feature 001/002 CSVs");
+                Check(same, std::string("004 SC-009: ") + name + ".canprj reproduces the baseline CSVs (006 or later)");
             }
         }
         else
@@ -787,6 +798,202 @@ namespace
             Check(allSeen, "005 FR-009: at 16 ms and 1 ms refresh steps every frame is highlighted at least once");
         }
     }
+
+    // ---- feature 006: data frame editor ----
+    FrameInput MakeInput(const char* id, const char* dlc, const char* periodMs, const char* offsetMs,
+        const char* name = "f")
+    {
+        FrameInput in;
+        in.Name = name;
+        in.NameChars = static_cast<int>(std::string(name).size());
+        in.IdText = id;
+        in.DlcText = dlc;
+        in.PeriodMsText = periodMs;
+        in.OffsetMsText = offsetMs;
+        return in;
+    }
+
+    bool HasIssue(const std::vector<FrameIssue>& issues, FrameField field, FrameProblem problem)
+    {
+        for (const FrameIssue& i : issues)
+            if (i.Field == field && i.Problem == problem)
+                return true;
+        return false;
+    }
+
+    void CheckFeature006()
+    {
+        std::cout << "\n== feature 006: data frame editor ==\n";
+
+        ConfigLoadResult a = LoadConfig(Widen(Join(g_sampleDir, "sample_appendix_a.canprj")));
+        Check(a.Success, "sample_appendix_a.canprj loads");
+        if (!a.Success)
+            return;
+
+        // Reading: Data is always Dlc x 0xFF, names are read (FR-014, FR-012)
+        {
+            bool allFF = true;
+            for (const Node& n : a.Config.Nodes)
+                for (const FrameDefinition& f : n.Frames)
+                    allFF = allFF && f.Data == MakeFrameData(f.Dlc);
+            const Node* ecu1 = FindNode(a.Config, 1);
+            Check(allFF, "006 FR-014: every frame's data is Dlc bytes of 0xFF");
+            Check(ecu1 && ecu1->Frames.size() == 2 && !ecu1->Frames[0].Name.empty(),
+                "006 FR-012: frame names are read from the project");
+
+            ConfigLoadResult old = LoadText("f_olddata.canprj",
+                "[Node1]\r\nNodeId=1\r\n[Node1.Frame1]\r\nCanId=0x10\r\nDlc=2\r\nData=00,01\r\nPeriodUs=1000\r\n");
+            Check(old.Success && old.Config.Nodes[0].Frames[0].Data == MakeFrameData(2),
+                "006 FR-014: an old Data=00,01 line is ignored and the data becomes 0xFF 0xFF");
+        }
+
+        // Reading: rejections (FR-013, offset < period, name length)
+        {
+            std::ostringstream big;
+            big << "[Node1]\r\nNodeId=1\r\n";
+            for (int i = 1; i <= 101; ++i)
+                big << "[Node1.Frame" << i << "]\r\nCanId=0x" << std::hex << (0x100 + i) << std::dec
+                    << "\r\nDlc=0\r\nPeriodUs=1000\r\n";
+            ConfigLoadResult r101 = LoadText("f_101.canprj", big.str());
+            Check(!r101.Success, "006 FR-013: a node with 101 frames is rejected");
+
+            ConfigLoadResult off = LoadText("f_offset.canprj",
+                "[Node1]\r\nNodeId=1\r\n[Node1.Frame1]\r\nCanId=0x10\r\nDlc=0\r\nPeriodUs=1000\r\nInitialOffsetUs=1000\r\n");
+            Check(!off.Success, "006: InitialOffsetUs equal to PeriodUs is rejected");
+
+            ConfigLoadResult longName = LoadText("f_name.canprj",
+                "[Node1]\r\nNodeId=1\r\n[Node1.Frame1]\r\nName=abcdefghijabcdefghijabcdefghijabc\r\nCanId=0x10\r\nDlc=0\r\nPeriodUs=1000\r\n");
+            Check(!longName.Success, "006: a frame name of 33 characters is rejected");
+        }
+
+        // ValidateFrame (FR-006)
+        {
+            FrameDefinition out;
+            std::vector<FrameIssue> ok = ValidateFrame(a.Config, 1, -1, MakeInput("0x200", "4", "20", ""), out);
+            Check(ok.empty() && out.CanId == 0x200 && out.Dlc == 4 && out.PeriodUs == 20000 &&
+                      out.InitialOffsetUs == 0 && out.Data == MakeFrameData(4),
+                "006 FR-006: a valid entry passes (empty offset = 0, ms -> us, data 0xFF)");
+            Check(ValidateFrame(a.Config, 1, -1, MakeInput("200", "4", "20", "5"), out).empty() && out.InitialOffsetUs == 5000,
+                "006 FR-006: the ID may be typed without 0x");
+
+            Check(HasIssue(ValidateFrame(a.Config, 1, -1, MakeInput("0x800", "4", "20", ""), out), FrameField::Id, FrameProblem::OutOfRange),
+                "006 FR-006: ID 0x800 is out of range");
+            Check(HasIssue(ValidateFrame(a.Config, 1, -1, MakeInput("xyz", "4", "20", ""), out), FrameField::Id, FrameProblem::NotANumber),
+                "006 FR-006: ID 'xyz' is not a number");
+            Check(HasIssue(ValidateFrame(a.Config, 1, -1, MakeInput("0x200", "9", "20", ""), out), FrameField::Dlc, FrameProblem::OutOfRange),
+                "006 FR-006: DLC 9 is out of range");
+            Check(HasIssue(ValidateFrame(a.Config, 1, -1, MakeInput("0x200", "4", "0", ""), out), FrameField::Period, FrameProblem::OutOfRange),
+                "006 FR-006: period 0 ms is out of range");
+            Check(HasIssue(ValidateFrame(a.Config, 1, -1, MakeInput("0x200", "4", "20", "20"), out), FrameField::Offset, FrameProblem::OffsetNotBelowPeriod),
+                "006 FR-006: offset equal to the period is rejected");
+
+            FrameInput longName = MakeInput("0x200", "4", "20", "");
+            longName.NameChars = 33;
+            Check(HasIssue(ValidateFrame(a.Config, 1, -1, longName, out), FrameField::Name, FrameProblem::TooLong),
+                "006 FR-006: a 33 character name is rejected");
+
+            // 0x080 belongs to ECU3
+            std::vector<FrameIssue> dup = ValidateFrame(a.Config, 1, -1, MakeInput("0x080", "4", "20", ""), out);
+            Check(HasIssue(dup, FrameField::Id, FrameProblem::Duplicate) && dup[0].DuplicateNodeId == 3,
+                "006 FR-006: an ID used by another node is a duplicate (reports the node)");
+            // editing ECU1's first frame keeps its own ID
+            Check(ValidateFrame(a.Config, 1, 0, MakeInput("0x100", "8", "10", ""), out).empty(),
+                "006 FR-006: editing a frame does not collide with itself");
+
+            // an ECU beyond the ECU count still owns its IDs
+            Network defs = a.Config;
+            AddFrame(defs, 16, out);  // 0x100 is ECU1's; use a fresh frame instead
+            defs.Nodes.back().Frames.back().CanId = 0x7F0;
+            Check(HasIssue(ValidateFrame(defs, 1, -1, MakeInput("0x7F0", "0", "10", ""), out), FrameField::Id, FrameProblem::Duplicate),
+                "006: IDs of ECUs outside the ECU count are also checked for duplicates");
+        }
+
+        // AddFrame / ReplaceFrame / DeleteFrame / EnsureNode (FR-007..FR-009)
+        {
+            Network defs = a.Config;
+            FrameDefinition f;
+            ValidateFrame(defs, 7, -1, MakeInput("0x700", "1", "50", "", "new"), f);
+            AddFrame(defs, 7, f);
+            const Node* n7 = FindNode(defs, 7);
+            bool ordered = true;
+            for (std::size_t i = 1; i < defs.Nodes.size(); ++i)
+                ordered = ordered && defs.Nodes[i - 1].NodeId < defs.Nodes[i].NodeId;
+            Check(n7 && n7->Name == "ECU7" && n7->Frames.size() == 1 && ordered,
+                "006: adding to an ECU without a definition creates it in NodeId order");
+
+            FrameDefinition g = f;
+            g.CanId = 0x701;
+            AddFrame(defs, 7, g);
+            FrameDefinition h = f;
+            h.PeriodUs = 70000;
+            ReplaceFrame(defs, 7, 0, h);
+            DeleteFrame(defs, 7, 0);
+            n7 = FindNode(defs, 7);
+            Check(n7 && n7->Frames.size() == 1 && n7->Frames[0].CanId == 0x701,
+                "006 FR-009: after deleting No.1 the remaining frame becomes No.1");
+
+            Network full;
+            for (int i = 0; i < kMaxFramesPerNode; ++i)
+            {
+                FrameDefinition x;
+                x.CanId = static_cast<unsigned>(i);
+                x.PeriodUs = 1000;
+                AddFrame(full, 1, x);
+            }
+            Check(HasIssue(ValidateFrame(full, 1, -1, MakeInput("0x700", "0", "10", ""), f), FrameField::Name, FrameProblem::ListFull),
+                "006 FR-013: the 101st frame cannot be added");
+        }
+
+        // Save -> reload keeps names/order and writes no Data= (SC-003)
+        {
+            Network defs = a.Config;
+            FrameDefinition f;
+            ValidateFrame(defs, 2, -1, MakeInput("0x210", "3", "25", "7", "added"), f);
+            AddFrame(defs, 2, f);
+            ProjectSettings s = a.Project;
+            const std::string path = Join(g_tempDir, "f_roundtrip.canprj");
+            SaveProject(Widen(path), s, defs);
+            const std::string text = ReadTextFile(path);
+            ConfigLoadResult back = LoadConfig(Widen(path));
+            bool same = back.Success && back.Config.Nodes.size() == defs.Nodes.size();
+            for (std::size_t n = 0; same && n < defs.Nodes.size(); ++n)
+            {
+                const Node& x = defs.Nodes[n];
+                const Node& y = back.Config.Nodes[n];
+                same = x.Frames.size() == y.Frames.size();
+                for (std::size_t i = 0; same && i < x.Frames.size(); ++i)
+                    same = x.Frames[i].Name == y.Frames[i].Name && x.Frames[i].CanId == y.Frames[i].CanId &&
+                           x.Frames[i].Dlc == y.Frames[i].Dlc && x.Frames[i].PeriodUs == y.Frames[i].PeriodUs &&
+                           x.Frames[i].InitialOffsetUs == y.Frames[i].InitialOffsetUs;
+            }
+            Check(same && text.find("Data=") == std::string::npos,
+                "006 SC-003: save then reload keeps every list (names, order) and writes no Data= line");
+        }
+
+        // First request = Normal entry + offset (FR-015, SC-005, SC-007)
+        {
+            ConfigLoadResult late = LoadText("f_late.canprj",
+                "[Project]\r\nEcuCount=1\r\n[Node1]\r\nNodeId=1\r\nPowerOnTimeUs=50000\r\n"
+                "[Node1.Frame1]\r\nCanId=0x100\r\nDlc=0\r\nPeriodUs=20000\r\n"
+                "[Node1.Frame2]\r\nCanId=0x101\r\nDlc=0\r\nPeriodUs=20000\r\nInitialOffsetUs=5000\r\n");
+            SimulationEngine engine(BuildRunNetwork(late.Project, late.Config), 200000LL);
+            Logger logger;
+            engine.Run(logger);
+            const Node* n = FindNode(engine.GetNetwork(), 1);
+            std::vector<long long> req100, req101;
+            for (const LogRow& r : logger.Rows())
+                (r.CanId == 0x100 ? req100 : req101).push_back(r.TxRequestUs);
+            const long long normal = n ? n->NormalEntryUs : -1;
+            std::cout << "  Normal_Entry=" << normal << " first 0x100=" << (req100.empty() ? -1 : req100[0])
+                      << " first 0x101=" << (req101.empty() ? -1 : req101[0]) << "\n";
+            Check(late.Success && normal == 50022 && !req100.empty() && req100[0] == normal,
+                "006 SC-007: offset 0 -> the first request is at the Normal entry (50 ms + 22 us)");
+            Check(!req101.empty() && req101[0] == normal + 5000 && req101.size() > 1 && req101[1] == normal + 25000,
+                "006 FR-015: offset 5 ms -> Normal + 5 ms, then every period (+20 ms)");
+            // (200 ms - 50.022 ms) / 20 ms -> 8 requests each
+            Check(req100.size() == 8 && req101.size() == 8, "006 SC-005: request count follows the period after the Normal entry");
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -806,6 +1013,7 @@ int main(int argc, char** argv)
     CheckFeature003();
     CheckFeature004();
     CheckFeature005();
+    CheckFeature006();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

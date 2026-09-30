@@ -1,0 +1,40 @@
+// FrameEditDlg.h
+// "Edit > Data frame editor" window (feature 006, domain spec 3.1a): pick a
+// node, see its transmit frame list, add / edit / delete frames. Changes are
+// applied to the project's definitions right away.
+
+#pragma once
+
+#include "CanSim/CanTypes.h"
+
+class CFrameEditDlg : public CDialogEx
+{
+public:
+	CFrameEditDlg(CanSim::Network& definitions, int ecuCount, CWnd* pParent = nullptr);
+
+#ifdef AFX_DESIGN_TIME
+	enum { IDD = IDD_FRAME_EDIT };
+#endif
+
+protected:
+	virtual void DoDataExchange(CDataExchange* pDX);
+	virtual BOOL OnInitDialog();
+	afx_msg void OnNodeChanged();
+	afx_msg void OnAdd();
+	afx_msg void OnEdit();
+	afx_msg void OnDelete();
+	afx_msg void OnListDoubleClick(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnListItemChanged(NMHDR* pNMHDR, LRESULT* pResult);
+	DECLARE_MESSAGE_MAP()
+
+private:
+	int SelectedNodeId() const;   // 0 when there is no ECU
+	int SelectedIndex() const;    // -1 when no row is selected
+	void RefreshList(int selectIndex);
+	void UpdateButtons();
+
+	CanSim::Network& m_definitions;
+	int m_ecuCount;
+	CListCtrl m_list;
+	CComboBox m_node;
+};

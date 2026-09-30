@@ -44,9 +44,10 @@ REM 成功基準の一括検証（サンプル構成ディレクトリ、一時�
 ```
 
 `checks.exe` はすべてのチェックに通れば終了コード 0 を返します。期待値の根拠は各機能の
-`quickstart.md`（`specs/001-can-simulation-core/` 〜 `specs/004-menu-project-settings/`）を参照
+`quickstart.md`（`specs/001-can-simulation-core/` 〜 `specs/006-frame-editor/`）を参照
 してください。
 
-第3引数に基準 CSV のディレクトリを渡すと、移行後のサンプル（`sample_*.canprj`）の結果が機能 004 以前
-の結果と一致すること（004 SC-009）も検証します。基準ディレクトリには `sample_<名前>.log.csv` /
-`.summary.csv` / `.startup.csv`（機能 004 着手前のビルドで各サンプルを 10 秒実行したもの）を置きます。
+第3引数に基準 CSV のディレクトリを渡すと、サンプル（`sample_*.canprj`）の結果が基準
+の結果と一致すること（004 SC-009）も検証します。機能 006 でデータ（DLC 分の 0xFF）と送信要求の起点（通常動作開始時刻）が
+変わり結果が変わったため、基準は 006 以降のビルドで作ったものを使ってください。基準ディレクトリには `sample_<名前>.log.csv` /
+`.summary.csv` / `.startup.csv`（各サンプルを 10 秒実行したもの）を置きます。

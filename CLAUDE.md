@@ -30,7 +30,7 @@ msbuild MFCApplication1\MFCApplication1.sln /p:Configuration=Debug /p:Platform=x
 - `framework.h` で `NOMINMAX` を定義済み。`CanSim/` 配下で `std::min`/`std::max`/`std::numeric_limits<T>::max()` などを使う際は、Windows ヘッダーの `min`/`max` マクロとの衝突を避けるためにこれに依存してよい（新たに `#undef min`/`#undef max` を個別ファイルに書く必要はない）
 - `CanSim/` 配下の新規ソースは日本語コメント・文字列リテラルを含めない（ASCII のみ）こと。`.cpp` は PCH（`pch.h`）を経由して `framework.h` を取り込む都合上、BOM なし UTF-8 で保存されるとコンパイラが実行時ロケール（日本語環境では コードページ 932）でソースを解釈し、非 ASCII 文字が文字化けする（警告 C4819）。UI 表示文字列は `MFCApplication1.rc`（UTF-16LE、BOM 付き）側の日本語ラベル・文字列テーブルに閉じ込め、`CanSim/`・`MFCApplication1Dlg.cpp` 側は英語の識別子・メッセージのみを扱う方針としている
 - `MFCApplication1.rc` は UTF-16LE（BOM 付き、CRLF）のバイナリに近いテキストファイル。編集する際は Read/Edit ツールでの直接編集を避け、PowerShell の `Get-Content -Encoding Unicode` / `[System.IO.File]::WriteAllText(path, text, (New-Object System.Text.UnicodeEncoding($false,$true)))` のようにエンコーディングを明示して読み書きすること（さもないと文字化けで壊れる）
-- 正式なテストフレームワーク・テストプロジェクトは導入していません（`MFCApplication1.sln` にテストは含まれません）。代わりに、`CanSim/` が UI 非依存のプレーン C++ である性質を利用した検証ツールを `tools/cansim_runner/` に置いています。GUI を操作せずに機能 001〜004 の成功基準を一括検証できます。
+- 正式なテストフレームワーク・テストプロジェクトは導入していません（`MFCApplication1.sln` にテストは含まれません）。代わりに、`CanSim/` が UI 非依存のプレーン C++ である性質を利用した検証ツールを `tools/cansim_runner/` に置いています。GUI を操作せずに機能 001〜006 の成功基準を一括検証できます。
 
 ```bat
 REM 「x64 Native Tools Command Prompt for VS 2022」等でリポジトリのルートから実行
@@ -42,8 +42,9 @@ cl /nologo /std:c++14 /EHsc /I tools\cansim_runner /I MFCApplication1\CanSim ^
    /Fo"%OUT%\\" /Fe"%OUT%\checks.exe" ^
    tools\cansim_runner\checks.cpp MFCApplication1\CanSim\*.cpp
 
-REM 成功基準の一括検証（終了コード 0 で全パス）。第3引数に機能 004 以前の基準 CSV のディレクトリを
-REM 渡すと、サンプルの結果が変わっていないこと（004 SC-009）も検証する（README 参照）
+REM 成功基準の一括検証（終了コード 0 で全パス）。第3引数に基準 CSV のディレクトリを渡すと、サンプルの
+REM 結果が変わっていないこと（004 SC-009）も検証する。機能 006 でデータ 0xFF と送信要求の起点が変わった
+REM ため、基準は 006 以降のビルドで作ったものを使う（README 参照）
 "%OUT%\checks.exe" MFCApplication1\CanSim\SampleConfigs "%OUT%"
 ```
 
@@ -72,6 +73,8 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
 
 - `MFCApplication1.h` / `.cpp` — `CWinApp` を継承したアプリケーションクラス `CMFCApplication1App`。`InitInstance()` がエントリーポイントで、メインダイアログを生成・表示する
 - `MFCApplication1Dlg.h` / `.cpp` — メインウィンドウとなる `CDialogEx` 派生クラス `CMFCApplication1Dlg`。メニュー駆動（機能 004）で、ボタン・入力欄などのコントロールは持たない。メニュー「ファイル（プロジェクト読込み／保存）」「編集（セッティング／フレーム表示）」「シミュレーション（開始／終了）」を `ON_COMMAND` で処理し、項目の有効／無効とチェックは `OnInitMenuPopup` で設定する（ダイアログは `ON_UPDATE_COMMAND_UI` を配送しないため）。各ハンドラは `CanSim::LoadConfig` / `SaveProject` / `BuildRunNetwork` → `SimulationEngine::Run` → CSV 出力、`BuildFrameEvents` を呼ぶ薄いグルーコードで、UI 固有のロジック（ダイアログ操作・通知・描画・再生タイマー）以外はここに書かない。Enter/Esc では閉じず（`OnOK` は空、`PreTranslateMessage` で握りつぶす）、閉じるのは ✖ のみ
+- `FrameEditDlg.h` / `.cpp` — 「編集 → データフレーム編集」ウィンドウ `CFrameEditDlg`（`IDD_FRAME_EDIT`、機能 006）。ECU を選び、送信フレーム一覧（No. / フレーム名 / ID / DLC / 初回オフセット / 送信周期）を表示し、追加・編集・削除する。変更はその場でプロジェクトの定義（`m_definitions`）に反映され、保存はプロジェクト保存で行う。実行中は開けない
+- `FrameEntryDlg.h` / `.cpp` — 追加・編集の入力画面 `CFrameEntryDlg`（`IDD_FRAME_ENTRY`）。フレーム名・ID（16 進）・DLC・送信周期(ms)・初回オフセット(ms) を入力し、ビット長と伝送時間を表示する。OK で `CanSim::ValidateFrame` を呼び、NG なら「項目: 理由」を示して閉じない
 - `SettingsDlg.h` / `.cpp` — 「編集 → セッティング」ダイアログ `CSettingsDlg`（`IDD_SETTINGS`）。ECU 数 0〜16・通信速度 4 種はドロップダウンリスト、シミュレーション時間は 1〜600 秒の整数（範囲外は OK 時に拒否して閉じない）、スピードは +10〜-13 のドロップダウンリスト
 - `pch.h` / `pch.cpp` — プリコンパイル済みヘッダー（`framework.h` を include）
 - `framework.h` — MFC/ATL の共通インクルード（`afxwin.h`, `afxext.h` など）。`NOMINMAX` をここで定義している
@@ -81,9 +84,10 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
   - `CanTypes.h` — `Network` / `Node` / `FrameDefinition` / `PendingFrame` / `Event` / `LogRow` などの値型（`specs/001-can-simulation-core/data-model.md` 参照）
   - `EventQueue.h/.cpp` — DES イベントキュー（時刻・イベント種別・ノード順で決定的にソート）
   - `FrameTiming.h/.cpp` — CAN CRC-15 計算とビットスタッフィングを反映した実ビット数からのフレーム伝送時間算出
-  - `ConfigLoader.h/.cpp` — プロジェクトファイル（`.canprj`）の読み込み・検証。形式は機能 001 の設定ファイル形式（`specs/001-can-simulation-core/contracts/config-input-format.md`）に `[Project]` セクション（`EcuCount`／`DurationSec`／`FrameDisplay`／`Speed`）を足した後継（`specs/004-menu-project-settings/contracts/project-file-format.md`）。ノード 0 個も許容する
+  - `ConfigLoader.h/.cpp` — プロジェクトファイル（`.canprj`）の読み込み・検証。形式は機能 001 の設定ファイル形式（`specs/001-can-simulation-core/contracts/config-input-format.md`）に `[Project]` セクション（`EcuCount`／`DurationSec`／`FrameDisplay`／`Speed`）を足した後継（`specs/004-menu-project-settings/contracts/project-file-format.md`）。ノード 0 個も許容する。機能 006 以降、フレームは `Name=` を持ち、データは常に DLC 分の 0xFF（`Data=` は読まない・書かない）、1 ノード最大 100 フレーム、`InitialOffsetUs` は `PeriodUs` 未満
   - `ProjectFile.h/.cpp` — `.canprj` の保存（`SaveProject`、コメントは保存しない）と、実行用ネットワークの生成（`BuildRunNetwork`: ECU 番号 1〜`EcuCount` のノードを作り、定義のない ECU はフレームなしで補い、`EcuCount` を超える番号の定義は実行しない）
   - `FrameEvents.h/.cpp` — フレームログ（1 フレーム × 受信ノードで 1 行）を 1 フレーム 1 件の再生用イベント列に変換する（フレーム表示用）
+  - `FrameEditor.h/.cpp` — 送信フレーム一覧の編集（機能 006）。入力検査 `ValidateFrame`（ID 0x000〜0x7FF・全ノードで一意、DLC 0〜8、周期 1〜3,600,000 ms、オフセット < 周期、名前 32 文字、1 ノード 100 件）、`AddFrame` / `ReplaceFrame` / `DeleteFrame`、定義のない ECU を作る `EnsureNode`、データ（DLC 分の 0xFF）を作る `MakeFrameData`
   - `ReplayClock.h/.cpp` — 実行中の時計（機能 005）。`SimTimeAtUs` は実経過時間 × 2^スピードでシミュレーション時刻を求め、`ActiveFrameCursor` は画面の書き換え 1 回分の時刻区間に送信中だったフレームの送信元・受信 ECU を集める（送信を優先）
   - `Network.h/.cpp` — 調停（ID優先）・自動再送信・上書き（FR-011〜014）・受信フィルタ判定
   - `SimulationEngine.h/.cpp` — 上記を統合する DES メインループ本体
@@ -98,6 +102,8 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
 **プロジェクトと実行（機能 004）**: ダイアログは現在のプロジェクト（`m_settings` = ECU 数・シミュレーション時間・フレーム表示、`m_definitions` = 読み込んだ全ノード定義と通信速度、`m_projectPath`）を持つ。起動時は ECU 数 2・500 kbps・10 秒・フレーム表示 OFF・スピード 0。「開始」はまずシミュレーションを最後まで UI スレッドで同期計算し（上限 600 秒で数秒程度、待機カーソル表示）、その後、実経過時間 × 2^スピードでシミュレーション時刻を進めて、終端に達したら CSV を書く（機能 005。スピード 0 = 実時間、+10 = 待たずに即時完了、-13 = 1/8192）。時間の進み方はフレーム表示の ON/OFF に関係せず、フレーム表示は強調を描くかどうかだけを決める。画面は 16 ms のタイマーで書き換え（実測 約 40 回/秒）、直前の書き換えから今回までに送信中だったフレームの送信元 ECU（赤）・受信 ECU（緑）・バス（青）をまとめて強調する。時刻はタイマーの回数ではなく `QueryPerformanceCounter` の経過時間で決める。実行中の「終了」は、その時点のシミュレーション時刻までエンジンを再実行してその時点までの結果を出力する（送信を完了したフレームだけが残る）。実行中はセッティング・読込み・開始を受け付けない。
 
 シミュレーション実行時は、プロジェクトファイルのパスを基準に3つの CSV が出力されます: `<プロジェクトファイル名>.log.csv`（フレームログ）、`.summary.csv`（性能指標の集計）、`.startup.csv`（起動記録）。プロジェクトを一度も読込み・保存していない状態で「開始」すると、先に保存先を尋ねる。
+
+**送信要求の起点（機能 006）**: 各フレームの最初の送信要求は、送信ノードが通常動作に入った時刻 + 初回オフセットで、以後は周期ごと（Doc FR-020a）。`SimulationEngine::HandleSyncComplete` で積む。通常動作前に送信要求は発生しないので、機能 002 の「起動前の要求の保留」は起きない。
 
 **起動制御による時刻への影響**: 電源投入時刻・初期化時間が既定値（0）の構成でも、各ノードはバスが空であることを11ビット時間（500 kbps で 22 µs）ぶん観測してから通常動作に入ります。そのため、起動直後にバスが連続して埋まっている区間の送受信時刻はその分だけ後ろにずれます（バスが一度空いて以降は送信要求時刻どおりに戻ります）。送信順序・調停結果・送信回数・ログの行数は影響を受けません。CAN の実挙動に忠実であることを優先しているため、起動を省略する互換モードは意図的に設けていません。
 

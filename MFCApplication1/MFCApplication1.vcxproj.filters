@@ -27,6 +27,12 @@
     <ClInclude Include="SettingsDlg.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="FrameEditDlg.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameEntryDlg.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="framework.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -78,6 +84,9 @@
     <ClInclude Include="CanSim\ReplayClock.h">
       <Filter>CanSim</Filter>
     </ClInclude>
+    <ClInclude Include="CanSim\FrameEditor.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MFCApplication1.cpp">
@@ -87,6 +96,12 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="SettingsDlg.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameEditDlg.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameEntryDlg.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
@@ -126,6 +141,9 @@
       <Filter>CanSim</Filter>
     </ClCompile>
     <ClCompile Include="CanSim\ReplayClock.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\FrameEditor.cpp">
       <Filter>CanSim</Filter>
     </ClCompile>
   </ItemGroup>

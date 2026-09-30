@@ -51,12 +51,18 @@ namespace CanSim
     // data-model.md: FrameDefinition
     struct FrameDefinition
     {
+        std::string Name;            // user given frame name, UTF-8, 0..32 characters (feature 006)
         unsigned CanId = 0;          // 0x000..0x7FF (11-bit standard ID)
         unsigned Dlc = 0;            // 0..8
-        std::vector<std::uint8_t> Data; // size() must equal Dlc
+        std::vector<std::uint8_t> Data; // always Dlc bytes of 0xFF (feature 006 FR-014)
         long long PeriodUs = 0;      // > 0
-        long long InitialOffsetUs = 0; // >= 0
+        long long InitialOffsetUs = 0; // >= 0 and < PeriodUs; counted from the node's Normal entry
     };
+
+    // Feature 006: transmit frame list limits (domain spec FR-091, FR-081).
+    const int kMaxFramesPerNode = 100;
+    const int kMaxFrameNameChars = 32;
+    const long long kMaxPeriodMs = 3600000; // 1 hour; only enforced by the editor
 
     // data-model.md: PendingFrame
     // FrameDefIndex indexes into the owning Node's Frames vector.

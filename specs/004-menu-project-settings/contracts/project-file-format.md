@@ -2,6 +2,10 @@
 
 > **機能 005 による変更**: `[Project]` に `Speed` キー（-13〜10、省略時 0）が追加された。
 > 契約は `specs/005-simulation-speed/contracts/project-file-speed.md` を参照。以下は機能 004 時点の原文。
+>
+> **機能 006 による変更**: `[NodeN.FrameM]` に `Name=`（0〜32 文字）を追加。`Data=` は読まない・書かない（データは
+> 常に `Dlc` 個の 0xFF）。1 ノード最大 100 フレーム。`InitialOffsetUs` は `PeriodUs` 未満で、起点は送信ノードの
+> 通常動作開始時刻。契約は `specs/006-frame-editor/contracts/project-file-frames.md` を参照。
 
 機能 001 の `contracts/config-input-format.md` の形式に `[Project]` セクションを追加した後継。
 UTF-8、`key=value`、`;` 以降はコメント。拡張子は `.canprj`。

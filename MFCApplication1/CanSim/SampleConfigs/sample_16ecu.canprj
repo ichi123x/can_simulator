@@ -17,7 +17,6 @@ Name=ECU1
 [Node1.Frame1]
 CanId=0x2F0
 Dlc=8
-Data=01,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=0
 
@@ -28,7 +27,6 @@ Name=ECU2
 [Node2.Frame1]
 CanId=0x2E0
 Dlc=8
-Data=02,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=1000
 
@@ -39,7 +37,6 @@ Name=ECU3
 [Node3.Frame1]
 CanId=0x2D0
 Dlc=8
-Data=03,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=2000
 
@@ -50,7 +47,6 @@ Name=ECU4
 [Node4.Frame1]
 CanId=0x2C0
 Dlc=8
-Data=04,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=3000
 
@@ -61,7 +57,6 @@ Name=ECU5
 [Node5.Frame1]
 CanId=0x2B0
 Dlc=8
-Data=05,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=4000
 
@@ -72,7 +67,6 @@ Name=ECU6
 [Node6.Frame1]
 CanId=0x2A0
 Dlc=8
-Data=06,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=5000
 
@@ -83,7 +77,6 @@ Name=ECU7
 [Node7.Frame1]
 CanId=0x290
 Dlc=8
-Data=07,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=6000
 
@@ -94,7 +87,6 @@ Name=ECU8
 [Node8.Frame1]
 CanId=0x280
 Dlc=8
-Data=08,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=7000
 
@@ -105,7 +97,6 @@ Name=ECU9
 [Node9.Frame1]
 CanId=0x270
 Dlc=8
-Data=09,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=8000
 
@@ -116,7 +107,6 @@ Name=ECU10
 [Node10.Frame1]
 CanId=0x260
 Dlc=8
-Data=0A,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=9000
 
@@ -127,7 +117,6 @@ Name=ECU11
 [Node11.Frame1]
 CanId=0x250
 Dlc=8
-Data=0B,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=10000
 
@@ -138,7 +127,6 @@ Name=ECU12
 [Node12.Frame1]
 CanId=0x240
 Dlc=8
-Data=0C,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=11000
 
@@ -149,7 +137,6 @@ Name=ECU13
 [Node13.Frame1]
 CanId=0x230
 Dlc=8
-Data=0D,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=12000
 
@@ -160,7 +147,6 @@ Name=ECU14
 [Node14.Frame1]
 CanId=0x220
 Dlc=8
-Data=0E,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=13000
 
@@ -171,7 +157,6 @@ Name=ECU15
 [Node15.Frame1]
 CanId=0x210
 Dlc=8
-Data=0F,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=14000
 
@@ -182,6 +167,5 @@ Name=ECU16
 [Node16.Frame1]
 CanId=0x200
 Dlc=8
-Data=10,00,00,00,00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=15000

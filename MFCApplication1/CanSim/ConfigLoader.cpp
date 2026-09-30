@@ -104,6 +104,16 @@ namespace CanSim
             return true;
         }
 
+        // Number of characters (code points) in a UTF-8 string.
+        std::size_t CountUtf8Chars(const std::string& s)
+        {
+            std::size_t count = 0;
+            for (unsigned char c : s)
+                if ((c & 0xC0) != 0x80)
+                    ++count;
+            return count;
+        }
+
         struct RawSections
         {
             std::map<std::string, std::string> project;                 // key -> value (feature 004)
@@ -381,6 +391,13 @@ namespace CanSim
             auto framesIt = raw.frames.find(sectionNodeId);
             if (framesIt != raw.frames.end())
             {
+                // Feature 006 / domain spec FR-091: at most 100 frames per node.
+                if (framesIt->second.size() > static_cast<std::size_t>(kMaxFramesPerNode))
+                {
+                    result.ErrorMessage = "[Node" + std::to_string(node.NodeId) + "] has more than " +
+                        std::to_string(kMaxFramesPerNode) + " frames.";
+                    return result;
+                }
                 for (const auto& frameEntry : framesIt->second)
                 {
                     const auto& fkv = frameEntry.second;
@@ -421,26 +438,20 @@ namespace CanSim
                     }
                     fd.Dlc = static_cast<unsigned>(dlc);
 
-                    const std::string* dataStr = get("Data");
-                    std::vector<std::string> dataTokens = dataStr ? SplitCsv(*dataStr) : std::vector<std::string>();
-                    if (dataTokens.size() != fd.Dlc)
+                    // Feature 006 FR-014: the data field is always Dlc bytes of 0xFF.
+                    // A Data= key (written by older versions) is accepted and ignored.
+                    fd.Data.assign(fd.Dlc, 0xFF);
+
+                    if (const std::string* nameStr = get("Name"))
                     {
-                        result.ErrorMessage = "[Node" + std::to_string(node.NodeId) + ".Frame" +
-                            std::to_string(frameEntry.first) + "] Data byte count (" +
-                            std::to_string(dataTokens.size()) + ") does not match Dlc (" +
-                            std::to_string(fd.Dlc) + ").";
-                        return result;
-                    }
-                    for (const std::string& tok : dataTokens)
-                    {
-                        unsigned long byte = 0;
-                        if (!TryParseULongBase(tok, 16, byte) || byte > 0xFF)
+                        if (CountUtf8Chars(*nameStr) > static_cast<std::size_t>(kMaxFrameNameChars))
                         {
                             result.ErrorMessage = "[Node" + std::to_string(node.NodeId) + ".Frame" +
-                                std::to_string(frameEntry.first) + "] Data byte '" + tok + "' is invalid.";
+                                std::to_string(frameEntry.first) + "] Name is longer than " +
+                                std::to_string(kMaxFrameNameChars) + " characters.";
                             return result;
                         }
-                        fd.Data.push_back(static_cast<std::uint8_t>(byte));
+                        fd.Name = *nameStr;
                     }
 
                     unsigned long period = 0;
@@ -463,6 +474,12 @@ namespace CanSim
                             return result;
                         }
                         fd.InitialOffsetUs = static_cast<long long>(offset);
+                    }
+                    if (fd.InitialOffsetUs >= fd.PeriodUs)
+                    {
+                        result.ErrorMessage = "[Node" + std::to_string(node.NodeId) + ".Frame" +
+                            std::to_string(frameEntry.first) + "] InitialOffsetUs must be smaller than PeriodUs.";
+                        return result;
                     }
 
                     if (seenCanIds.count(fd.CanId) != 0)

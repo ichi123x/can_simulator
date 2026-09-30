@@ -14,16 +14,16 @@ NodeId=1
 Name=ECU1 Engine Control
 
 [Node1.Frame1]
+Name=エンジン回転数・車速
 CanId=0x100
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=10000
 InitialOffsetUs=0
 
 [Node1.Frame2]
+Name=エンジン状態
 CanId=0x101
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=100000
 InitialOffsetUs=0
 
@@ -32,9 +32,9 @@ NodeId=2
 Name=ECU2 Transmission
 
 [Node2.Frame1]
+Name=ギア位置
 CanId=0x120
 Dlc=4
-Data=00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=0
 
@@ -43,16 +43,16 @@ NodeId=3
 Name=ECU3 ABS/Brake
 
 [Node3.Frame1]
+Name=車輪速
 CanId=0x080
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=10000
 InitialOffsetUs=0
 
 [Node3.Frame2]
+Name=ブレーキ状態
 CanId=0x081
 Dlc=4
-Data=00,00,00,00
 PeriodUs=20000
 InitialOffsetUs=0
 
@@ -61,9 +61,9 @@ NodeId=4
 Name=ECU4 Body Control
 
 [Node4.Frame1]
+Name=ドア・灯火状態
 CanId=0x300
 Dlc=2
-Data=00,00
 PeriodUs=100000
 InitialOffsetUs=0
 
@@ -72,9 +72,9 @@ NodeId=5
 Name=ECU5 Meter Cluster
 
 [Node5.Frame1]
+Name=表示状態
 CanId=0x400
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=200000
 InitialOffsetUs=0
 
@@ -83,8 +83,8 @@ NodeId=6
 Name=ECU6 Airbag
 
 [Node6.Frame1]
+Name=エアバッグ状態
 CanId=0x050
 Dlc=2
-Data=00,00
 PeriodUs=100000
 InitialOffsetUs=0

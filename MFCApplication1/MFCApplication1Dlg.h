@@ -49,6 +49,7 @@ protected:
 	afx_msg void OnFileLoadProject();
 	afx_msg void OnFileSaveProject();
 	afx_msg void OnEditSettings();
+	afx_msg void OnEditFrames();
 	afx_msg void OnEditFrameDisplay();
 	afx_msg void OnSimStart();
 	afx_msg void OnSimStop();

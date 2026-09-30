@@ -16,13 +16,6 @@ namespace CanSim
             std::snprintf(buf, sizeof(buf), "0x%0*X", digits, value);
             return buf;
         }
-
-        std::string HexByte(unsigned value)
-        {
-            char buf[8];
-            std::snprintf(buf, sizeof(buf), "%02X", value);
-            return buf;
-        }
     }
 
     bool SaveProject(const std::wstring& filePath, const ProjectSettings& settings,
@@ -63,12 +56,10 @@ namespace CanSim
             {
                 const FrameDefinition& fd = node.Frames[i];
                 os << "\r\n[Node" << node.NodeId << ".Frame" << (i + 1) << "]\r\n";
+                os << "Name=" << fd.Name << "\r\n";
                 os << "CanId=" << Hex(fd.CanId, 3) << "\r\n";
                 os << "Dlc=" << fd.Dlc << "\r\n";
-                os << "Data=";
-                for (std::size_t b = 0; b < fd.Data.size(); ++b)
-                    os << (b == 0 ? "" : ",") << HexByte(fd.Data[b]);
-                os << "\r\n";
+                // No Data= line: the data is always Dlc bytes of 0xFF (feature 006 FR-014).
                 os << "PeriodUs=" << fd.PeriodUs << "\r\n";
                 os << "InitialOffsetUs=" << fd.InitialOffsetUs << "\r\n";
             }

@@ -18,7 +18,6 @@ Name=ECU1 Engine Control
 [Node1.Frame1]
 CanId=0x100
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=10000
 InitialOffsetUs=0
 
@@ -37,6 +36,5 @@ Name=ECU3 ABS/Brake
 [Node3.Frame1]
 CanId=0x080
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=10000
 InitialOffsetUs=0

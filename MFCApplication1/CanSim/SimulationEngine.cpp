@@ -41,15 +41,8 @@ namespace CanSim
             powerOn.NodeIndex = static_cast<int>(i);
             m_queue.Push(powerOn);
 
-            for (std::size_t j = 0; j < node.Frames.size(); ++j)
-            {
-                Event e;
-                e.TimeNs = node.Frames[j].InitialOffsetUs * 1000;
-                e.Kind = EventKind::TxRequest;
-                e.NodeIndex = static_cast<int>(i);
-                e.FrameDefIndex = j;
-                m_queue.Push(e);
-            }
+            // The first transmit request of every frame is scheduled when the
+            // node reaches Normal (feature 006 FR-015, HandleSyncComplete).
         }
 
         Event endEvent;
@@ -307,17 +300,24 @@ namespace CanSim
         node.NormalEntryUs = e.TimeNs / 1000;
         node.SyncTargetNs = -1;
 
-        // The node may already be holding requests that were queued while it
-        // was starting up (002 FR-010). Without this, a configuration whose
-        // requests all fired before the node became Normal would never see an
-        // arbitration trigger again.
-        if (!m_busBusy && !node.PendingFrames.empty())
+        // Feature 006 FR-015 (domain spec FR-020a): the Normal entry is the
+        // origin of the periodic requests. Each frame first requests at
+        // NormalEntry + InitialOffset, then every PeriodUs (HandleTxRequest).
+        // Since no request exists before Normal any more, the 002 FR-010
+        // "hold requests raised during startup" case no longer occurs.
+        // SyncComplete sorts before TxRequest at the same time (EventKind
+        // order), so an offset of 0 is handled within this same instant.
+        for (std::size_t j = 0; j < node.Frames.size(); ++j)
         {
-            Event busIdle;
-            busIdle.TimeNs = e.TimeNs;
-            busIdle.Kind = EventKind::BusIdle;
-            busIdle.NodeIndex = -1;
-            m_queue.Push(busIdle);
+            const long long firstNs = e.TimeNs + node.Frames[j].InitialOffsetUs * 1000;
+            if (firstNs > m_simDurationNs)
+                continue;
+            Event request;
+            request.TimeNs = firstNs;
+            request.Kind = EventKind::TxRequest;
+            request.NodeIndex = e.NodeIndex;
+            request.FrameDefIndex = j;
+            m_queue.Push(request);
         }
     }
 
