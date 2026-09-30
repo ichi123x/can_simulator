@@ -24,6 +24,15 @@
     <ClInclude Include="MFCApplication1Dlg.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="SettingsDlg.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameEditDlg.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameEntryDlg.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="framework.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -63,12 +72,39 @@
     <ClInclude Include="CanSim\StartupControl.h">
       <Filter>CanSim</Filter>
     </ClInclude>
+    <ClInclude Include="CanSim\BusDiagramLayout.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\ProjectFile.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\FrameEvents.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\ReplayClock.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\FrameEditor.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
+    <ClInclude Include="CanSim\LogLines.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MFCApplication1.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="MFCApplication1Dlg.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="SettingsDlg.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameEditDlg.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameEntryDlg.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
@@ -98,6 +134,24 @@
     <ClCompile Include="CanSim\StartupControl.cpp">
       <Filter>CanSim</Filter>
     </ClCompile>
+    <ClCompile Include="CanSim\BusDiagramLayout.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\ProjectFile.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\FrameEvents.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\ReplayClock.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\FrameEditor.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\LogLines.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MFCApplication1.rc">
@@ -108,10 +162,22 @@
     <None Include="res\MFCApplication1.rc2">
       <Filter>リソース ファイル</Filter>
     </None>
-    <None Include="CanSim\SampleConfigs\sample_appendix_a.cfg">
+    <None Include="CanSim\SampleConfigs\sample_appendix_a.canprj">
       <Filter>CanSim</Filter>
     </None>
-    <None Include="CanSim\SampleConfigs\sample_collision.cfg">
+    <None Include="CanSim\SampleConfigs\sample_collision.canprj">
+      <Filter>CanSim</Filter>
+    </None>
+    <None Include="CanSim\SampleConfigs\sample_startup.canprj">
+      <Filter>CanSim</Filter>
+    </None>
+    <None Include="CanSim\SampleConfigs\sample_startup_latejoin.canprj">
+      <Filter>CanSim</Filter>
+    </None>
+    <None Include="CanSim\SampleConfigs\sample_16ecu.canprj">
+      <Filter>CanSim</Filter>
+    </None>
+    <None Include="CanSim\SampleConfigs\sample_buffer_full.canprj">
       <Filter>CanSim</Filter>
     </None>
   </ItemGroup>

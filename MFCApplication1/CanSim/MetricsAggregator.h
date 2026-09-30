@@ -34,9 +34,17 @@ namespace CanSim
         double JitterMaxUs = 0.0;
         double JitterMinUs = 0.0;
         double JitterStdDevUs = 0.0;
+
+        // Only populated for GroupType == "Node" (feature 008): frames dropped
+        // because the node's transmit / receive buffers were full.
+        bool HasDiscards = false;
+        int TxDiscardCount = 0;
+        int RxDiscardCount = 0;
     };
 
     // network is used to look up each frame's configured PeriodUs for jitter.
+    // OVERWRITE rows (feature 008) are left out of every statistic and only
+    // counted as per-node discards.
     std::vector<GroupMetrics> ComputeMetrics(const std::vector<LogRow>& rows, const Network& network);
 
     // Writes the aggregated metrics as CSV (FR-020, contracts/log-output-format.md).

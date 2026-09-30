@@ -4,9 +4,9 @@
 アプリをビルド・操作しなくても `cl.exe` だけでコンパイル・実行できます。ここに置いてあるのは、
 その性質を利用した2つの小さなコマンドラインツールです。
 
-- `runner.exe` — 設定ファイルを1つ実行し、`.log.csv` / `.summary.csv` / `.startup.csv` を出力する
-  （`MFCApplication1Dlg` の実行ハンドラと同じ処理）
-- `checks.exe` — 機能 001・002 の成功基準（SC-001〜SC-006 ほか）を自動で検証する
+- `runner.exe` — プロジェクトファイル（`.canprj`）を1つ実行し、`.log.csv` / `.summary.csv` / `.startup.csv` を
+  出力する（`MFCApplication1Dlg` の「シミュレーション → 開始」と同じ処理。ECU 数はプロジェクトの `EcuCount`）
+- `checks.exe` — 機能 001〜004 の成功基準を自動で検証する
 
 いずれも **正式なテストプロジェクトではありません**。リポジトリのビルド（`MFCApplication1.sln`）
 には含まれず、必要なときに手動でビルドして使う開発補助ツールです。
@@ -36,13 +36,18 @@ cl /nologo /std:c++14 /EHsc /I tools\cansim_runner /I MFCApplication1\CanSim ^
 ## 実行
 
 ```bat
-REM 1回のシミュレーション（設定ファイル、秒数、出力パスの接頭辞）
-"%OUT%\runner.exe" MFCApplication1\CanSim\SampleConfigs\sample_startup.cfg 1 "%OUT%\startup"
+REM 1回のシミュレーション（プロジェクト、出力パスの接頭辞、[秒数: 省略時はプロジェクトの DurationSec]）
+"%OUT%\runner.exe" MFCApplication1\CanSim\SampleConfigs\sample_startup.canprj "%OUT%\startup" 1
 
-REM 成功基準の一括検証（サンプル構成ディレクトリ、一時出力ディレクトリ）
+REM 成功基準の一括検証（サンプル構成ディレクトリ、一時出力ディレクトリ、[基準 CSV のディレクトリ]）
 "%OUT%\checks.exe" MFCApplication1\CanSim\SampleConfigs "%OUT%"
 ```
 
 `checks.exe` はすべてのチェックに通れば終了コード 0 を返します。期待値の根拠は各機能の
-`quickstart.md`（`specs/001-can-simulation-core/`、`specs/002-node-startup-control/`）を参照
+`quickstart.md`（`specs/001-can-simulation-core/` 〜 `specs/006-frame-editor/`）を参照
 してください。
+
+第3引数に基準 CSV のディレクトリを渡すと、サンプル（`sample_*.canprj`）の結果が基準
+の結果と一致すること（004 SC-009）も検証します。機能 006 でデータ（DLC 分の 0xFF）と送信要求の起点（通常動作開始時刻）が
+変わり結果が変わったため、基準は 006 以降のビルドで作ったものを使ってください。基準ディレクトリには `sample_<名前>.log.csv` /
+`.summary.csv` / `.startup.csv`（各サンプルを 10 秒実行したもの）を置きます。

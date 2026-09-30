@@ -104,8 +104,19 @@ namespace CanSim
             return true;
         }
 
+        // Number of characters (code points) in a UTF-8 string.
+        std::size_t CountUtf8Chars(const std::string& s)
+        {
+            std::size_t count = 0;
+            for (unsigned char c : s)
+                if ((c & 0xC0) != 0x80)
+                    ++count;
+            return count;
+        }
+
         struct RawSections
         {
+            std::map<std::string, std::string> project;                 // key -> value (feature 004)
             std::map<std::string, std::string> network;                 // key -> value
             std::map<int, std::map<std::string, std::string>> nodes;    // nodeId -> key->value
             std::map<int, std::map<int, std::map<std::string, std::string>>> frames; // nodeId -> frameIndex -> key->value
@@ -169,6 +180,10 @@ namespace CanSim
             {
                 raw.network[key] = value;
             }
+            else if (currentSection == "Project")
+            {
+                raw.project[key] = value;
+            }
             else
             {
                 int nodeId = 0, frameIndex = 0;
@@ -184,7 +199,7 @@ namespace CanSim
                 {
                     result.ErrorMessage = "Line " + std::to_string(lineNo) +
                         ": '[" + currentSection + "]' is not a recognized section "
-                        "(expected [Network], [NodeN] or [NodeN.FrameM]).";
+                        "(expected [Project], [Network], [NodeN] or [NodeN.FrameM]).";
                     return result;
                 }
             }
@@ -212,12 +227,62 @@ namespace CanSim
             return result;
         }
 
-        // ---- Nodes (FR-001) ----
-        if (raw.nodes.empty())
+        // ---- [Project] (feature 004 FR-005/FR-006), every key optional ----
+        ProjectSettings project;
+        struct IntKey { const char* Name; int Min; int Max; };
+        const IntKey projectKeys[] = {
+            { "EcuCount", 0, 16 },
+            { "DurationSec", kMinDurationSec, kMaxDurationSec },
+            { "FrameDisplay", 0, 1 },
+        };
+        for (int k = 0; k < 3; ++k)
         {
-            result.ErrorMessage = "Configuration must define at least one [NodeN] section.";
-            return result;
+            const IntKey& key = projectKeys[k];
+            auto it = raw.project.find(key.Name);
+            if (it == raw.project.end())
+                continue;
+            unsigned long v = 0;
+            if (!TryParseULongBase(it->second, 10, v) || v < static_cast<unsigned long>(key.Min) ||
+                v > static_cast<unsigned long>(key.Max))
+            {
+                result.ErrorMessage = std::string("[Project] ") + key.Name + ": '" + it->second +
+                    "' must be an integer between " + std::to_string(key.Min) + " and " +
+                    std::to_string(key.Max) + ".";
+                return result;
+            }
+            const int value = static_cast<int>(v);
+            if (k == 0)
+                project.EcuCount = value;
+            else if (k == 1)
+                project.DurationSec = value;
+            else
+                project.FrameDisplay = value != 0;
         }
+
+        // Speed is signed (feature 005 FR-002): an optional '+' or '-' sign
+        // followed by digits, kMinSpeed..kMaxSpeed.
+        auto speedIt = raw.project.find("Speed");
+        if (speedIt != raw.project.end())
+        {
+            const std::string& text = speedIt->second;
+            const bool negative = !text.empty() && text[0] == '-';
+            const std::string digits = (!text.empty() && (text[0] == '-' || text[0] == '+')) ? text.substr(1) : text;
+            unsigned long magnitude = 0;
+            const bool isNumber = !digits.empty() && digits.find_first_not_of("0123456789") == std::string::npos &&
+                                  TryParseULongBase(digits, 10, magnitude) && magnitude <= 100;
+            const long value = negative ? -static_cast<long>(magnitude) : static_cast<long>(magnitude);
+            if (!isNumber || value < kMinSpeed || value > kMaxSpeed)
+            {
+                result.ErrorMessage = "[Project] Speed: '" + text + "' must be an integer between " +
+                    std::to_string(kMinSpeed) + " and " + std::to_string(kMaxSpeed) + ".";
+                return result;
+            }
+            project.Speed = static_cast<int>(value);
+        }
+
+        // ---- Nodes (FR-001) ----
+        // Feature 004: a project may define no node at all (ECU count 0, or
+        // ECUs without any frame definition).
         if (raw.nodes.size() > 16)
         {
             result.ErrorMessage = "Too many nodes (" + std::to_string(raw.nodes.size()) +
@@ -326,6 +391,13 @@ namespace CanSim
             auto framesIt = raw.frames.find(sectionNodeId);
             if (framesIt != raw.frames.end())
             {
+                // Feature 006 / domain spec FR-091: at most 100 frames per node.
+                if (framesIt->second.size() > static_cast<std::size_t>(kMaxFramesPerNode))
+                {
+                    result.ErrorMessage = "[Node" + std::to_string(node.NodeId) + "] has more than " +
+                        std::to_string(kMaxFramesPerNode) + " frames.";
+                    return result;
+                }
                 for (const auto& frameEntry : framesIt->second)
                 {
                     const auto& fkv = frameEntry.second;
@@ -366,26 +438,20 @@ namespace CanSim
                     }
                     fd.Dlc = static_cast<unsigned>(dlc);
 
-                    const std::string* dataStr = get("Data");
-                    std::vector<std::string> dataTokens = dataStr ? SplitCsv(*dataStr) : std::vector<std::string>();
-                    if (dataTokens.size() != fd.Dlc)
+                    // Feature 006 FR-014: the data field is always Dlc bytes of 0xFF.
+                    // A Data= key (written by older versions) is accepted and ignored.
+                    fd.Data.assign(fd.Dlc, 0xFF);
+
+                    if (const std::string* nameStr = get("Name"))
                     {
-                        result.ErrorMessage = "[Node" + std::to_string(node.NodeId) + ".Frame" +
-                            std::to_string(frameEntry.first) + "] Data byte count (" +
-                            std::to_string(dataTokens.size()) + ") does not match Dlc (" +
-                            std::to_string(fd.Dlc) + ").";
-                        return result;
-                    }
-                    for (const std::string& tok : dataTokens)
-                    {
-                        unsigned long byte = 0;
-                        if (!TryParseULongBase(tok, 16, byte) || byte > 0xFF)
+                        if (CountUtf8Chars(*nameStr) > static_cast<std::size_t>(kMaxFrameNameChars))
                         {
                             result.ErrorMessage = "[Node" + std::to_string(node.NodeId) + ".Frame" +
-                                std::to_string(frameEntry.first) + "] Data byte '" + tok + "' is invalid.";
+                                std::to_string(frameEntry.first) + "] Name is longer than " +
+                                std::to_string(kMaxFrameNameChars) + " characters.";
                             return result;
                         }
-                        fd.Data.push_back(static_cast<std::uint8_t>(byte));
+                        fd.Name = *nameStr;
                     }
 
                     unsigned long period = 0;
@@ -409,6 +475,12 @@ namespace CanSim
                         }
                         fd.InitialOffsetUs = static_cast<long long>(offset);
                     }
+                    if (fd.InitialOffsetUs >= fd.PeriodUs)
+                    {
+                        result.ErrorMessage = "[Node" + std::to_string(node.NodeId) + ".Frame" +
+                            std::to_string(frameEntry.first) + "] InitialOffsetUs must be smaller than PeriodUs.";
+                        return result;
+                    }
 
                     if (seenCanIds.count(fd.CanId) != 0)
                     {
@@ -431,6 +503,7 @@ namespace CanSim
 
         result.Success = true;
         result.Config = network;
+        result.Project = project;
         return result;
     }
 }

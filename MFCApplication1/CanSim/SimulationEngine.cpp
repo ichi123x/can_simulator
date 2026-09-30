@@ -19,6 +19,8 @@ namespace CanSim
     {
         m_queue = EventQueue();
         m_busBusy = false;
+        m_txInProgress = false;
+        m_logger = &logger;
         m_completedTxUs.clear();
         m_bitTimeNs = m_network.BitRateBps > 0 ? (1000000000LL / m_network.BitRateBps) : 0;
         m_recessiveRunStartNs = 0; // bus is idle from the start of the run
@@ -31,6 +33,9 @@ namespace CanSim
             // 002 FR-002/FR-003: every node starts powered off and is woken at
             // its configured power-on time.
             node.Startup = StartupState::PoweredOff;
+            node.RxBuffer.clear();   // feature 008: buffers start empty
+            node.TxDiscardCount = 0;
+            node.RxDiscardCount = 0;
             node.InitDoneUs = -1;
             node.NormalEntryUs = -1;
             node.SyncTargetNs = -1;
@@ -41,15 +46,8 @@ namespace CanSim
             powerOn.NodeIndex = static_cast<int>(i);
             m_queue.Push(powerOn);
 
-            for (std::size_t j = 0; j < node.Frames.size(); ++j)
-            {
-                Event e;
-                e.TimeNs = node.Frames[j].InitialOffsetUs * 1000;
-                e.Kind = EventKind::TxRequest;
-                e.NodeIndex = static_cast<int>(i);
-                e.FrameDefIndex = j;
-                m_queue.Push(e);
-            }
+            // The first transmit request of every frame is scheduled when the
+            // node reaches Normal (feature 006 FR-015, HandleSyncComplete).
         }
 
         Event endEvent;
@@ -96,7 +94,33 @@ namespace CanSim
     void SimulationEngine::HandleTxRequest(const Event& e)
     {
         Node& node = m_network.Nodes[static_cast<std::size_t>(e.NodeIndex)];
-        EnqueueTxRequest(node, e.FrameDefIndex, e.TimeNs / 1000);
+        const long long nowUs = e.TimeNs / 1000;
+        const bool transmitting = m_txInProgress && m_currentTx.NodeIndex == e.NodeIndex;
+        const EnqueueResult enqueued = EnqueueTxRequest(node, e.FrameDefIndex, nowUs, transmitting);
+        if (enqueued == EnqueueResult::Discarded)
+        {
+            // Domain spec FR-092b: all 16 transmit buffers are in use; the
+            // request is dropped and recorded as one OVERWRITE row.
+            ++node.TxDiscardCount;
+            const FrameDefinition& fd = node.Frames[e.FrameDefIndex];
+            LogRow row;
+            row.TimestampUs = nowUs;
+            row.CanId = fd.CanId;
+            row.Dlc = fd.Dlc;
+            row.TxNodeId = node.NodeId;
+            row.RxNodeId = -1;
+            row.TxRequestUs = nowUs;
+            row.TxStartUs = -1;
+            row.TxEndUs = -1;
+            row.RxStartUs = -1;
+            row.RxEndUs = -1;
+            row.RxProcessUs = -1;
+            row.BusLoadPct = ComputeBusLoadPct(nowUs);
+            row.Status = kStatusOverwrite;
+            row.RetryCount = 0;
+            row.UpdateCount = 0;
+            m_logger->AddRow(row);
+        }
 
         // Schedule the next period (FR-006), if it still falls within the run.
         const long long nextNs = e.TimeNs + node.Frames[e.FrameDefIndex].PeriodUs * 1000;
@@ -105,12 +129,13 @@ namespace CanSim
             Event next;
             next.TimeNs = nextNs;
             next.Kind = EventKind::TxRequest;
+            next.CanId = node.Frames[e.FrameDefIndex].CanId;
             next.NodeIndex = e.NodeIndex;
             next.FrameDefIndex = e.FrameDefIndex;
             m_queue.Push(next);
         }
 
-        if (!m_busBusy)
+        if (!m_busBusy && enqueued != EnqueueResult::Discarded)
         {
             Event busIdle;
             busIdle.TimeNs = e.TimeNs;
@@ -138,6 +163,7 @@ namespace CanSim
         const long long txEndNs = txStartNs + timing.TxDurationNs;
 
         m_busBusy = true;
+        m_txInProgress = true;
         m_currentTx.NodeIndex = r.WinnerNodeIndex;
         m_currentTx.FrameDefIndex = r.WinnerFrameDefIndex;
         m_currentTx.Pending = r.WinnerPending;
@@ -171,6 +197,7 @@ namespace CanSim
     {
         const InFlight tx = m_currentTx;
         const long long txEndUs = e.TimeNs / 1000;
+        m_txInProgress = false; // EOF: the sender's transmit buffer is free (feature 008)
 
         m_completedTxUs.emplace_back(tx.TxStartUs, txEndUs);
         const double busLoadPct = ComputeBusLoadPct(txEndUs);
@@ -184,7 +211,7 @@ namespace CanSim
         {
             if (static_cast<int>(i) == tx.NodeIndex)
                 continue;
-            const Node& rxNode = m_network.Nodes[i];
+            Node& rxNode = m_network.Nodes[i];
             // 002 FR-009: only nodes that reached Normal receive frames.
             if (rxNode.Startup != StartupState::Normal)
                 continue;
@@ -193,6 +220,17 @@ namespace CanSim
 
             anyReceiver = true;
             const long long rxProcessUs = txEndUs + rxNode.ReceiveDelayUs;
+
+            // Receive FIFO of 8 buffers (domain spec FR-093/FR-094). Frames
+            // whose Rx_Process has come by now have been taken out; this is
+            // done first so that a take-out at the same time frees a buffer.
+            while (!rxNode.RxBuffer.empty() && rxNode.RxBuffer.front() <= txEndUs)
+                rxNode.RxBuffer.pop_front();
+            const bool rxDropped = rxNode.RxBuffer.size() >= static_cast<std::size_t>(kRxBufferCount);
+            if (rxDropped)
+                ++rxNode.RxDiscardCount;
+            else
+                rxNode.RxBuffer.push_back(rxProcessUs);
 
             LogRow row;
             row.TimestampUs = rxProcessUs; // FR-017: representative time = Rx process time
@@ -209,7 +247,14 @@ namespace CanSim
             row.BusLoadPct = busLoadPct;
             row.Status = status;
             row.RetryCount = tx.Pending.RetryCount;
-            row.OverwriteCount = tx.Pending.OverwriteCount;
+            row.UpdateCount = tx.Pending.UpdateCount;
+            if (rxDropped)
+            {
+                // Domain spec FR-094: the new frame is dropped; no Rx_Process.
+                row.TimestampUs = txEndUs;
+                row.RxProcessUs = -1;
+                row.Status = kStatusOverwrite;
+            }
             logger.AddRow(row);
         }
 
@@ -230,7 +275,7 @@ namespace CanSim
             row.BusLoadPct = busLoadPct;
             row.Status = status;
             row.RetryCount = tx.Pending.RetryCount;
-            row.OverwriteCount = tx.Pending.OverwriteCount;
+            row.UpdateCount = tx.Pending.UpdateCount;
             logger.AddRow(row);
         }
 
@@ -307,17 +352,25 @@ namespace CanSim
         node.NormalEntryUs = e.TimeNs / 1000;
         node.SyncTargetNs = -1;
 
-        // The node may already be holding requests that were queued while it
-        // was starting up (002 FR-010). Without this, a configuration whose
-        // requests all fired before the node became Normal would never see an
-        // arbitration trigger again.
-        if (!m_busBusy && !node.PendingFrames.empty())
+        // Feature 006 FR-015 (domain spec FR-020a): the Normal entry is the
+        // origin of the periodic requests. Each frame first requests at
+        // NormalEntry + InitialOffset, then every PeriodUs (HandleTxRequest).
+        // Since no request exists before Normal any more, the 002 FR-010
+        // "hold requests raised during startup" case no longer occurs.
+        // SyncComplete sorts before TxRequest at the same time (EventKind
+        // order), so an offset of 0 is handled within this same instant.
+        for (std::size_t j = 0; j < node.Frames.size(); ++j)
         {
-            Event busIdle;
-            busIdle.TimeNs = e.TimeNs;
-            busIdle.Kind = EventKind::BusIdle;
-            busIdle.NodeIndex = -1;
-            m_queue.Push(busIdle);
+            const long long firstNs = e.TimeNs + node.Frames[j].InitialOffsetUs * 1000;
+            if (firstNs > m_simDurationNs)
+                continue;
+            Event request;
+            request.TimeNs = firstNs;
+            request.Kind = EventKind::TxRequest;
+            request.CanId = node.Frames[j].CanId;
+            request.NodeIndex = e.NodeIndex;
+            request.FrameDefIndex = j;
+            m_queue.Push(request);
         }
     }
 

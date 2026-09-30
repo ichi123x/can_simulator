@@ -4,6 +4,11 @@
 ; At 500 kbps one bit time is 2 us, so 11 recessive bit times = 22 us and the
 ; expected Normal_Entry_us values are 22 / 10022 / 20022 / 30022 / 40022 / 50022.
 
+[Project]
+EcuCount=6
+DurationSec=10
+FrameDisplay=0
+
 [Network]
 BitRateBps=500000
 
@@ -16,7 +21,6 @@ InitDurationUs=0
 [Node1.Frame1]
 CanId=0x100
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=100000
 InitialOffsetUs=0
 
@@ -29,7 +33,6 @@ InitDurationUs=0
 [Node2.Frame1]
 CanId=0x120
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=100000
 InitialOffsetUs=0
 
@@ -42,7 +45,6 @@ InitDurationUs=0
 [Node3.Frame1]
 CanId=0x140
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=100000
 InitialOffsetUs=0
 
@@ -55,7 +57,6 @@ InitDurationUs=0
 [Node4.Frame1]
 CanId=0x160
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=100000
 InitialOffsetUs=0
 
@@ -68,7 +69,6 @@ InitDurationUs=0
 [Node5.Frame1]
 CanId=0x180
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=100000
 InitialOffsetUs=0
 
@@ -81,6 +81,5 @@ InitDurationUs=0
 [Node6.Frame1]
 CanId=0x1A0
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=100000
 InitialOffsetUs=0

@@ -1,5 +1,9 @@
 # Contract: ネットワーク構成ファイル（入力）
 
+> **後継**: 機能 004 で、この形式に `[Project]` セクション（`EcuCount` / `DurationSec` / `FrameDisplay`）を
+> 追加したプロジェクトファイル（拡張子 `.canprj`）が後継となった。アプリの読込みは `.canprj` のみ。
+> 契約は `specs/004-menu-project-settings/contracts/project-file-format.md` を参照。以下は機能 001 時点の原文。
+
 利用者がシミュレータに与える設定ファイルの契約。`research.md` の決定に基づき、セクション区切り
 ＋ `key=value` の独自テキスト形式（UTF-8）とする。
 

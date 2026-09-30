@@ -14,7 +14,12 @@ namespace CanSim
                 return a.TimeNs < b.TimeNs;
             if (a.Kind != b.Kind)
                 return static_cast<int>(a.Kind) < static_cast<int>(b.Kind);
-            return a.NodeIndex < b.NodeIndex;
+            if (a.NodeIndex != b.NodeIndex)
+                return a.NodeIndex < b.NodeIndex;
+            // Feature 008: same-time transmit requests of one node are handled
+            // in CAN ID order, so that with full transmit buffers the requests
+            // with the largest IDs are the ones dropped (domain spec FR-092c).
+            return a.CanId < b.CanId;
         }
     }
 

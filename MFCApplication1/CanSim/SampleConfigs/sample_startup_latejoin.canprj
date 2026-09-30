@@ -4,10 +4,19 @@
 ;   Node 1: Normal at 22 us, first frame 22 -> 274 us, intermission ends 280 us.
 ;   Node 2: detection starts at 100 us, i.e. during node 1's frame
 ;           -> expected Normal_Entry_us = 280 (US3 AS#1 / SC-004).
-;   Node 3: detection starts at 290 us while the bus is idle, but node 1 starts
-;           transmitting again at 300 us before 11 recessive bit times elapse
-;           -> the count restarts and Normal_Entry_us becomes 558
-;           (= 552 + 6, the intermission end of that second frame; US3 AS#2 / FR-007).
+;   Node 3: detection starts at 305 us while the bus is idle, but node 1 starts
+;           transmitting again at 322 us (Normal 22 + period 300, feature 006
+;           FR-015) before 11 recessive bit times elapse (305 + 22 = 327)
+;           -> the count restarts and Normal_Entry_us becomes 580
+;           (= 574 + 6, the intermission end of that second frame; US3 AS#2 / FR-007).
+;           Feature 006 moved the power-on from 290 to 305 us: with requests now
+;           counted from the Normal entry, 290 us would sync at 312 us, before
+;           the second frame, and no longer exercise the restart.
+
+[Project]
+EcuCount=3
+DurationSec=10
+FrameDisplay=0
 
 [Network]
 BitRateBps=500000
@@ -21,7 +30,6 @@ InitDurationUs=0
 [Node1.Frame1]
 CanId=0x100
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=300
 InitialOffsetUs=0
 
@@ -34,5 +42,5 @@ InitDurationUs=0
 [Node3]
 NodeId=3
 Name=ECU3 Joins Just Before Frame
-PowerOnTimeUs=290
+PowerOnTimeUs=305
 InitDurationUs=0

@@ -186,6 +186,9 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="MFCApplication1.h" />
     <ClInclude Include="MFCApplication1Dlg.h" />
+    <ClInclude Include="SettingsDlg.h" />
+    <ClInclude Include="FrameEditDlg.h" />
+    <ClInclude Include="FrameEntryDlg.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
@@ -198,10 +201,19 @@
     <ClInclude Include="CanSim\Logger.h" />
     <ClInclude Include="CanSim\MetricsAggregator.h" />
     <ClInclude Include="CanSim\StartupControl.h" />
+    <ClInclude Include="CanSim\BusDiagramLayout.h" />
+    <ClInclude Include="CanSim\ProjectFile.h" />
+    <ClInclude Include="CanSim\FrameEvents.h" />
+    <ClInclude Include="CanSim\ReplayClock.h" />
+    <ClInclude Include="CanSim\FrameEditor.h" />
+    <ClInclude Include="CanSim\LogLines.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MFCApplication1.cpp" />
     <ClCompile Include="MFCApplication1Dlg.cpp" />
+    <ClCompile Include="SettingsDlg.cpp" />
+    <ClCompile Include="FrameEditDlg.cpp" />
+    <ClCompile Include="FrameEntryDlg.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -216,14 +228,24 @@
     <ClCompile Include="CanSim\Logger.cpp" />
     <ClCompile Include="CanSim\MetricsAggregator.cpp" />
     <ClCompile Include="CanSim\StartupControl.cpp" />
+    <ClCompile Include="CanSim\BusDiagramLayout.cpp" />
+    <ClCompile Include="CanSim\ProjectFile.cpp" />
+    <ClCompile Include="CanSim\FrameEvents.cpp" />
+    <ClCompile Include="CanSim\ReplayClock.cpp" />
+    <ClCompile Include="CanSim\FrameEditor.cpp" />
+    <ClCompile Include="CanSim\LogLines.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MFCApplication1.rc" />
   </ItemGroup>
   <ItemGroup>
     <None Include="res\MFCApplication1.rc2" />
-    <None Include="CanSim\SampleConfigs\sample_appendix_a.cfg" />
-    <None Include="CanSim\SampleConfigs\sample_collision.cfg" />
+    <None Include="CanSim\SampleConfigs\sample_appendix_a.canprj" />
+    <None Include="CanSim\SampleConfigs\sample_collision.canprj" />
+    <None Include="CanSim\SampleConfigs\sample_startup.canprj" />
+    <None Include="CanSim\SampleConfigs\sample_startup_latejoin.canprj" />
+    <None Include="CanSim\SampleConfigs\sample_16ecu.canprj" />
+    <None Include="CanSim\SampleConfigs\sample_buffer_full.canprj" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\MFCApplication1.ico" />

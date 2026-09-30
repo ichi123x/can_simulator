@@ -3,6 +3,11 @@
 ; same PeriodUs, so every cycle is an arbitration case. Used by
 ; quickstart.md step 3 (US2 independent test).
 
+[Project]
+EcuCount=3
+DurationSec=10
+FrameDisplay=0
+
 [Network]
 BitRateBps=500000
 
@@ -13,9 +18,16 @@ Name=ECU1 Engine Control
 [Node1.Frame1]
 CanId=0x100
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=10000
 InitialOffsetUs=0
+
+; ECU 2 exists on the bus because the project has 3 ECUs (feature 004 FR-011).
+; It sends nothing and its RxFilter accepts no CAN ID in use, so the frame log
+; and the summary stay identical to the feature 001 results.
+[Node2]
+NodeId=2
+Name=ECU2 Idle
+RxFilter=0x7FF
 
 [Node3]
 NodeId=3
@@ -24,6 +36,5 @@ Name=ECU3 ABS/Brake
 [Node3.Frame1]
 CanId=0x080
 Dlc=8
-Data=00,00,00,00,00,00,00,00
 PeriodUs=10000
 InitialOffsetUs=0

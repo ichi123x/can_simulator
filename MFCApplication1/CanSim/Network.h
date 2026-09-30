@@ -10,10 +10,17 @@ namespace CanSim
 {
     // Adds/refreshes a pending frame for (node, frameDefIndex) at time nowUs.
     // If a PendingFrame for this FrameDefinition already exists (still queued
-    // from a previous period), its data is refreshed and OverwriteCount is
+    // from a previous period), its data is refreshed and UpdateCount is
     // incremented; TxRequestUs (the *first* request time) is left unchanged
     // (FR-011). Otherwise a new PendingFrame is appended.
-    void EnqueueTxRequest(Node& node, std::size_t frameDefIndex, long long nowUs);
+    //
+    // Feature 008 (domain spec FR-092..FR-092b): a new request needs one of
+    // the node's kTxBufferCount transmit buffers. The frames waiting in
+    // PendingFrames and the frame being transmitted (transmitting == true)
+    // each hold one. When all are in use the request is dropped (Discarded)
+    // and nothing changes.
+    enum class EnqueueResult { Queued, Updated, Discarded };
+    EnqueueResult EnqueueTxRequest(Node& node, std::size_t frameDefIndex, long long nowUs, bool transmitting);
 
     // True if canId passes the node's receive filter (FR-005).
     bool NodeAcceptsCanId(const Node& node, unsigned canId);
