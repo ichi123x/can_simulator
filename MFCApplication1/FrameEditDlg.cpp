@@ -31,12 +31,37 @@ namespace
 	{
 		return CString(CA2W(text.c_str(), CP_UTF8));
 	}
+
+	// Keeps the owner (main dialog) disabled while a nested modal dialog is
+	// shown, so that it cannot close or replace this window meanwhile
+	// (feature 010, research.md decision 8).
+	class OwnerDisabler
+	{
+	public:
+		explicit OwnerDisabler(HWND owner)
+			: m_owner(owner != nullptr && ::IsWindowEnabled(owner) ? owner : nullptr)
+		{
+			if (m_owner != nullptr)
+				::EnableWindow(m_owner, FALSE);
+		}
+		~OwnerDisabler()
+		{
+			if (m_owner != nullptr)
+				::EnableWindow(m_owner, TRUE);
+		}
+		OwnerDisabler(const OwnerDisabler&) = delete;
+		OwnerDisabler& operator=(const OwnerDisabler&) = delete;
+
+	private:
+		HWND m_owner;
+	};
 }
 
-CFrameEditDlg::CFrameEditDlg(CanSim::Network& definitions, int ecuCount, CWnd* pParent)
+CFrameEditDlg::CFrameEditDlg(CanSim::Network& definitions, int ecuCount, int initialEcu, CWnd* pParent)
 	: CDialogEx(IDD_FRAME_EDIT, pParent)
 	, m_definitions(definitions)
 	, m_ecuCount(ecuCount)
+	, m_initialEcu(initialEcu)
 {
 }
 
@@ -59,6 +84,7 @@ END_MESSAGE_MAP()
 BOOL CFrameEditDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
+	m_owner = ::GetWindow(m_hWnd, GW_OWNER);
 
 	// Nodes: ECU 01 .. ECU NN within the current ECU count (006 FR-002)
 	for (int n = 1; n <= m_ecuCount; ++n)
@@ -68,7 +94,7 @@ BOOL CFrameEditDlg::OnInitDialog()
 		m_node.AddString(text);
 	}
 	if (m_ecuCount > 0)
-		m_node.SetCurSel(0);
+		m_node.SetCurSel((std::min)((std::max)(m_initialEcu, 1), m_ecuCount) - 1); // 010 FR-002
 
 	// Columns in the order of domain spec FR-086a (006 FR-003)
 	m_list.SetExtendedStyle(m_list.GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
@@ -87,6 +113,31 @@ BOOL CFrameEditDlg::OnInitDialog()
 
 	RefreshList(-1);
 	return TRUE;
+}
+
+// Feature 010: modeless. Enter, Esc, "Close" and the close box all destroy the
+// window; the edits are already in the project's definitions (FR-016).
+void CFrameEditDlg::OnOK()
+{
+	DestroyWindow();
+}
+
+void CFrameEditDlg::OnCancel()
+{
+	DestroyWindow();
+}
+
+void CFrameEditDlg::PostNcDestroy()
+{
+	CDialogEx::PostNcDestroy();
+	if (m_owner != nullptr && ::IsWindow(m_owner))
+		::SendMessage(m_owner, WM_APP_FRAME_EDITOR_CLOSED, 0, 0);
+	delete this;
+}
+
+int CFrameEditDlg::CurrentEcu() const
+{
+	return SelectedNodeId();
 }
 
 int CFrameEditDlg::SelectedNodeId() const
@@ -152,8 +203,11 @@ void CFrameEditDlg::OnAdd()
 	if (nodeId <= 0)
 		return;
 	CFrameEntryDlg dlg(m_definitions, nodeId, -1, m_definitions.BitRateBps, this);
-	if (dlg.DoModal() != IDOK)
-		return;
+	{
+		OwnerDisabler lock(m_owner);
+		if (dlg.DoModal() != IDOK)
+			return;
+	}
 	CanSim::AddFrame(m_definitions, nodeId, dlg.Frame);
 	const CanSim::Node* node = CanSim::FindNodeDefinition(m_definitions, nodeId);
 	RefreshList(node != nullptr ? static_cast<int>(node->Frames.size()) - 1 : -1);
@@ -166,8 +220,11 @@ void CFrameEditDlg::OnEdit()
 	if (nodeId <= 0 || index < 0)
 		return;
 	CFrameEntryDlg dlg(m_definitions, nodeId, index, m_definitions.BitRateBps, this);
-	if (dlg.DoModal() != IDOK)
-		return;
+	{
+		OwnerDisabler lock(m_owner);
+		if (dlg.DoModal() != IDOK)
+			return;
+	}
 	CanSim::ReplaceFrame(m_definitions, nodeId, index, dlg.Frame);
 	RefreshList(index);
 }
@@ -184,8 +241,11 @@ void CFrameEditDlg::OnDelete()
 	const CanSim::FrameDefinition& f = node->Frames[static_cast<std::size_t>(index)];
 	CString message;
 	message.Format(LoadRc(IDS_FRAME_DELETE_CONFIRM), index + 1, (LPCTSTR)FromUtf8(f.Name), f.CanId);
-	if (AfxMessageBox(message, MB_YESNO | MB_ICONQUESTION) != IDYES)
-		return;
+	{
+		OwnerDisabler lock(m_owner);
+		if (AfxMessageBox(message, MB_YESNO | MB_ICONQUESTION) != IDYES)
+			return;
+	}
 
 	CanSim::DeleteFrame(m_definitions, nodeId, index);
 	RefreshList(-1);

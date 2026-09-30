@@ -206,6 +206,7 @@
     <ClInclude Include="CanSim\FrameEvents.h" />
     <ClInclude Include="CanSim\ReplayClock.h" />
     <ClInclude Include="CanSim\FrameEditor.h" />
+    <ClInclude Include="CanSim\LogLines.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MFCApplication1.cpp" />
@@ -232,6 +233,7 @@
     <ClCompile Include="CanSim\FrameEvents.cpp" />
     <ClCompile Include="CanSim\ReplayClock.cpp" />
     <ClCompile Include="CanSim\FrameEditor.cpp" />
+    <ClCompile Include="CanSim\LogLines.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MFCApplication1.rc" />
@@ -243,6 +245,7 @@
     <None Include="CanSim\SampleConfigs\sample_startup.canprj" />
     <None Include="CanSim\SampleConfigs\sample_startup_latejoin.canprj" />
     <None Include="CanSim\SampleConfigs\sample_16ecu.canprj" />
+    <None Include="CanSim\SampleConfigs\sample_buffer_full.canprj" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\MFCApplication1.ico" />

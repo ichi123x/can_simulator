@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <deque>
 
 namespace CanSim
 {
@@ -72,8 +73,12 @@ namespace CanSim
         long long TxRequestUs = 0;               // first request time, FR-011
         std::vector<std::uint8_t> CurrentData;    // latest data, FR-011
         int RetryCount = 0;                       // FR-013
-        int OverwriteCount = 0;                   // FR-011
+        int UpdateCount = 0;                      // data updates while waiting (domain spec FR-024)
     };
+
+    // Feature 008 / domain spec FR-090: frame buffers of every ECU.
+    const int kTxBufferCount = 16; // frames that may wait for (or be in) transmission at once
+    const int kRxBufferCount = 8;  // received frames waiting for the application (FIFO)
 
     // data-model.md: Node
     struct Node
@@ -84,6 +89,11 @@ namespace CanSim
         bool RxFilterAll = true;        // FR-005: no filter configured -> receive all IDs
         std::set<unsigned> RxFilter;    // used only when RxFilterAll == false
         long long ReceiveDelayUs = 0;   // FR-016: added to Rx end time to get Rx process time
+
+        // --- frame buffers (feature 008, domain spec 3.7a) ---
+        std::deque<long long> RxBuffer; // Rx_Process times of the frames held in the receive FIFO (ascending, at most 8)
+        int TxDiscardCount = 0;         // transmit requests dropped because the 16 transmit buffers were in use
+        int RxDiscardCount = 0;         // received frames dropped because the 8 receive buffers were in use
 
         // --- startup control (feature 002) ---
         long long PowerOnTimeUs = 0;     // 002 FR-001, >= 0, default 0
@@ -138,6 +148,7 @@ namespace CanSim
         EventKind Kind = EventKind::TxRequest;
         int NodeIndex = -1;
         std::size_t FrameDefIndex = 0; // meaningful for per-node events only
+        unsigned CanId = 0;            // TxRequest only: same-time tie-break (feature 008)
     };
 
     // data-model.md: LogRow
@@ -148,6 +159,7 @@ namespace CanSim
         unsigned Dlc = 0;
         int TxNodeId = 0;
         int RxNodeId = -1;      // -1 == no receiving node for this row
+        // Times in us. -1 means "blank" in the CSV (OVERWRITE rows, feature 008).
         long long TxRequestUs = 0;
         long long TxStartUs = 0;
         long long TxEndUs = 0;
@@ -155,8 +167,10 @@ namespace CanSim
         long long RxEndUs = 0;
         long long RxProcessUs = 0;
         double BusLoadPct = 0.0;
-        std::string Status;     // "SUCCESS" or "ARBITRATION_LOST_RETRY"
+        std::string Status;     // "SUCCESS", "ARBITRATION_LOST_RETRY" or "OVERWRITE" (feature 008)
         int RetryCount = 0;
-        int OverwriteCount = 0;
+        int UpdateCount = 0;    // data updates while waiting (log column Update_Count)
     };
+
+    const char* const kStatusOverwrite = "OVERWRITE";
 }

@@ -24,7 +24,8 @@ namespace CanSim
 
         std::string FormatOptional(long long value, bool present)
         {
-            if (!present)
+            // A negative time is the "blank" marker of OVERWRITE rows (feature 008).
+            if (!present || value < 0)
                 return "";
             return std::to_string(value);
         }
@@ -44,7 +45,7 @@ namespace CanSim
             return false;
 
         file << "Timestamp_us,CAN_ID,DLC,Tx_Node,Rx_Node,Tx_Request,Tx_Start,Tx_End,"
-                "Rx_Start,Rx_End,Rx_Process,Bus_Load_Pct,Status,Retry_Count,Overwrite_Count\r\n";
+                "Rx_Start,Rx_End,Rx_Process,Bus_Load_Pct,Status,Retry_Count,Update_Count\r\n";
 
         for (const LogRow& row : m_rows)
         {
@@ -55,15 +56,15 @@ namespace CanSim
                  << row.TxNodeId << ','
                  << FormatOptionalNode(row.RxNodeId) << ','
                  << row.TxRequestUs << ','
-                 << row.TxStartUs << ','
-                 << row.TxEndUs << ','
+                 << FormatOptional(row.TxStartUs, true) << ','
+                 << FormatOptional(row.TxEndUs, true) << ','
                  << FormatOptional(row.RxStartUs, hasRx) << ','
                  << FormatOptional(row.RxEndUs, hasRx) << ','
                  << FormatOptional(row.RxProcessUs, hasRx) << ','
                  << std::fixed << std::setprecision(1) << row.BusLoadPct << ','
                  << row.Status << ','
                  << row.RetryCount << ','
-                 << row.OverwriteCount << "\r\n";
+                 << row.UpdateCount << "\r\n";
         }
         return true;
     }

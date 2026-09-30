@@ -1,5 +1,9 @@
 # Contract: シミュレーションログ（出力）
 
+> **機能 008 による変更**: 最後の列名を `Update_Count`（旧 `Overwrite_Count`）に変更。Status に `OVERWRITE`
+> （送信・受信バッファが満杯で捨てたフレーム。送信側は受信ノードと送受信時刻、受信側は受信処理時刻が空欄）を追加。
+> 集計の末尾に `TxDiscard_Count,RxDiscard_Count`。契約は `specs/008-frame-buffers/contracts/log-and-summary.md` を参照。
+
 `research.md` の決定に基づき、CSV（UTF-8、ヘッダ行あり）を出力形式とする。1フレーム×受信
 ノードごとに1行、受信ノードがないフレームは送信側の情報のみで1行出力する（FR-017）。
 

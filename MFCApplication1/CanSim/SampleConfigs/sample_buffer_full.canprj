@@ -1,0 +1,176 @@
+; Frame buffer check (feature 008, domain spec 3.7a).
+; ECU1 raises 20 requests at the same instant every 100 ms (offset 0, same
+; period): 16 transmit buffers take the 16 lowest IDs (0x100..0x10F) and the
+; 4 highest (0x110..0x113) are dropped as OVERWRITE -> 100 x 4 = 400 in 10 s.
+; ECU2 has a receive delay of 2 ms, so the burst of ECU1 frames overflows its
+; 8 receive buffers (receive-side OVERWRITE). ECU3 sends a short frame every
+; 1 ms as background traffic.
+
+[Project]
+EcuCount=3
+DurationSec=10
+FrameDisplay=0
+Speed=10
+
+[Network]
+BitRateBps=500000
+
+[Node1]
+NodeId=1
+Name=ECU1 Burst Sender
+
+[Node1.Frame1]
+Name=burst 01
+CanId=0x100
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame2]
+Name=burst 02
+CanId=0x101
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame3]
+Name=burst 03
+CanId=0x102
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame4]
+Name=burst 04
+CanId=0x103
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame5]
+Name=burst 05
+CanId=0x104
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame6]
+Name=burst 06
+CanId=0x105
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame7]
+Name=burst 07
+CanId=0x106
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame8]
+Name=burst 08
+CanId=0x107
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame9]
+Name=burst 09
+CanId=0x108
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame10]
+Name=burst 10
+CanId=0x109
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame11]
+Name=burst 11
+CanId=0x10A
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame12]
+Name=burst 12
+CanId=0x10B
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame13]
+Name=burst 13
+CanId=0x10C
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame14]
+Name=burst 14
+CanId=0x10D
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame15]
+Name=burst 15
+CanId=0x10E
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame16]
+Name=burst 16
+CanId=0x10F
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame17]
+Name=burst 17
+CanId=0x110
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame18]
+Name=burst 18
+CanId=0x111
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame19]
+Name=burst 19
+CanId=0x112
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node1.Frame20]
+Name=burst 20
+CanId=0x113
+Dlc=0
+PeriodUs=100000
+InitialOffsetUs=0
+
+[Node2]
+NodeId=2
+Name=ECU2 Slow Receiver
+ReceiveDelayUs=2000
+
+[Node3]
+NodeId=3
+Name=ECU3 Background
+
+[Node3.Frame1]
+Name=background
+CanId=0x050
+Dlc=0
+PeriodUs=1000
+InitialOffsetUs=0

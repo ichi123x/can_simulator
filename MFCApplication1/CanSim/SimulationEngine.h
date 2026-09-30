@@ -39,6 +39,11 @@ namespace CanSim
         EventQueue m_queue;
 
         bool m_busBusy = false;
+        // A frame is on the wire (SOF..EOF). It keeps one transmit buffer of
+        // its node until EOF (feature 008). The bus stays busy afterwards
+        // during the intermission, but the buffer is free by then.
+        bool m_txInProgress = false;
+        Logger* m_logger = nullptr; // valid during Run()
         struct InFlight
         {
             int NodeIndex = -1;

@@ -17,6 +17,11 @@ namespace CanSim
         layout.BusLine.Top = kBusY - kBusThickness / 2;
         layout.BusLine.Bottom = kBusY + kBusThickness / 2;
 
+        layout.Frame.Left = kDiagramFrameInset;
+        layout.Frame.Top = kDiagramFrameInset;
+        layout.Frame.Right = kDiagramWidth - kDiagramFrameInset;
+        layout.Frame.Bottom = kDiagramHeight - kDiagramFrameInset;
+
         layout.Ecus.reserve(static_cast<std::size_t>(ecuCount));
         for (int n = 1; n <= ecuCount; ++n)
         {
@@ -46,5 +51,42 @@ namespace CanSim
             layout.Ecus.push_back(ecu);
         }
         return layout;
+    }
+
+    int ScaleToDpi(int px, int dpi)
+    {
+        return static_cast<int>((static_cast<long long>(px) * dpi + 48) / 96);
+    }
+
+    int FindEcuAt(const BusDiagramLayout& layout, int x, int y, int dpi)
+    {
+        for (const EcuPlacement& ecu : layout.Ecus)
+        {
+            if (x >= ScaleToDpi(ecu.Box.Left, dpi) && x < ScaleToDpi(ecu.Box.Right, dpi) &&
+                y >= ScaleToDpi(ecu.Box.Top, dpi) && y < ScaleToDpi(ecu.Box.Bottom, dpi))
+                return ecu.Number;
+        }
+        return 0;
+    }
+
+    DiagramRect ScaleLogViewRect(int dpi)
+    {
+        DiagramRect r;
+        r.Left = ScaleToDpi(kLogViewLeft, dpi);
+        r.Top = ScaleToDpi(kLogViewTop, dpi);
+        r.Right = r.Left + ScaleToDpi(kLogViewWidth, dpi);
+        r.Bottom = r.Top + ScaleToDpi(kLogViewHeight, dpi);
+        return r;
+    }
+
+    DiagramRect ScaleLogFrameRect(int dpi)
+    {
+        DiagramRect r = ScaleLogViewRect(dpi);
+        const int gap = ScaleToDpi(kLogFrameGap, dpi);
+        r.Left -= gap;
+        r.Top -= gap;
+        r.Right += gap;
+        r.Bottom += gap;
+        return r;
     }
 }

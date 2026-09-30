@@ -7,9 +7,12 @@
 #include "CanSim/CanTypes.h"
 #include "CanSim/FrameEvents.h"
 #include "CanSim/ReplayClock.h"
+#include "CanSim/LogLines.h"
 
 #include <memory>
 #include <vector>
+
+class CFrameEditDlg;
 
 
 // CMFCApplication1Dlg ダイアログ
@@ -46,6 +49,8 @@ protected:
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 	afx_msg void OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL bSysMenu);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
+	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 	afx_msg void OnFileLoadProject();
 	afx_msg void OnFileSaveProject();
 	afx_msg void OnEditSettings();
@@ -53,6 +58,10 @@ protected:
 	afx_msg void OnEditFrameDisplay();
 	afx_msg void OnSimStart();
 	afx_msg void OnSimStop();
+	// ---- feature 010: double-click an ECU to edit its frames ----
+	afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
+	afx_msg LRESULT OnFrameEditorClosed(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnDestroy();
 
 public:
 	// Number of ECUs drawn on the bus diagram (feature 003). Clamped to 0..16.
@@ -96,4 +105,37 @@ private:
 	long long m_prevSimUs = 0;
 	long long m_curSimUs = 0;
 	UINT_PTR m_replayTimer = 0;
+
+	// ---- feature 009: log view under the bus diagram ----
+	CRect GetLogRect() const;      // whole grey area (client coordinates)
+	CRect GetLogTextRect() const;  // grey area minus the scroll bar
+	int LogLineHeight() const;
+	int LogVisibleRows() const;
+	void DrawLogView(CDC& dc);
+	CString FormatLogLine(const CanSim::LogLine& line) const;
+	void ClearLog();
+	void ShowLogUpTo(long long simUs);
+	void SetLogShown(std::size_t shown);
+	void ScrollLogTo(long long top);
+	void UpdateLogScroll();
+
+	std::vector<CanSim::LogLine> m_logLines; // every row of the last run, in time order
+	std::size_t m_logShown = 0;              // rows already shown (from the front)
+	std::size_t m_logTop = 0;                // first visible row
+	CFont m_logFont;
+
+	// ---- feature 010: modeless data frame editor ----
+	bool IsEditingFrames() const; // editor open, or waiting to reopen it
+	void OpenFrameEditor(int ecu);
+	void CloseFrameEditor();      // also cancels a pending switch
+
+	CFrameEditDlg* m_frameEditor = nullptr; // set back to nullptr by the closed notice
+	int m_pendingEcu = 0;                   // ECU to open when the switch timer fires
+
+	// ---- feature 011: grey ECU after a double-click, borders ----
+	void StartGray(int ecu);
+	void ClearGray();
+	void DrawLogFrame(CDC& dc);
+
+	int m_grayEcu = 0; // ECU drawn grey for a moment after a double-click, 0 = none
 };

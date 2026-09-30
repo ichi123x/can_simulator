@@ -94,8 +94,24 @@ namespace CanSim
         }
     }
 
-    std::vector<GroupMetrics> ComputeMetrics(const std::vector<LogRow>& rows, const Network& network)
+    std::vector<GroupMetrics> ComputeMetrics(const std::vector<LogRow>& allRows, const Network& network)
     {
+        // Feature 008: OVERWRITE rows are not part of any statistic. A dropped
+        // transmit request (no Tx_Start) counts for its Tx_Node, a dropped
+        // received frame for its Rx_Node.
+        std::vector<LogRow> rows;
+        std::map<int, std::pair<int, int>> discards; // node -> (tx, rx)
+        rows.reserve(allRows.size());
+        for (const LogRow& row : allRows)
+        {
+            if (row.Status != kStatusOverwrite)
+                rows.push_back(row);
+            else if (row.TxStartUs < 0)
+                ++discards[row.TxNodeId].first;
+            else
+                ++discards[row.RxNodeId].second;
+        }
+
         // 1) Rebuild the unique per-transmission records (rows are per receiver).
         std::map<std::pair<unsigned, long long>, Transmission> uniqueTx;
         for (const LogRow& row : rows)
@@ -171,10 +187,30 @@ namespace CanSim
             if (row.RxNodeId >= 0)
                 latencyByNode[row.TxNodeId].push_back(static_cast<double>(row.RxProcessUs - row.TxRequestUs));
 
+        std::set<int> nodeIds;
         for (const auto& kv : byNode)
+            nodeIds.insert(kv.first);
+        for (const auto& kv : discards)
+            nodeIds.insert(kv.first); // a node that only dropped frames still gets a row
+        for (int nodeId : nodeIds)
         {
-            GroupMetrics g = BuildGroup("Node", std::to_string(kv.first), kv.second,
-                latencyByNode.count(kv.first) ? latencyByNode[kv.first] : std::vector<double>());
+            GroupMetrics g;
+            auto it = byNode.find(nodeId);
+            if (it != byNode.end())
+                g = BuildGroup("Node", std::to_string(nodeId), it->second,
+                    latencyByNode.count(nodeId) ? latencyByNode[nodeId] : std::vector<double>());
+            else
+            {
+                g.GroupType = "Node";
+                g.GroupKey = std::to_string(nodeId);
+            }
+            g.HasDiscards = true;
+            auto d = discards.find(nodeId);
+            if (d != discards.end())
+            {
+                g.TxDiscardCount = d->second.first;
+                g.RxDiscardCount = d->second.second;
+            }
             result.push_back(g);
         }
 
@@ -203,7 +239,8 @@ namespace CanSim
                 "TotalLatency_Min_us,TotalLatency_Max_us,TotalLatency_Avg_us,"
                 "QueueingDelay_Min_us,QueueingDelay_Max_us,QueueingDelay_Avg_us,"
                 "TxDuration_Min_us,TxDuration_Max_us,TxDuration_Avg_us,"
-                "BusLoad_Avg_Pct,Jitter_Max_us,Jitter_Min_us,Jitter_StdDev_us\r\n";
+                "BusLoad_Avg_Pct,Jitter_Max_us,Jitter_Min_us,Jitter_StdDev_us,"
+                "TxDiscard_Count,RxDiscard_Count\r\n";
 
         file << std::fixed << std::setprecision(2);
         for (const GroupMetrics& g : metrics)
@@ -217,6 +254,11 @@ namespace CanSim
                 file << g.JitterMaxUs << ',' << g.JitterMinUs << ',' << g.JitterStdDevUs;
             else
                 file << ",,";
+            file << ',';
+            if (g.HasDiscards)
+                file << g.TxDiscardCount << ',' << g.RxDiscardCount;
+            else
+                file << ',';
             file << "\r\n";
         }
         return true;

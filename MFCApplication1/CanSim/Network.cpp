@@ -6,26 +6,33 @@
 
 namespace CanSim
 {
-    void EnqueueTxRequest(Node& node, std::size_t frameDefIndex, long long nowUs)
+    EnqueueResult EnqueueTxRequest(Node& node, std::size_t frameDefIndex, long long nowUs, bool transmitting)
     {
         for (PendingFrame& pf : node.PendingFrames)
         {
             if (pf.FrameDefIndex == frameDefIndex)
             {
-                // Still queued from an earlier period: overwrite (FR-011).
+                // Still queued from an earlier period: update the data in the
+                // same buffer (FR-011, domain spec FR-092a).
                 pf.CurrentData = node.Frames[frameDefIndex].Data;
-                ++pf.OverwriteCount;
-                return;
+                ++pf.UpdateCount;
+                return EnqueueResult::Updated;
             }
         }
+
+        // All transmit buffers in use: drop the new request (domain spec FR-092b).
+        const std::size_t inUse = node.PendingFrames.size() + (transmitting ? 1 : 0);
+        if (inUse >= static_cast<std::size_t>(kTxBufferCount))
+            return EnqueueResult::Discarded;
 
         PendingFrame pf;
         pf.FrameDefIndex = frameDefIndex;
         pf.TxRequestUs = nowUs;
         pf.CurrentData = node.Frames[frameDefIndex].Data;
         pf.RetryCount = 0;
-        pf.OverwriteCount = 0;
+        pf.UpdateCount = 0;
         node.PendingFrames.push_back(pf);
+        return EnqueueResult::Queued;
     }
 
     bool NodeAcceptsCanId(const Node& node, unsigned canId)

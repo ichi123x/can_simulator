@@ -18,6 +18,7 @@
 #include "ProjectFile.h"
 #include "FrameEvents.h"
 #include "ReplayClock.h"
+#include "LogLines.h"
 #include "FrameEditor.h"
 
 #include <climits>
@@ -116,7 +117,7 @@ namespace
                 a[i].RxNodeId != b[i].RxNodeId || a[i].TxRequestUs != b[i].TxRequestUs ||
                 a[i].TxStartUs != b[i].TxStartUs || a[i].TxEndUs != b[i].TxEndUs ||
                 a[i].RxProcessUs != b[i].RxProcessUs || a[i].Status != b[i].Status ||
-                a[i].RetryCount != b[i].RetryCount || a[i].OverwriteCount != b[i].OverwriteCount)
+                a[i].RetryCount != b[i].RetryCount || a[i].UpdateCount != b[i].UpdateCount)
                 return false;
         }
         return true;
@@ -393,7 +394,7 @@ namespace
             {
                 if (row.TxNodeId == 6)
                 {
-                    firstOverwrite = row.OverwriteCount;
+                    firstOverwrite = row.UpdateCount;
                     break;
                 }
             }
@@ -466,6 +467,41 @@ namespace
         std::ostringstream buf;
         buf << f.rdbuf();
         return buf.str();
+    }
+
+    // Makes a CSV written by this build comparable with a baseline written
+    // before feature 008: the log column Overwrite_Count became Update_Count
+    // and the summary gained the last two columns TxDiscard_Count and
+    // RxDiscard_Count. Nothing changes when the baseline is already 008+.
+    std::string NormalizeToBaseline(const std::string& now, const std::string& before)
+    {
+        std::string out = now;
+        if (before.find("Overwrite_Count") != std::string::npos)
+        {
+            const std::size_t pos = out.find("Update_Count");
+            if (pos != std::string::npos)
+                out.replace(pos, std::string("Update_Count").size(), "Overwrite_Count");
+        }
+        if (out.find("TxDiscard_Count") != std::string::npos && before.find("TxDiscard_Count") == std::string::npos)
+        {
+            std::istringstream in(out);
+            std::string line, stripped;
+            while (std::getline(in, line))
+            {
+                const bool cr = !line.empty() && line.back() == '\r';
+                if (cr)
+                    line.pop_back();
+                for (int k = 0; k < 2; ++k)
+                {
+                    const std::size_t comma = line.rfind(',');
+                    if (comma != std::string::npos)
+                        line.erase(comma);
+                }
+                stripped += line + (cr ? "\r\n" : "\n");
+            }
+            out = stripped;
+        }
+        return out;
     }
 
     // Runs a project the way the dialog does (Simulation > Start) and writes
@@ -678,8 +714,8 @@ namespace
                 const char* kinds[] = { ".log.csv", ".summary.csv", ".startup.csv" };
                 for (const char* kind : kinds)
                 {
-                    std::string now = ReadTextFile(prefix + kind);
                     std::string before = ReadTextFile(Join(g_baselineDir, std::string(name) + kind));
+                    std::string now = NormalizeToBaseline(ReadTextFile(prefix + kind), before);
                     // sample_collision gained the idle ECU 2 (see the comment in the sample).
                     if (std::string(name) == "sample_collision" && std::string(kind) == ".startup.csv")
                     {
@@ -1055,6 +1091,402 @@ namespace
                 "007 SC-004: at " + std::to_string(rate) + " bps Tx_End - Tx_Start is the frame alone (no intermission)");
         }
     }
+
+    // ---- feature 008: transmit / receive frame buffers (domain spec 3.7a) ----
+    void CheckFeature008()
+    {
+        std::cout << "\n== feature 008: frame buffers ==\n";
+        const std::string path = Join(g_sampleDir, "sample_buffer_full.canprj");
+        ConfigLoadResult cfg = LoadConfig(Widen(path));
+        Check(cfg.Success, "sample_buffer_full.canprj loads");
+        if (!cfg.Success)
+            return;
+
+        const Network net = BuildRunNetwork(cfg.Project, cfg.Config);
+        SimulationEngine engine(net, 10 * 1000000LL);
+        Logger logger;
+        engine.Run(logger);
+        const std::vector<LogRow>& rows = logger.Rows();
+        const Node* ecu1 = FindNode(engine.GetNetwork(), 1);
+        const Node* ecu2 = FindNode(engine.GetNetwork(), 2);
+
+        // --- transmit side (US1) ---
+        std::vector<const LogRow*> txDropped, rxDropped;
+        for (const LogRow& r : rows)
+        {
+            if (r.Status != kStatusOverwrite)
+                continue;
+            (r.TxStartUs < 0 ? txDropped : rxDropped).push_back(&r);
+        }
+        bool idsOk = true, blanksOk = true, timesOk = true;
+        const long long normal1 = ecu1 ? ecu1->NormalEntryUs : -1;
+        for (const LogRow* r : txDropped)
+        {
+            idsOk = idsOk && r->TxNodeId == 1 && r->CanId >= 0x110 && r->CanId <= 0x113;
+            blanksOk = blanksOk && r->RxNodeId == -1 && r->TxEndUs < 0 && r->RxStartUs < 0 && r->RxEndUs < 0 &&
+                       r->RxProcessUs < 0 && r->TimestampUs == r->TxRequestUs;
+            timesOk = timesOk && (r->TxRequestUs - normal1) % 100000 == 0;
+        }
+        std::cout << "  transmit-side OVERWRITE rows=" << txDropped.size()
+                  << " ECU1 TxDiscardCount=" << (ecu1 ? ecu1->TxDiscardCount : -1) << "\n";
+        Check(txDropped.size() == 400 && idsOk,
+            "008 SC-001: every 100 ms the 4 highest IDs of ECU1 (0x110..0x113) are dropped -> 400 rows");
+        Check(blanksOk && timesOk, "008 FR-004: a dropped request has blank Rx_Node / Tx / Rx times at its request time");
+        Check(ecu1 && ecu1->TxDiscardCount == 400, "008 FR-004: ECU1 counts 400 transmit-side discards");
+
+        // at most 16 frames of ECU1 hold a transmit buffer (request .. EOF);
+        // at every dropped request all 16 are in use
+        std::map<std::pair<long long, unsigned>, std::pair<long long, long long>> tx1; // (start, id) -> (request, end)
+        for (const LogRow& r : rows)
+            if (r.TxNodeId == 1 && r.TxStartUs >= 0)
+                tx1[std::make_pair(r.TxStartUs, r.CanId)] = std::make_pair(r.TxRequestUs, r.TxEndUs);
+        bool fullAtDrop = true;
+        for (const LogRow* r : txDropped)
+        {
+            int inUse = 0;
+            for (const auto& kv : tx1)
+                if (kv.second.first <= r->TxRequestUs && r->TxRequestUs < kv.second.second)
+                    ++inUse;
+            fullAtDrop = fullAtDrop && inUse == kTxBufferCount;
+        }
+        Check(fullAtDrop, "008 SC-002: each dropped transmit request found exactly 16 frames holding ECU1's buffers");
+
+        // --- receive side (US2) ---
+        bool onlyEcu2 = true, rxBlank = true;
+        for (const LogRow* r : rxDropped)
+        {
+            onlyEcu2 = onlyEcu2 && r->RxNodeId == 2;
+            rxBlank = rxBlank && r->RxProcessUs < 0 && r->RxEndUs >= 0 && r->TimestampUs == r->RxEndUs;
+        }
+        std::cout << "  receive-side OVERWRITE rows=" << rxDropped.size()
+                  << " ECU2 RxDiscardCount=" << (ecu2 ? ecu2->RxDiscardCount : -1) << "\n";
+        Check(!rxDropped.empty() && onlyEcu2 && rxBlank,
+            "008 FR-006: ECU2 (2 ms receive delay) drops frames; the rows have Status OVERWRITE and no Rx_Process");
+        Check(ecu2 && ecu2->RxDiscardCount == static_cast<int>(rxDropped.size()),
+            "008 SC-003: ECU2's receive-side discard count equals its OVERWRITE rows");
+
+        // receive FIFO occupancy: frames accepted by a node occupy [Rx_End, Rx_Process)
+        bool rxAtMost8 = true, fullAtRxDrop = true;
+        for (int nodeId = 1; nodeId <= 3; ++nodeId)
+        {
+            std::vector<std::pair<long long, long long>> held;
+            for (const LogRow& r : rows)
+                if (r.RxNodeId == nodeId && r.RxProcessUs >= 0)
+                    held.push_back(std::make_pair(r.RxEndUs, r.RxProcessUs));
+            for (const LogRow& r : rows)
+            {
+                if (r.RxNodeId != nodeId || r.RxEndUs < 0)
+                    continue;
+                int inUse = 0;
+                for (const auto& h : held)
+                    if (h.first < r.RxEndUs && r.RxEndUs < h.second)
+                        ++inUse; // frames still waiting when this one arrives
+                if (r.RxProcessUs >= 0)
+                    rxAtMost8 = rxAtMost8 && inUse < kRxBufferCount;
+                else
+                    fullAtRxDrop = fullAtRxDrop && inUse == kRxBufferCount;
+            }
+        }
+        Check(rxAtMost8 && fullAtRxDrop, "008 SC-002: a receive FIFO never holds more than 8; a drop happens only when 8 are held");
+
+        // reproducibility (SC-006)
+        {
+            SimulationEngine again(net, 10 * 1000000LL);
+            Logger logger2;
+            again.Run(logger2);
+            Check(RowsEqual(rows, logger2.Rows()), "008 SC-006: two runs give identical logs including OVERWRITE rows");
+        }
+
+        // summary: per-node discard counts, OVERWRITE excluded from statistics (FR-009, FR-010)
+        {
+            const std::vector<GroupMetrics> metrics = ComputeMetrics(rows, net);
+            bool found1 = false, found2 = false, idCountOk = true;
+            for (const GroupMetrics& g : metrics)
+            {
+                if (g.GroupType == "Node" && g.GroupKey == "1")
+                    found1 = g.HasDiscards && g.TxDiscardCount == 400 && g.RxDiscardCount == 0;
+                if (g.GroupType == "Node" && g.GroupKey == "2")
+                    found2 = g.HasDiscards && g.RxDiscardCount == static_cast<int>(rxDropped.size());
+                if (g.GroupType == "ID" && g.GroupKey == "0x113")
+                    idCountOk = g.TotalLatency.Count == 0 && g.QueueingDelay.Count == 0;
+            }
+            Check(found1 && found2, "008 FR-009: the summary shows TxDiscard_Count 400 for ECU1 and ECU2's RxDiscard_Count");
+            Check(idCountOk, "008 FR-010: OVERWRITE rows are not counted in the statistics (0x113 is never sent)");
+        }
+
+        // receive delay 0 -> no receive-side drop (FR-095 / SC-004)
+        {
+            const char* samples[] = { "sample_appendix_a", "sample_collision", "sample_startup",
+                                      "sample_startup_latejoin", "sample_16ecu" };
+            bool none = true;
+            for (const char* name : samples)
+            {
+                std::vector<LogRow> r;
+                RunProjectToCsv(Join(g_sampleDir, std::string(name) + ".canprj"), Join(g_tempDir, std::string("b8_") + name),
+                    10 * 1000000LL, &r);
+                for (const LogRow& row : r)
+                    none = none && row.Status != kStatusOverwrite;
+            }
+            Check(none, "008 SC-004: the existing samples (receive delay 0, <= 16 waiting) have no OVERWRITE row");
+        }
+
+        // SC-005: sample_16ecu against the baseline (the other 4 samples are compared by 004 SC-009)
+        if (!g_baselineDir.empty())
+        {
+            const std::string prefix = Join(g_tempDir, "b8_sample_16ecu");
+            bool same = true;
+            const char* kinds[] = { ".log.csv", ".summary.csv", ".startup.csv" };
+            for (const char* kind : kinds)
+            {
+                const std::string before = ReadTextFile(Join(g_baselineDir, std::string("sample_16ecu") + kind));
+                const std::string now = NormalizeToBaseline(ReadTextFile(prefix + kind), before);
+                same = same && !before.empty() && now == before;
+            }
+            Check(same, "008 SC-005: sample_16ecu matches the baseline apart from the renamed / added columns");
+        }
+    }
+
+    // ---- feature 009: rows of the log view ----
+    void CheckFeature009()
+    {
+        std::cout << "\n== feature 009: log view rows ==\n";
+        ConfigLoadResult cfg = LoadConfig(Widen(Join(g_sampleDir, "sample_startup.canprj")));
+        Check(cfg.Success, "sample_startup.canprj loads");
+        if (!cfg.Success)
+            return;
+        const Network net = BuildRunNetwork(cfg.Project, cfg.Config);
+        const long long duration = 10 * 1000000LL;
+        SimulationEngine engine(net, duration);
+        Logger logger;
+        engine.Run(logger);
+        const std::vector<LogLine> lines = BuildLogLines(logger.Rows(), engine.GetNetwork(), duration);
+
+        // (a) 18 state rows at the startup record times
+        int states = 0, frames = 0;
+        bool timesOk = true;
+        for (const LogLine& l : lines)
+        {
+            if (l.Kind == LogLineKind::Frame)
+            {
+                ++frames;
+                continue;
+            }
+            ++states;
+            const Node* n = FindNode(engine.GetNetwork(), l.NodeId);
+            const StartupState s = static_cast<StartupState>(l.Index);
+            const long long expected = !n ? -2
+                : s == StartupState::Initializing ? n->PowerOnTimeUs
+                : s == StartupState::BusSyncDetecting ? n->InitDoneUs
+                : n->NormalEntryUs;
+            timesOk = timesOk && l.TimeUs == expected;
+        }
+        std::cout << "  state rows=" << states << " frame rows=" << frames << " log rows=" << logger.Rows().size() << "\n";
+        Check(states == 18 && timesOk, "009 SC-002: 6 ECUs x 3 state rows at the startup record times");
+
+        // (b) order: time, states before frames, node id
+        bool ordered = true;
+        for (std::size_t i = 1; i < lines.size(); ++i)
+        {
+            const LogLine& a = lines[i - 1];
+            const LogLine& b = lines[i];
+            if (a.TimeUs != b.TimeUs)
+                ordered = ordered && a.TimeUs < b.TimeUs;
+            else if (a.Kind != b.Kind)
+                ordered = ordered && a.Kind == LogLineKind::State;
+            else
+                ordered = ordered && a.NodeId <= b.NodeId;
+        }
+        Check(ordered, "009 FR-005: rows are in time order, states first at the same time, then by node id");
+
+        // (c) one frame row per log row
+        Check(frames == static_cast<int>(logger.Rows().size()), "009 FR-004: one frame row per log row (frame x receiving node)");
+
+        // (d) transitions after the end of the run are left out
+        {
+            const std::vector<LogLine> shortLines = BuildLogLines(std::vector<LogRow>(), engine.GetNetwork(), 25);
+            bool within = true;
+            for (const LogLine& l : shortLines)
+                within = within && l.TimeUs <= 25;
+            Check(within && !shortLines.empty() && shortLines.size() < 18,
+                "009: state rows later than the run duration are left out");
+        }
+
+        // (e) a node powered on after the run has no row
+        {
+            ConfigLoadResult late = LoadText("l_late.canprj",
+                "[Project]\r\nEcuCount=2\r\n[Node2]\r\nNodeId=2\r\nPowerOnTimeUs=5000000\r\n");
+            SimulationEngine e2(BuildRunNetwork(late.Project, late.Config), 1000000LL);
+            Logger l2;
+            e2.Run(l2);
+            bool none2 = true;
+            for (const LogLine& l : BuildLogLines(l2.Rows(), e2.GetNetwork(), 1000000LL))
+                none2 = none2 && l.NodeId != 2;
+            Check(late.Success && none2, "009: a node powered on after the run has no state row");
+        }
+
+        // (f) OVERWRITE rows are frame rows too
+        {
+            ConfigLoadResult bf = LoadConfig(Widen(Join(g_sampleDir, "sample_buffer_full.canprj")));
+            const Network bnet = BuildRunNetwork(bf.Project, bf.Config);
+            SimulationEngine e3(bnet, 1000000LL);
+            Logger l3;
+            e3.Run(l3);
+            const std::vector<LogLine> bl = BuildLogLines(l3.Rows(), e3.GetNetwork(), 1000000LL);
+            int overwrite = 0;
+            for (const LogLine& l : bl)
+                if (l.Kind == LogLineKind::Frame && l3.Rows()[static_cast<std::size_t>(l.Index)].Status == kStatusOverwrite)
+                    ++overwrite;
+            Check(overwrite > 0, "009: OVERWRITE rows appear in the log view");
+        }
+    }
+
+    // ---- feature 010: ECU hit test on the bus diagram ----
+    void CheckFeature010()
+    {
+        std::cout << "\n== feature 010: ECU hit test ==\n";
+        const int dpis[] = { 96, 120, 144 };
+
+        // (a) ScaleToDpi = (px * dpi + 48) / 96
+        {
+            bool same = true;
+            for (int dpi : dpis)
+                for (int px = 0; px <= kDiagramWidth; ++px)
+                    same = same && ScaleToDpi(px, dpi) == (px * dpi + 48) / 96;
+            Check(same, "010 research decision 2: ScaleToDpi = (px * dpi + 48) / 96");
+        }
+
+        // (b) inside corners and center hit the ECU, 1 px outside does not
+        {
+            bool inside = true;
+            bool outside = true;
+            for (int n = 1; n <= kMaxEcuCount; ++n)
+            {
+                const BusDiagramLayout layout = ComputeBusDiagramLayout(n);
+                for (int dpi : dpis)
+                {
+                    for (const EcuPlacement& ecu : layout.Ecus)
+                    {
+                        const int l = ScaleToDpi(ecu.Box.Left, dpi);
+                        const int t = ScaleToDpi(ecu.Box.Top, dpi);
+                        const int r = ScaleToDpi(ecu.Box.Right, dpi);
+                        const int b = ScaleToDpi(ecu.Box.Bottom, dpi);
+                        const int k = ecu.Number;
+                        inside = inside && FindEcuAt(layout, l, t, dpi) == k && FindEcuAt(layout, r - 1, t, dpi) == k &&
+                            FindEcuAt(layout, l, b - 1, dpi) == k && FindEcuAt(layout, r - 1, b - 1, dpi) == k &&
+                            FindEcuAt(layout, (l + r) / 2, (t + b) / 2, dpi) == k;
+                        outside = outside && FindEcuAt(layout, l - 1, (t + b) / 2, dpi) != k &&
+                            FindEcuAt(layout, (l + r) / 2, t - 1, dpi) != k &&
+                            FindEcuAt(layout, r, (t + b) / 2, dpi) != k && FindEcuAt(layout, (l + r) / 2, b, dpi) != k;
+                    }
+                }
+            }
+            Check(inside, "010 SC-001/SC-005: inner corners and center of every box hit that ECU (ECU 1..16, DPI 96/120/144)");
+            Check(outside, "010 SC-004: 1 px outside every box does not hit that ECU");
+        }
+
+        // (c) bus line, caption, stub lines and the margin hit nothing
+        {
+            const BusDiagramLayout layout = ComputeBusDiagramLayout(16);
+            bool none = true;
+            for (int dpi : dpis)
+            {
+                none = none && FindEcuAt(layout, ScaleToDpi(570, dpi), ScaleToDpi(kBusY, dpi), dpi) == 0;
+                none = none && FindEcuAt(layout, ScaleToDpi(66, dpi), ScaleToDpi(93, dpi), dpi) == 0;
+                none = none && FindEcuAt(layout, ScaleToDpi(1135, dpi), ScaleToDpi(210, dpi), dpi) == 0;
+                for (const EcuPlacement& ecu : layout.Ecus)
+                    none = none && FindEcuAt(layout, ScaleToDpi(ecu.LineX, dpi),
+                        ScaleToDpi((ecu.LineY1 + ecu.LineY2) / 2, dpi), dpi) == 0;
+            }
+            Check(none, "010 FR-005: bus line, caption, stub lines and the margin hit no ECU");
+        }
+
+        // (d) no ECU: nothing is hit anywhere in the diagram
+        {
+            const BusDiagramLayout layout = ComputeBusDiagramLayout(0);
+            bool none = true;
+            for (int dpi : dpis)
+                for (int y = 0; y < ScaleToDpi(kDiagramHeight, dpi); y += 10)
+                    for (int x = 0; x < ScaleToDpi(kDiagramWidth, dpi); x += 10)
+                        none = none && FindEcuAt(layout, x, y, dpi) == 0;
+            Check(none, "010: with 0 ECUs nothing is hit");
+        }
+
+        // (e) with N ECUs no number above N is returned
+        {
+            bool within = true;
+            for (int n = 0; n <= kMaxEcuCount; ++n)
+            {
+                const BusDiagramLayout layout = ComputeBusDiagramLayout(n);
+                for (int y = 0; y < kDiagramHeight; y += 2)
+                    for (int x = 0; x < kDiagramWidth; x += 2)
+                    {
+                        const int k = FindEcuAt(layout, x, y, 96);
+                        within = within && k >= 0 && k <= n;
+                    }
+            }
+            Check(within, "010: with N ECUs only ECU 1..N can be hit");
+        }
+    }
+
+    // ---- feature 011: border around the bus diagram ----
+    void CheckFeature011()
+    {
+        std::cout << "\n== feature 011: diagram border ==\n";
+        const int dpis[] = { 96, 120, 144 };
+        bool inArea = true;
+        bool clear = true;
+        for (int n = 0; n <= kMaxEcuCount; ++n)
+        {
+            const BusDiagramLayout layout = ComputeBusDiagramLayout(n);
+            for (int dpi : dpis)
+            {
+                const int w = (std::max)(1, ScaleToDpi(1, dpi));
+                const int fl = ScaleToDpi(layout.Frame.Left, dpi);
+                const int ft = ScaleToDpi(layout.Frame.Top, dpi);
+                const int fr = ScaleToDpi(layout.Frame.Right, dpi);
+                const int fb = ScaleToDpi(layout.Frame.Bottom, dpi);
+                inArea = inArea && fl >= 0 && ft >= 0 && fr <= ScaleToDpi(kDiagramWidth, dpi) &&
+                    fb <= ScaleToDpi(kDiagramHeight, dpi);
+
+                // Everything drawn must be at least 1 px inside the line:
+                // [fl + w, fr - w) x [ft + w, fb - w) is the free inside.
+                auto inside = [&](int l, int t, int r, int b) {
+                    return ScaleToDpi(l, dpi) > fl + w && ScaleToDpi(t, dpi) > ft + w &&
+                        ScaleToDpi(r, dpi) < fr - w && ScaleToDpi(b, dpi) < fb - w;
+                };
+                clear = clear && inside(layout.BusLine.Left, layout.BusLine.Top, layout.BusLine.Right, layout.BusLine.Bottom);
+                // "CAN BUS": the text box the dialog draws it in, below its top margin
+                clear = clear && inside(kCaptionLeft, 76, kCaptionRight + 40, layout.BusLine.Top - 2);
+                for (const EcuPlacement& ecu : layout.Ecus)
+                {
+                    clear = clear && inside(ecu.Box.Left, ecu.Box.Top, ecu.Box.Right, ecu.Box.Bottom);
+                    clear = clear && inside(ecu.LineX, (std::min)(ecu.LineY1, ecu.LineY2), ecu.LineX + 1,
+                        (std::max)(ecu.LineY1, ecu.LineY2));
+                }
+            }
+        }
+        Check(inArea, "011 FR-008: the border is inside the diagram area (ECU 0..16, DPI 96/120/144)");
+        Check(clear, "011 FR-010/FR-011: bus line, caption, ECU boxes and stub lines stay clear of the border");
+
+        // Log view border: outside the grey area and scroll bar by at least
+        // 1 px after the line width, and below the diagram.
+        bool logClear = true;
+        bool sameAsBefore = true;
+        for (int dpi : dpis)
+        {
+            const int w = (std::max)(1, ScaleToDpi(1, dpi));
+            const DiagramRect view = ScaleLogViewRect(dpi);
+            const DiagramRect frame = ScaleLogFrameRect(dpi);
+            logClear = logClear && frame.Left + w < view.Left && frame.Top + w < view.Top &&
+                frame.Right - w > view.Right && frame.Bottom - w > view.Bottom &&
+                frame.Top > ScaleToDpi(kDiagramHeight, dpi);
+            // Same place as the dialog used before (left / top + scaled size)
+            sameAsBefore = sameAsBefore && view.Left == ScaleToDpi(150, dpi) && view.Top == ScaleToDpi(260, dpi) &&
+                view.Right == view.Left + ScaleToDpi(850, dpi) && view.Bottom == view.Top + ScaleToDpi(260, dpi);
+        }
+        Check(logClear, "011 FR-009/FR-011: the log view border is clear of the grey area, the scroll bar and the diagram (DPI 96/120/144)");
+        Check(sameAsBefore, "011 FR-012: the log view keeps its 009 position (150, 260, 850 x 260 at 96 DPI)");
+    }
 }
 
 int main(int argc, char** argv)
@@ -1076,6 +1508,10 @@ int main(int argc, char** argv)
     CheckFeature005();
     CheckFeature006();
     CheckFeature007();
+    CheckFeature008();
+    CheckFeature009();
+    CheckFeature010();
+    CheckFeature011();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

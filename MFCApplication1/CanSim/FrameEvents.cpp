@@ -13,6 +13,10 @@ namespace CanSim
         std::map<std::pair<long long, int>, FrameEvent> byFrame;
         for (const LogRow& row : rows)
         {
+            // A transmit request dropped for full buffers never reached the
+            // bus (feature 008): nothing to replay.
+            if (row.TxStartUs < 0)
+                continue;
             const std::pair<long long, int> key(row.TxStartUs, row.TxNodeId);
             auto it = byFrame.find(key);
             if (it == byFrame.end())

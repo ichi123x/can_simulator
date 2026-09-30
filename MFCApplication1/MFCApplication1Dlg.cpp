@@ -81,6 +81,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_WM_ERASEBKGND()
 	ON_WM_INITMENUPOPUP()
 	ON_WM_TIMER()
+	ON_WM_VSCROLL()
+	ON_WM_MOUSEWHEEL()
 	ON_COMMAND(ID_FILE_LOAD_PROJECT, &CMFCApplication1Dlg::OnFileLoadProject)
 	ON_COMMAND(ID_FILE_SAVE_PROJECT, &CMFCApplication1Dlg::OnFileSaveProject)
 	ON_COMMAND(ID_EDIT_SETTINGS, &CMFCApplication1Dlg::OnEditSettings)
@@ -88,6 +90,9 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_COMMAND(ID_EDIT_FRAME_DISPLAY, &CMFCApplication1Dlg::OnEditFrameDisplay)
 	ON_COMMAND(ID_SIM_START, &CMFCApplication1Dlg::OnSimStart)
 	ON_COMMAND(ID_SIM_STOP, &CMFCApplication1Dlg::OnSimStop)
+	ON_WM_LBUTTONDBLCLK()
+	ON_MESSAGE(WM_APP_FRAME_EDITOR_CLOSED, &CMFCApplication1Dlg::OnFrameEditorClosed)
+	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
 
@@ -124,6 +129,19 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 
 	// Start with the default project: 2 ECUs, 500 kbps, 10 s, frame display off (004 FR-006).
 	SetEcuCount(m_settings.EcuCount);
+
+	// 009: log view font and the scroll bar at the right edge of the grey area.
+	{
+		CClientDC dc(this);
+		const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
+		m_logFont.CreateFont(-MulDiv(13, dpi, 96), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+			FIXED_PITCH | FF_MODERN, _T("MS Gothic"));
+	}
+	const CRect logRect = GetLogRect();
+	const CRect textRect = GetLogTextRect();
+	GetDlgItem(IDC_SCROLL_LOG)->MoveWindow(textRect.right, logRect.top, logRect.right - textRect.right, logRect.Height());
+	UpdateLogScroll();
 
 	return TRUE;  // フォーカスをコントロールに設定した場合を除き、TRUE を返します。
 }
@@ -168,6 +186,8 @@ void CMFCApplication1Dlg::OnPaint()
 	{
 		CPaintDC dc(this);
 		DrawBusDiagram(dc);
+		DrawLogView(dc);
+		DrawLogFrame(dc);
 	}
 }
 
@@ -192,10 +212,17 @@ namespace
 	const int kCaptionHeightPx = 26;
 	const int kEcuLabelHeightPx = 15;
 	const int kEcuCornerPx = 10;
+	// Feature 011: an ECU just double-clicked, and the borders of the diagram
+	// and the log view.
+	const COLORREF kGrayFill = RGB(205, 205, 205);
+	const COLORREF kGrayFrame = RGB(128, 128, 128);
+	const COLORREF kGrayText = RGB(96, 96, 96);
+	const COLORREF kAreaFrameColor = RGB(160, 160, 160);
 
+	// Same conversion as the ECU hit test (feature 010).
 	int ScalePx(int px, int dpi)
 	{
-		return MulDiv(px, dpi, 96);
+		return CanSim::ScaleToDpi(px, dpi);
 	}
 
 	CRect ScaleRect(const CanSim::DiagramRect& r, int dpi)
@@ -218,6 +245,8 @@ void CMFCApplication1Dlg::SetEcuCount(int ecuCount)
 	if (ecuCount > CanSim::kMaxEcuCount)
 		ecuCount = CanSim::kMaxEcuCount;
 	m_ecuCount = ecuCount;
+	if (m_grayEcu > ecuCount)
+		ClearGray(); // 011 FR-007: the grey ECU is no longer shown
 	if (GetSafeHwnd() != nullptr)
 		InvalidateRect(GetDiagramRect(), FALSE);
 }
@@ -239,6 +268,16 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 	mem.SetTextColor(kTextColor);
 
 	const CanSim::BusDiagramLayout layout = CanSim::ComputeBusDiagramLayout(m_ecuCount);
+
+	// 011 FR-008: border inside the diagram area, drawn before the contents
+	{
+		CPen borderPen(PS_SOLID, (std::max)(1, ScalePx(1, dpi)), kAreaFrameColor);
+		CPen* oldPen = mem.SelectObject(&borderPen);
+		CGdiObject* oldBrush = mem.SelectStockObject(NULL_BRUSH);
+		mem.Rectangle(ScaleRect(layout.Frame, dpi));
+		mem.SelectObject(oldBrush);
+		mem.SelectObject(oldPen);
+	}
 
 	// Frames on the bus since the previous refresh (005 FR-009). Nothing is
 	// highlighted when the frame display is off (005 FR-010) or no
@@ -299,6 +338,13 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 			frameColor = kReceiverFrame;
 			fillColor = kReceiverFill;
 		}
+		const bool isGray = ecu.Number == m_grayEcu; // 011 FR-003
+		if (isGray)
+		{
+			frameColor = kGrayFrame;
+			fillColor = kGrayFill;
+			frameWidth = 1;
+		}
 		CPen framePen(PS_SOLID, (std::max)(1, ScalePx(frameWidth, dpi)), frameColor);
 		CBrush fillBrush(fillColor);
 		mem.SelectObject(&framePen);
@@ -312,7 +358,9 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 		CString label;
 		label.Format(_T("ECU %02d"), ecu.Number);
 		CRect textRect = box;
+		mem.SetTextColor(isGray ? kGrayText : kTextColor);
 		mem.DrawText(label, textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+		mem.SetTextColor(kTextColor);
 	}
 
 	mem.SelectObject(oldFont);
@@ -333,6 +381,17 @@ namespace
 {
 	const UINT_PTR kReplayTimerId = 1;
 	const UINT kRefreshMs = 16; // screen refresh target, about 60 per second (005 FR-008)
+	// Feature 010: switching the editor to another ECU closes it, waits this
+	// long so that the user notices the switch, then opens it again (FR-010).
+	const UINT_PTR kSwitchTimerId = 2;
+	const UINT kSwitchDelayMs = 500;
+	// Feature 011: an accepted ECU double-click draws that ECU grey this long.
+	const UINT_PTR kGrayTimerId = 3;
+	const UINT kGrayMs = 500;
+	// Top-left of the editor in 96 DPI client pixels: the left edge of the log
+	// view, 8 px below the diagram, so that no ECU box is covered (FR-017).
+	const int kEditorLeftPx = 150;
+	const int kEditorGapPx = 8;
 
 	CString LoadRcString(UINT id)
 	{
@@ -363,6 +422,7 @@ void CMFCApplication1Dlg::OnCancel()
 	// Reached through the close box / Alt+F4. A running replay is abandoned
 	// without writing any result (004 Edge Cases).
 	EndRun();
+	CloseFrameEditor(); // 010: a pending switch does not open a new editor
 	CDialogEx::OnCancel();
 }
 
@@ -397,7 +457,9 @@ void CMFCApplication1Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL b
 	pPopupMenu->EnableMenuItem(ID_FILE_LOAD_PROJECT, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_SETTINGS, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_FRAMES, idleOnly);
-	pPopupMenu->EnableMenuItem(ID_SIM_START, idleOnly);
+	// 010 FR-013: no simulation while the frame editor is open (or reopening)
+	pPopupMenu->EnableMenuItem(ID_SIM_START,
+		MF_BYCOMMAND | (running || IsEditingFrames() ? MF_GRAYED : MF_ENABLED));
 	pPopupMenu->EnableMenuItem(ID_SIM_STOP, runningOnly);
 	pPopupMenu->CheckMenuItem(ID_EDIT_FRAME_DISPLAY,
 		MF_BYCOMMAND | (m_settings.FrameDisplay ? MF_CHECKED : MF_UNCHECKED));
@@ -407,6 +469,7 @@ void CMFCApplication1Dlg::OnFileLoadProject()
 {
 	if (m_runState == RunState::Running)
 		return;
+	CloseFrameEditor(); // 010 FR-014: the editor refers to the current project
 
 	CFileDialog dlg(TRUE, _T("canprj"), nullptr, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
 		LoadRcString(IDS_PROJECT_FILTER), this);
@@ -469,6 +532,7 @@ void CMFCApplication1Dlg::OnEditSettings()
 {
 	if (m_runState == RunState::Running)
 		return;
+	CloseFrameEditor(); // 010 FR-014: ECU count and bit rate may change
 
 	CSettingsDlg dlg(m_settings, m_definitions.BitRateBps, this);
 	if (dlg.DoModal() != IDOK)
@@ -482,13 +546,140 @@ void CMFCApplication1Dlg::OnEditSettings()
 }
 
 // Data frame editor (feature 006). Edits go straight into the project's
-// definitions; they are written to the file by "Save project".
+// definitions; they are written to the file by "Save project". Since feature
+// 010 the window is modeless: already open, it is only brought to the front;
+// while a switch is pending nothing happens (it opens shortly).
 void CMFCApplication1Dlg::OnEditFrames()
 {
 	if (m_runState == RunState::Running)
 		return; // 006 FR-001: not while a simulation runs
-	CFrameEditDlg dlg(m_definitions, m_settings.EcuCount, this);
-	dlg.DoModal();
+	if (m_frameEditor != nullptr)
+	{
+		m_frameEditor->SetForegroundWindow();
+		return;
+	}
+	if (m_pendingEcu != 0)
+		return;
+	OpenFrameEditor(1); // 010 FR-008: ECU 01 as before
+}
+
+// ---- feature 010: ECU double-click and the modeless editor ----
+
+bool CMFCApplication1Dlg::IsEditingFrames() const
+{
+	return m_frameEditor != nullptr || m_pendingEcu != 0;
+}
+
+void CMFCApplication1Dlg::OpenFrameEditor(int ecu)
+{
+	// m_ecuCount (not m_settings.EcuCount) so that the node list matches the
+	// diagram that was double-clicked.
+	CFrameEditDlg* editor = new CFrameEditDlg(m_definitions, m_ecuCount, ecu, this);
+	if (!editor->Create(IDD_FRAME_EDIT, this))
+	{
+		delete editor;
+		return;
+	}
+	m_frameEditor = editor;
+
+	// FR-017: below the diagram, kept inside the monitor's work area.
+	CClientDC dc(this);
+	const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
+	CPoint pos(ScalePx(kEditorLeftPx, dpi), ScalePx(CanSim::kDiagramHeight + kEditorGapPx, dpi));
+	ClientToScreen(&pos);
+	CRect rect;
+	editor->GetWindowRect(&rect);
+	MONITORINFO mi = { sizeof(mi) };
+	if (::GetMonitorInfo(::MonitorFromWindow(m_hWnd, MONITOR_DEFAULTTONEAREST), &mi))
+	{
+		const CRect work(mi.rcWork);
+		pos.x = (std::max)((std::min)(pos.x, work.right - rect.Width()), work.left);
+		pos.y = (std::max)((std::min)(pos.y, work.bottom - rect.Height()), work.top);
+	}
+	editor->SetWindowPos(nullptr, pos.x, pos.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+	editor->ShowWindow(SW_SHOW);
+}
+
+void CMFCApplication1Dlg::CloseFrameEditor()
+{
+	KillTimer(kSwitchTimerId);
+	m_pendingEcu = 0;
+	if (m_frameEditor != nullptr)
+		m_frameEditor->DestroyWindow(); // the closed notice clears m_frameEditor
+}
+
+LRESULT CMFCApplication1Dlg::OnFrameEditorClosed(WPARAM /*wParam*/, LPARAM /*lParam*/)
+{
+	m_frameEditor = nullptr;
+	return 0;
+}
+
+void CMFCApplication1Dlg::OnDestroy()
+{
+	// Closing the main window while a switch is pending must not open a new
+	// editor (spec Edge Cases).
+	CloseFrameEditor();
+	KillTimer(kGrayTimerId); // 011
+	CDialogEx::OnDestroy();
+}
+
+// ---- feature 011: grey ECU after an accepted double-click ----
+
+// Only the last ECU is grey; a new double-click (even on the same ECU)
+// restarts the 500 ms (FR-004, spec Edge Cases).
+void CMFCApplication1Dlg::StartGray(int ecu)
+{
+	m_grayEcu = ecu;
+	SetTimer(kGrayTimerId, kGrayMs, nullptr);
+	InvalidateRect(GetDiagramRect(), FALSE);
+	UpdateWindow();
+}
+
+void CMFCApplication1Dlg::ClearGray()
+{
+	KillTimer(kGrayTimerId);
+	if (m_grayEcu == 0)
+		return;
+	m_grayEcu = 0;
+	if (GetSafeHwnd() != nullptr)
+		InvalidateRect(GetDiagramRect(), FALSE);
+}
+
+void CMFCApplication1Dlg::OnLButtonDblClk(UINT nFlags, CPoint point)
+{
+	CDialogEx::OnLButtonDblClk(nFlags, point);
+	if (m_runState == RunState::Running)
+		return; // FR-006
+
+	CClientDC dc(this);
+	const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
+	const int ecu = CanSim::FindEcuAt(CanSim::ComputeBusDiagramLayout(m_ecuCount), point.x, point.y, dpi);
+	if (ecu == 0)
+		return; // FR-005: not on an ECU box
+
+	// 011 FR-001: show which ECU was taken before the editor is opened, so
+	// that the grey appears at once; the 010 behaviour below is unchanged.
+	StartGray(ecu);
+
+	if (m_frameEditor != nullptr)
+	{
+		if (m_frameEditor->CurrentEcu() == ecu)
+		{
+			m_frameEditor->SetForegroundWindow(); // FR-011: same ECU, not reopened
+			return;
+		}
+		// FR-010: close, then open the other ECU after a short pause.
+		CloseFrameEditor();
+		m_pendingEcu = ecu;
+		SetTimer(kSwitchTimerId, kSwitchDelayMs, nullptr);
+		return;
+	}
+	if (m_pendingEcu != 0)
+	{
+		m_pendingEcu = ecu; // FR-012: the latest one wins, the wait is not extended
+		return;
+	}
+	OpenFrameEditor(ecu); // FR-001, FR-002
 }
 
 void CMFCApplication1Dlg::OnEditFrameDisplay()
@@ -531,6 +722,8 @@ void CMFCApplication1Dlg::OnSimStart()
 {
 	if (m_runState == RunState::Running)
 		return;
+	if (IsEditingFrames())
+		return; // 010 FR-013: the menu item is greyed; guard other routes too
 
 	// The results are written next to the project file, so it needs a place
 	// first (004 FR-017).
@@ -549,6 +742,11 @@ void CMFCApplication1Dlg::OnSimStart()
 		m_projectPath = path;
 	}
 
+	// 009 FR-010: a new run starts with an empty log view. Cleared before
+	// m_runRows is replaced, since the rows refer to it.
+	ClearLog();
+	ClearGray(); // 011 FR-007
+
 	{
 		// The run is synchronous; at most 600 s of simulated time
 		// (research.md decision 4).
@@ -559,6 +757,7 @@ void CMFCApplication1Dlg::OnSimStart()
 		engine.Run(logger);
 		m_runRows = logger.Rows();
 		m_runEndState = engine.GetNetwork();
+		m_logLines = CanSim::BuildLogLines(m_runRows, m_runEndState, m_settings.DurationSec * 1000000LL);
 	}
 
 	// Speed +10 does not wait at all (005 FR-004).
@@ -623,6 +822,7 @@ void CMFCApplication1Dlg::EndRun()
 void CMFCApplication1Dlg::FinishReplay()
 {
 	EndRun();
+	SetLogShown(m_logLines.size()); // 009 FR-005: every row once the run is complete
 
 	CString logPath, summaryPath, startupPath;
 	CWaitCursor wait;
@@ -651,6 +851,21 @@ long long CMFCApplication1Dlg::CurrentSimTimeUs() const
 
 void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 {
+	if (nIDEvent == kGrayTimerId)
+	{
+		ClearGray(); // 011 FR-002
+		return;
+	}
+	if (nIDEvent == kSwitchTimerId)
+	{
+		// 010 FR-010: end of the pause after closing the editor.
+		KillTimer(kSwitchTimerId);
+		const int ecu = m_pendingEcu;
+		m_pendingEcu = 0;
+		if (ecu != 0 && m_runState != RunState::Running && m_frameEditor == nullptr)
+			OpenFrameEditor(ecu);
+		return;
+	}
 	if (nIDEvent != kReplayTimerId || m_runState != RunState::Running)
 	{
 		CDialogEx::OnTimer(nIDEvent);
@@ -662,6 +877,7 @@ void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 	m_curSimUs = CurrentSimTimeUs();
 	m_active = m_cursor->Collect(m_prevSimUs, m_curSimUs);
 	m_prevSimUs = m_curSimUs;
+	ShowLogUpTo(m_curSimUs); // 009: rows appear on the same clock, display on or off
 
 	if (m_curSimUs >= m_settings.DurationSec * 1000000LL)
 	{
@@ -697,4 +913,240 @@ void CMFCApplication1Dlg::OnSimStop()
 			(LPCTSTR)summaryPath, (LPCTSTR)startupPath);
 		AfxMessageBox(message, MB_OK | MB_ICONINFORMATION);
 	}
+}
+
+// ---- feature 009: log view under the bus diagram ----
+
+namespace
+{
+	// 96 dpi layout (009 contracts/ui-log-view.md, Doc/ログ表示エリアイメージ図.jpg).
+	// The position and the border are in CanSim (ScaleLogViewRect /
+	// ScaleLogFrameRect) so that checks.exe can verify them (feature 011).
+	const int kLogScrollBarPx = 17;
+	const int kLogLinePx = 18;
+	const int kLogPaddingPx = 6;
+	const int kLogWheelLines = 3;
+	const COLORREF kLogBack = RGB(230, 230, 230);
+	const COLORREF kLogText = RGB(0, 0, 0);
+
+	int ScaleForDialog(const CWnd* wnd, int px)
+	{
+		CClientDC dc(const_cast<CWnd*>(wnd));
+		return MulDiv(px, dc.GetDeviceCaps(LOGPIXELSX), 96);
+	}
+
+	CRect ToCRect(const CanSim::DiagramRect& r)
+	{
+		return CRect(r.Left, r.Top, r.Right, r.Bottom);
+	}
+}
+
+CRect CMFCApplication1Dlg::GetLogRect() const
+{
+	CClientDC dc(const_cast<CMFCApplication1Dlg*>(this));
+	return ToCRect(CanSim::ScaleLogViewRect(dc.GetDeviceCaps(LOGPIXELSX)));
+}
+
+CRect CMFCApplication1Dlg::GetLogTextRect() const
+{
+	CRect r = GetLogRect();
+	r.right -= ScaleForDialog(this, kLogScrollBarPx);
+	return r;
+}
+
+int CMFCApplication1Dlg::LogLineHeight() const
+{
+	return ScaleForDialog(this, kLogLinePx);
+}
+
+int CMFCApplication1Dlg::LogVisibleRows() const
+{
+	const CRect r = GetLogTextRect();
+	const int rows = (r.Height() - 2 * ScaleForDialog(this, kLogPaddingPx / 2)) / LogLineHeight();
+	return rows > 0 ? rows : 1;
+}
+
+// One text line; only built for the visible rows (009 research.md decision 3).
+CString CMFCApplication1Dlg::FormatLogLine(const CanSim::LogLine& line) const
+{
+	CString text;
+	if (line.Kind == CanSim::LogLineKind::State)
+	{
+		UINT stateId = IDS_LOG_STATE_NORMAL;
+		switch (static_cast<CanSim::StartupState>(line.Index))
+		{
+		case CanSim::StartupState::Initializing: stateId = IDS_LOG_STATE_INIT; break;
+		case CanSim::StartupState::BusSyncDetecting: stateId = IDS_LOG_STATE_SYNC; break;
+		default: break;
+		}
+		text.Format(_T("%10I64d us  ECU %02d  %s"), line.TimeUs, line.NodeId, (LPCTSTR)LoadRcString(stateId));
+		return text;
+	}
+
+	if (line.Index < 0 || static_cast<std::size_t>(line.Index) >= m_runRows.size())
+		return text;
+	const CanSim::LogRow& row = m_runRows[static_cast<std::size_t>(line.Index)];
+	CString rx = _T("-");
+	if (row.RxNodeId >= 0)
+		rx.Format(_T("ECU %02d"), row.RxNodeId);
+	const UINT statusId = row.Status == CanSim::kStatusOverwrite ? IDS_LOG_FRAME_DROPPED
+		: row.Status == "ARBITRATION_LOST_RETRY" ? IDS_LOG_FRAME_RETRY
+		: IDS_LOG_FRAME_OK;
+	text.Format(_T("%10I64d us  ECU %02d -> %-6s  0x%03X  DLC %u  %s"), line.TimeUs, row.TxNodeId, (LPCTSTR)rx,
+		row.CanId, row.Dlc, (LPCTSTR)LoadRcString(statusId));
+	return text;
+}
+
+void CMFCApplication1Dlg::DrawLogView(CDC& dc)
+{
+	const CRect area = GetLogTextRect();
+	CDC mem;
+	mem.CreateCompatibleDC(&dc);
+	CBitmap bmp;
+	bmp.CreateCompatibleBitmap(&dc, area.Width(), area.Height());
+	CBitmap* oldBmp = mem.SelectObject(&bmp);
+	mem.FillSolidRect(0, 0, area.Width(), area.Height(), kLogBack); // 009 FR-001
+	mem.SetBkMode(TRANSPARENT);
+	mem.SetTextColor(kLogText);
+	CFont* oldFont = mem.SelectObject(&m_logFont);
+
+	const int lineHeight = LogLineHeight();
+	const int padding = ScaleForDialog(this, kLogPaddingPx);
+	const std::size_t visible = static_cast<std::size_t>(LogVisibleRows());
+	for (std::size_t i = 0; i < visible && m_logTop + i < m_logShown; ++i)
+	{
+		CRect lineRect(padding, padding / 2 + static_cast<int>(i) * lineHeight, area.Width() - padding,
+			padding / 2 + static_cast<int>(i + 1) * lineHeight);
+		// One row is one line: cut at the right edge, never wrapped (009 Edge Cases).
+		mem.DrawText(FormatLogLine(m_logLines[m_logTop + i]), lineRect,
+			DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
+	}
+
+	mem.SelectObject(oldFont);
+	dc.BitBlt(area.left, area.top, area.Width(), area.Height(), &mem, 0, 0, SRCCOPY);
+	mem.SelectObject(oldBmp);
+}
+
+// 011 FR-009: border around the grey area and the scroll bar, outside both so
+// that redrawing the rows never touches it.
+void CMFCApplication1Dlg::DrawLogFrame(CDC& dc)
+{
+	const CRect frame = ToCRect(CanSim::ScaleLogFrameRect(dc.GetDeviceCaps(LOGPIXELSX)));
+	CPen pen(PS_SOLID, (std::max)(1, ScaleForDialog(this, 1)), kAreaFrameColor);
+	CPen* oldPen = dc.SelectObject(&pen);
+	CGdiObject* oldBrush = dc.SelectStockObject(NULL_BRUSH);
+	dc.Rectangle(frame);
+	dc.SelectObject(oldBrush);
+	dc.SelectObject(oldPen);
+}
+
+void CMFCApplication1Dlg::ClearLog()
+{
+	m_logLines.clear();
+	m_logShown = 0;
+	m_logTop = 0;
+	UpdateLogScroll();
+	InvalidateRect(GetLogTextRect(), FALSE);
+}
+
+// Shows every row whose time has come (009 FR-005).
+void CMFCApplication1Dlg::ShowLogUpTo(long long simUs)
+{
+	std::size_t shown = m_logShown;
+	while (shown < m_logLines.size() && m_logLines[shown].TimeUs <= simUs)
+		++shown;
+	if (shown != m_logShown)
+		SetLogShown(shown);
+}
+
+// While the last row is visible, adding rows scrolls so that the newest row
+// stays at the bottom (009 FR-007). While older rows are being read, the view
+// does not move (009 FR-009).
+void CMFCApplication1Dlg::SetLogShown(std::size_t shown)
+{
+	const std::size_t visible = static_cast<std::size_t>(LogVisibleRows());
+	const bool following = m_logTop + visible >= m_logShown;
+	m_logShown = (std::min)(shown, m_logLines.size());
+	if (following)
+		m_logTop = m_logShown > visible ? m_logShown - visible : 0;
+	UpdateLogScroll();
+	InvalidateRect(GetLogTextRect(), FALSE);
+}
+
+void CMFCApplication1Dlg::ScrollLogTo(long long top)
+{
+	const long long visible = LogVisibleRows();
+	const long long maxTop = (std::max)(0LL, static_cast<long long>(m_logShown) - visible);
+	top = (std::max)(0LL, (std::min)(top, maxTop));
+	if (static_cast<std::size_t>(top) == m_logTop)
+		return;
+	m_logTop = static_cast<std::size_t>(top);
+	UpdateLogScroll();
+	InvalidateRect(GetLogTextRect(), FALSE);
+}
+
+// 009 FR-008: the scroll bar covers every shown row; it is disabled while the
+// rows fit into the area.
+void CMFCApplication1Dlg::UpdateLogScroll()
+{
+	CScrollBar* bar = static_cast<CScrollBar*>(GetDlgItem(IDC_SCROLL_LOG));
+	if (bar == nullptr)
+		return;
+	const int visible = LogVisibleRows();
+	SCROLLINFO si = {};
+	si.cbSize = sizeof(si);
+	si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL;
+	si.nMin = 0;
+	si.nMax = m_logShown > 0 ? static_cast<int>(m_logShown) - 1 : 0;
+	si.nPage = static_cast<UINT>(visible);
+	si.nPos = static_cast<int>(m_logTop);
+	bar->SetScrollInfo(&si, TRUE);
+	bar->EnableScrollBar(static_cast<int>(m_logShown) > visible ? ESB_ENABLE_BOTH : ESB_DISABLE_BOTH);
+}
+
+// The log view stays usable while a simulation runs (it is not part of the
+// File / Edit menus locked by 007).
+void CMFCApplication1Dlg::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
+{
+	if (pScrollBar == nullptr || pScrollBar->GetDlgCtrlID() != IDC_SCROLL_LOG)
+	{
+		CDialogEx::OnVScroll(nSBCode, nPos, pScrollBar);
+		return;
+	}
+	const long long top = static_cast<long long>(m_logTop);
+	const long long page = LogVisibleRows();
+	switch (nSBCode)
+	{
+	case SB_LINEUP: ScrollLogTo(top - 1); break;
+	case SB_LINEDOWN: ScrollLogTo(top + 1); break;
+	case SB_PAGEUP: ScrollLogTo(top - page); break;
+	case SB_PAGEDOWN: ScrollLogTo(top + page); break;
+	case SB_TOP: ScrollLogTo(0); break;
+	case SB_BOTTOM: ScrollLogTo(static_cast<long long>(m_logShown)); break;
+	case SB_THUMBTRACK:
+	case SB_THUMBPOSITION:
+	{
+		// nPos is 16-bit; the tracking position from GetScrollInfo is not.
+		SCROLLINFO si = {};
+		si.cbSize = sizeof(si);
+		si.fMask = SIF_TRACKPOS;
+		pScrollBar->GetScrollInfo(&si);
+		ScrollLogTo(si.nTrackPos);
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+BOOL CMFCApplication1Dlg::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
+{
+	CPoint client = pt;
+	ScreenToClient(&client);
+	if (GetLogRect().PtInRect(client))
+	{
+		ScrollLogTo(static_cast<long long>(m_logTop) - (zDelta / WHEEL_DELTA) * kLogWheelLines);
+		return TRUE;
+	}
+	return CDialogEx::OnMouseWheel(nFlags, zDelta, pt);
 }
