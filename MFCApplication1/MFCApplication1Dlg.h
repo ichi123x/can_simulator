@@ -69,6 +69,7 @@ private:
 	void FinishReplay();
 	void StopReplayTimer();
 	void EndRun();
+	void UpdateTopMenus();
 	long long CurrentSimTimeUs() const;
 
 	int m_ecuCount = 2; // 004 FR-006 initial value

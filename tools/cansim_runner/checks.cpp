@@ -994,6 +994,67 @@ namespace
             Check(req100.size() == 8 && req101.size() == 8, "006 SC-005: request count follows the period after the Normal entry");
         }
     }
+    // ---- feature 007: intermission before bus idle (domain spec FR-021/FR-022) ----
+    void CheckFeature007()
+    {
+        std::cout << "\n== feature 007: intermission before bus idle ==\n";
+        const std::string text = ReadTextFile(Join(g_sampleDir, "sample_collision.canprj"));
+        const long long rates[] = { 125000, 250000, 500000, 1000000 };
+        for (long long rate : rates)
+        {
+            std::string t2 = text;
+            const std::size_t pos = t2.find("BitRateBps=500000");
+            if (pos != std::string::npos)
+                t2 = t2.substr(0, pos) + "BitRateBps=" + std::to_string(rate) + t2.substr(pos + 17);
+            const std::string name = "itm_" + std::to_string(rate) + ".canprj";
+            ConfigLoadResult cfg = LoadText(name, t2);
+            if (!cfg.Success)
+            {
+                Check(false, "007: sample_collision loads at " + std::to_string(rate) + " bps");
+                continue;
+            }
+            const Network net = BuildRunNetwork(cfg.Project, cfg.Config);
+            SimulationEngine engine(net, 1000000LL);
+            Logger logger;
+            engine.Run(logger);
+
+            // one entry per transmitted frame, in Tx_Start order
+            std::map<long long, LogRow> frames;
+            for (const LogRow& r : logger.Rows())
+                frames.insert(std::make_pair(r.TxStartUs, r));
+
+            const long long itmUs = 3 * 1000000LL / rate; // 3 bit times
+            int backToBack = 0;
+            bool gapOk = true, durationOk = true;
+            const LogRow* prev = nullptr;
+            for (const auto& entry : frames)
+            {
+                const LogRow& cur = entry.second;
+                const FrameTimingResult timing = ComputeFrameTiming(cur.CanId, cur.Dlc, MakeFrameData(cur.Dlc), rate);
+                durationOk = durationOk && (cur.TxEndUs - cur.TxStartUs) * 1000 == timing.TxDurationNs;
+                if (prev != nullptr)
+                {
+                    const long long gap = cur.TxStartUs - prev->TxEndUs;
+                    if (cur.TxRequestUs <= prev->TxEndUs + itmUs)
+                    {
+                        ++backToBack;
+                        gapOk = gapOk && gap == itmUs;
+                    }
+                    else
+                    {
+                        gapOk = gapOk && gap >= itmUs;
+                    }
+                }
+                prev = &cur;
+            }
+            std::cout << "  " << rate << " bps: frames=" << frames.size() << " back-to-back=" << backToBack
+                      << " ITM=" << itmUs << " us\n";
+            Check(gapOk && backToBack > 0,
+                "007 SC-003: at " + std::to_string(rate) + " bps the next SOF starts exactly 3 bit times after EOF when frames are waiting");
+            Check(durationOk,
+                "007 SC-004: at " + std::to_string(rate) + " bps Tx_End - Tx_Start is the frame alone (no intermission)");
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -1014,6 +1075,7 @@ int main(int argc, char** argv)
     CheckFeature004();
     CheckFeature005();
     CheckFeature006();
+    CheckFeature007();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

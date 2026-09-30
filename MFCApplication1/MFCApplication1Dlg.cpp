@@ -449,6 +449,9 @@ bool CMFCApplication1Dlg::AskSavePath(CString& path)
 
 void CMFCApplication1Dlg::OnFileSaveProject()
 {
+	if (m_runState == RunState::Running)
+		return; // 007 FR-001: the File menu is locked while running
+
 	CString path;
 	if (!AskSavePath(path))
 		return;
@@ -490,8 +493,11 @@ void CMFCApplication1Dlg::OnEditFrames()
 
 void CMFCApplication1Dlg::OnEditFrameDisplay()
 {
-	// Only decides whether the traffic is drawn; a running simulation keeps
-	// going at the same pace (005 FR-007, FR-010).
+	// Only decides whether the traffic is drawn (005 FR-007, FR-010). It
+	// cannot be switched while a simulation runs: the Edit menu is locked and
+	// the highlight follows the setting chosen at Start (007 FR-004).
+	if (m_runState == RunState::Running)
+		return;
 	m_settings.FrameDisplay = !m_settings.FrameDisplay;
 	InvalidateRect(GetDiagramRect(), FALSE);
 }
@@ -573,8 +579,23 @@ void CMFCApplication1Dlg::OnSimStart()
 	QueryPerformanceFrequency(&m_qpcFrequency);
 	QueryPerformanceCounter(&m_replayStartQpc);
 	m_runState = RunState::Running;
+	UpdateTopMenus();
 	m_replayTimer = SetTimer(kReplayTimerId, kRefreshMs, nullptr);
 	InvalidateRect(GetDiagramRect(), FALSE);
+}
+
+// 007 FR-001/FR-002: while running, the File (position 0) and Edit
+// (position 1) menus are greyed as a whole so that they cannot be opened by
+// mouse or keyboard. The Simulation menu (position 2) stays available.
+void CMFCApplication1Dlg::UpdateTopMenus()
+{
+	CMenu* menu = GetMenu();
+	if (menu == nullptr)
+		return;
+	const UINT state = MF_BYPOSITION | (m_runState == RunState::Running ? MF_GRAYED : MF_ENABLED);
+	menu->EnableMenuItem(0, state);
+	menu->EnableMenuItem(1, state);
+	DrawMenuBar();
 }
 
 void CMFCApplication1Dlg::StopReplayTimer()
@@ -591,6 +612,7 @@ void CMFCApplication1Dlg::EndRun()
 {
 	StopReplayTimer();
 	m_runState = RunState::Idle;
+	UpdateTopMenus();
 	m_cursor.reset();
 	m_events.clear();
 	m_active = CanSim::ActiveFrames();
