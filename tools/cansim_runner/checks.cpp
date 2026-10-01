@@ -559,8 +559,8 @@ namespace
         {
             ConfigLoadResult r = LoadText("p_default.canprj", "[Network]\r\nBitRateBps=250000\r\n");
             Check(r.Success && r.Project.EcuCount == 2 && r.Project.DurationSec == 10 &&
-                      !r.Project.FrameDisplay && r.Config.Nodes.empty() && r.Config.BitRateBps == 250000,
-                "004 FR-006: [Project] defaults are EcuCount=2, DurationSec=10, FrameDisplay=0; zero nodes allowed");
+                      r.Project.FrameDisplay && r.Config.Nodes.empty() && r.Config.BitRateBps == 250000,
+                "004 FR-006 / 021: [Project] defaults are EcuCount=2, DurationSec=10, FrameDisplay=1 (021); zero nodes allowed");
 
             const char* bad[] = { "EcuCount=17", "EcuCount=-1", "DurationSec=0", "DurationSec=601",
                                   "FrameDisplay=2", "EcuCount=abc" };
@@ -1577,7 +1577,11 @@ namespace
             {
                 const int d = SpeedTickX(s, dpi) - SpeedTickX(s - 1, dpi);
                 even = even && d >= pitch - 1 && d <= pitch + 1;
-                labels = labels && SpeedLabelRect(s - 1, dpi).Right <= SpeedLabelRect(s, dpi).Left;
+                // 019: only the labels shown for the current value must not overlap
+                for (int cur = kMinSpeed; cur <= kMaxSpeed; ++cur)
+                    for (int prev = kMinSpeed; prev < s; ++prev)
+                        if (IsSpeedLabelShown(prev, cur) && IsSpeedLabelShown(s, cur))
+                            labels = labels && SpeedLabelRect(prev, dpi).Right <= SpeedLabelRect(s, dpi).Left;
             }
             const int band = ScaleToDpi(kToolbarHeight, dpi);
             const int hitLeft = SpeedTickX(kMinSpeed, dpi) - ScaleToDpi(kSpeedTickPitch / 2, dpi);
@@ -1610,7 +1614,7 @@ namespace
         }
         Check(even, "015 FR-002: 24 ticks from -13 to +10, evenly spaced (DPI 96/120/144)");
         Check(placed, "015 FR-002/FR-012: the slider is right of the Stop button and inside the toolbar band and the window width");
-        Check(labels, "015 FR-004: the tick values do not overlap");
+        Check(labels, "015 FR-004 / 019 FR-004: the shown tick values do not overlap for any current value");
         Check(thumbs, "015 FR-003: the thumb is drawn on the tick of the speed");
         Check(nearest, "015 FR-005/SC-001: SpeedAtX snaps to the nearest tick and to the end values outside");
         Check(hit, "015 FR-005: IsOnSpeedSlider covers thumb, track and values but not the buttons or below the band");
@@ -1642,7 +1646,10 @@ namespace
             const int sliderLeft = SpeedTickX(kMinSpeed, dpi) - ScaleToDpi(kSpeedTickPitch / 2, dpi);
             const int sliderRight = SpeedTickX(kMaxSpeed, dpi) + ScaleToDpi(kSpeedTickPitch / 2, dpi);
             const DiagramRect area = SimTimeAreaRect(dpi);
-            order = order && SimButtonRect(2, dpi).Right < hitLeft && hitRight <= sliderLeft && sliderRight <= area.Left;
+            // 019: the simulated time comes before the "Speed:" caption and the slider
+            order = order && SimButtonRect(2, dpi).Right < hitLeft && hitRight <= area.Left &&
+                area.Right <= SpeedCaptionRect(dpi).Left && SpeedCaptionRect(dpi).Right <= sliderLeft &&
+                sliderRight <= ScaleToDpi(kDiagramWidth, dpi);
 
             const DiagramRect box = FrameDisplayBoxRect(dpi);
             const DiagramRect label = FrameDisplayLabelRect(dpi);
@@ -1662,7 +1669,7 @@ namespace
                 !IsOnFrameDisplayToggle(SpeedTickX(kMinSpeed, dpi), ScaleToDpi(20, dpi), dpi) &&
                 !IsOnFrameDisplayToggle((box.Left + box.Right) / 2, band + 1, dpi);
         }
-        Check(order, "017 FR-002/FR-006: buttons, check box, slider and simulated time are placed left to right without overlap (DPI 96/120/144)");
+        Check(order, "017 / 019 FR-001: buttons, check box, simulated time, Speed: and slider are placed left to right without overlap (DPI 96/120/144)");
         Check(inside, "017: everything stays inside the toolbar band and the window width; box and label inside the hit area");
         Check(toggle, "017 FR-003: IsOnFrameDisplayToggle covers the box and the label only");
         Check(FormatSimTimeUs(0) == "0" && FormatSimTimeUs(999) == "999" && FormatSimTimeUs(1000) == "1,000" &&
@@ -1672,15 +1679,7 @@ namespace
     }
     void CheckFeature018()
     {
-        std::cout << "\n== feature 018: flow animation ==\n";
-        bool phaseOk = FlowPhase(0) == 0.0 && FlowPhase(300000) == 0.5 && FlowPhase(600000) == 0.0 && FlowPhase(-1) == 0.0;
-        for (long long us = 0; us < 3000000; us += 3001)
-        {
-            const double p = FlowPhase(us);
-            phaseOk = phaseOk && p >= 0.0 && p < 1.0;
-        }
-        Check(phaseOk, "018 FR-002: FlowPhase repeats every 600 ms of real time and stays in [0, 1)");
-
+        std::cout << "\n== feature 018: flow animation (revision 1) ==\n";
         const BusDiagramLayout six = ComputeBusDiagramLayout(6);
         const int pairs[][2] = { { 1, 2 }, { 2, 1 }, { 1, 3 }, { 3, 1 }, { 6, 1 } };
         bool ends = true, onPath = true, forward = true;
@@ -1692,9 +1691,8 @@ namespace
             const FlowPoint b = FlowPointAt(s, r, 1.0);
             ends = ends && std::fabs(a.X - s.LineX) < 1e-6 && std::fabs(a.Y - s.LineY1) < 1e-6 &&
                 std::fabs(b.X - r.LineX) < 1e-6 && std::fabs(b.Y - r.LineY1) < 1e-6;
-            double travelled = -1.0;
             FlowPoint prev = a;
-            double total = 0.0;
+            double total = 0.0, travelled = -1.0;
             for (int i = 0; i <= 100; ++i)
             {
                 const FlowPoint q = FlowPointAt(s, r, i / 100.0);
@@ -1709,25 +1707,45 @@ namespace
         }
         Check(ends, "018 FR-001: a path starts at the sender box edge and ends at the receiver box edge");
         Check(onPath, "018 FR-005: every point of a path is on the sender stub, the bus or the receiver stub");
-        Check(forward, "018 FR-001: particles move forward along the path as f grows");
+        Check(forward, "018 FR-001: points move forward along the path as f grows");
 
-        ActiveFrames active;
-        active.Senders = { 1 };
-        active.Receivers = { 3, 5 };
-        active.BusBusy = true;
-        active.Flows = { { 1, 3 }, { 1, 5 } };
-        const FlowEffect e = ComputeFlowEffect(six, active, 0.0);
-        bool countOk = e.Particles.size() == 6;
-        ActiveFrames none = active;
-        none.Flows.clear();
-        countOk = countOk && ComputeFlowEffect(six, none, 0.3).Particles.empty() && ComputeFlowEffect(six, none, 0.3).Glows.empty();
-        none = active;
-        none.BusBusy = false;
-        countOk = countOk && ComputeFlowEffect(six, none, 0.3).Particles.empty() && ComputeFlowEffect(six, none, 0.3).Glows.empty();
-        Check(countOk, "018 FR-001/FR-005: 3 particles per (sender, receiver) pair; nothing when the bus is idle or there is no pair");
+        // Revision 1 (A): constant spacing and speed
+        bool spacing = true, count = true, speed = true;
+        const EcuPlacement& e1 = six.Ecus[0];
+        const EcuPlacement& e6 = six.Ecus[5];
+        const std::vector<std::pair<int, int>> one = { { 1, 6 } };
+        const double length = FlowPathLength(e1, e6);
+        for (long long t0 : { 0LL, 12345LL, 777777LL, 3000000LL })
+        {
+            const FlowEffect f = ComputeFlowEffect(six, one, t0);
+            const double offset = FlowOffset(t0);
+            count = count && offset >= 0.0 && offset < kFlowSpacing &&
+                f.Particles.size() == static_cast<std::size_t>(std::floor((length - offset) / kFlowSpacing)) + 1;
+            for (std::size_t k = 1; k < f.Particles.size(); ++k)
+            {
+                // neighbours are kFlowSpacing apart along the path; on a corner the
+                // straight Manhattan distance is the same as the path distance
+                const double d = std::fabs(f.Particles[k].X - f.Particles[k - 1].X) +
+                    std::fabs(f.Particles[k].Y - f.Particles[k - 1].Y);
+                spacing = spacing && std::fabs(d - kFlowSpacing) < 1e-6;
+            }
+            const long long dt = 25000; // one refresh
+            double moved = FlowOffset(t0 + dt) - offset;
+            if (moved < 0)
+                moved += kFlowSpacing;
+            speed = speed && std::fabs(moved - kFlowSpeed * 0.025) < 1e-6;
+        }
+        Check(count, "018 rev.1: particles at offset + 16k along the whole path (count = floor((L - offset) / 16) + 1)");
+        Check(spacing, "018 rev.1: neighbouring particles are 16 px apart on the path");
+        Check(speed, "018 rev.1: particles move 150 px/s of real time (3.75 px per 25 ms refresh) on every path");
 
-        // Collect keeps the pairs even when both ECUs send in the same interval
-        // (they are then both red and Receivers is empty).
+        // Pairs, other ECUs, two senders
+        const std::vector<std::pair<int, int>> noPairs;
+        bool pairsOk = ComputeFlowEffect(six, noPairs, 1000).Particles.empty() &&
+            ComputeFlowEffect(six, noPairs, 1000).Glows.empty();
+        const std::vector<std::pair<int, int>> both = { { 1, 3 }, { 3, 1 } };
+        pairsOk = pairsOk && !ComputeFlowEffect(ComputeBusDiagramLayout(3), both, 0).Particles.empty();
+        Check(pairsOk, "018 FR-001: nothing without a pair; two ECUs sending to each other still get particles");
         {
             std::vector<FrameEvent> events(2);
             events[0].TxStartUs = 0; events[0].TxEndUs = 200; events[0].TxNodeId = 1; events[0].RxNodeIds = { 2, 3 };
@@ -1737,24 +1755,11 @@ namespace
             const std::vector<std::pair<int, int>> expect = { { 1, 2 }, { 1, 3 }, { 3, 1 }, { 3, 2 } };
             Check(a.Flows == expect && a.Receivers == std::vector<int>{ 2 } && a.Senders == std::vector<int>{ 1, 3 },
                 "018 FR-001: Collect keeps every (sender, receiver) pair of the interval, also between two senders");
-            ActiveFrames both;
-            both.Senders = { 1, 3 };
-            both.BusBusy = true;
-            both.Flows = { { 1, 3 }, { 3, 1 } };
-            Check(ComputeFlowEffect(ComputeBusDiagramLayout(3), both, 0.5).Particles.size() == 6,
-                "018 FR-001: two ECUs sending to each other in one refresh still get particles");
         }
-
-        ActiveFrames one;
-        one.Senders = { 1 };
-        one.Receivers = { 3 };
-        one.BusBusy = true;
-        one.Flows = { { 1, 3 } };
         bool noOthers = true;
-        for (int i = 0; i < 50; ++i)
-        {
-            const FlowEffect f = ComputeFlowEffect(six, one, i / 50.0);
-            for (const FlowPoint& q : f.Particles)
+        const std::vector<std::pair<int, int>> oneToThree = { { 1, 3 } };
+        for (long long t0 = 0; t0 < 400000; t0 += 7919)
+            for (const FlowPoint& q : ComputeFlowEffect(six, oneToThree, t0).Particles)
                 for (int n : { 2, 4, 5, 6 })
                 {
                     const EcuPlacement& o = six.Ecus[n - 1];
@@ -1762,34 +1767,179 @@ namespace
                     const double hi = (std::max)(static_cast<double>(o.LineY1), static_cast<double>(kBusY));
                     noOthers = noOthers && !(std::fabs(q.X - o.LineX) < 1e-6 && q.Y > lo + 1e-6 && q.Y < hi - 1e-6);
                 }
-        }
         Check(noOthers, "018 FR-005: no particle on the stub line of an ECU that does not receive");
 
-        bool glowOk = false;
-        for (const FlowGlow& g : e.Glows)
-            if (g.Ecu == 1 && g.Sender && std::fabs(g.Strength - 1.0) < 1e-9)
-                glowOk = true;
-        for (int i = 0; i < 50; ++i)
-            for (const FlowGlow& g : ComputeFlowEffect(six, active, i / 50.0).Glows)
-                glowOk = glowOk && g.Strength > 0.0 && g.Strength <= 1.0;
-        Check(glowOk, "018 FR-003: the sender glows fully when a particle leaves; glow strengths stay in (0, 1]");
+        // Glow: one per ECU, in [0.05, 1], the receiver half a period after the sender
+        bool glow = true;
+        for (long long t0 = 0; t0 < kFlowGlowPeriodUs; t0 += 50000)
+        {
+            const FlowEffect f = ComputeFlowEffect(six, oneToThree, t0);
+            double sender = -1;
+            bool hasReceiver = false;
+            for (const FlowGlow& g : f.Glows)
+            {
+                glow = glow && g.Strength >= 0.05 - 1e-9 && g.Strength <= 1.0 + 1e-9;
+                if (g.Ecu == 1 && g.Sender) sender = g.Strength;
+                if (g.Ecu == 3 && !g.Sender) hasReceiver = true;
+            }
+            glow = glow && f.Glows.size() == 2 && sender >= 0 && hasReceiver;
+            for (const FlowGlow& g : ComputeFlowEffect(six, oneToThree, t0 + kFlowGlowPeriodUs / 2).Glows)
+                if (g.Ecu == 3)
+                    glow = glow && std::fabs(g.Strength - sender) < 1e-6;
+        }
+        Check(glow, "018 rev.1: one glow per sender / receiver in [0.05, 1], the receiver half a period after the sender");
+
+        // Revision 1 (D): paths stay 0.3 s
+        FlowPathHold hold;
+        hold.Update({ { 1, 3 } }, 0);
+        bool holdOk = hold.Current(300000).size() == 1;
+        holdOk = holdOk && hold.Current(300001).empty();
+        hold.Update({ { 1, 3 } }, 0);
+        hold.Update({ { 1, 3 }, { 2, 4 } }, 200000);
+        holdOk = holdOk && hold.Current(450000).size() == 2 && hold.Current(500001).empty();
+        hold.Update({ { 5, 6 } }, 600000);
+        hold.Clear();
+        holdOk = holdOk && hold.Current(600000).empty();
+        Check(holdOk, "018 rev.1: FlowPathHold keeps a path 300 ms after it was last seen, Clear empties it");
 
         const BusDiagramLayout sixteen = ComputeBusDiagramLayout(16);
-        ActiveFrames many;
-        for (int n = 1; n <= 8; ++n) many.Senders.push_back(n);
-        for (int n = 9; n <= 16; ++n) many.Receivers.push_back(n);
-        many.BusBusy = true;
+        std::vector<std::pair<int, int>> many;
         for (int s = 1; s <= 8; ++s)
             for (int r = 9; r <= 16; ++r)
-                many.Flows.emplace_back(s, r);
+                many.emplace_back(s, r);
         std::size_t sink = 0;
         const auto t0 = std::chrono::steady_clock::now();
         for (int i = 0; i < 1000; ++i)
-            sink += ComputeFlowEffect(sixteen, many, (i % 600) / 600.0).Particles.size();
+            sink += ComputeFlowEffect(sixteen, many, i * 25000LL).Particles.size();
         const double sec = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
         std::ostringstream what;
-        what << "018 SC-005: 1000 effects for 8 x 8 ECUs take less than 1 s (" << sec << " s)";
-        Check(sec < 1.0 && sink == 1000u * 8 * 8 * 3, what.str());
+        what << "018 SC-005: 1000 effects for 8 x 8 ECUs take less than 1 s (" << sec << " s, " << sink / 1000 << " particles each)";
+        Check(sec < 1.0 && sink > 0, what.str());
+    }
+    void CheckFeature019()
+    {
+        std::cout << "\n== feature 019: compact toolbar ==\n";
+        bool half = true;
+        for (int i = 0; i < kSimButtonCount; ++i)
+        {
+            const DiagramRect box = SimButtonBoxRect(i, 96);
+            half = half && box.Right - box.Left == 24 && box.Bottom - box.Top == 18;
+        }
+        half = half && SpeedTickX(kMinSpeed + 1, 96) - SpeedTickX(kMinSpeed, 96) == 13 &&
+            SpeedThumbRect(0, 96).Right - SpeedThumbRect(0, 96).Left <= 5;
+        Check(half, "019 FR-002/FR-003: buttons 24 x 18 and slider ticks 13 apart (half size, 96 DPI)");
+
+        auto shown = [](int current) {
+            std::vector<int> v;
+            for (int s = kMinSpeed; s <= kMaxSpeed; ++s)
+                if (IsSpeedLabelShown(s, current))
+                    v.push_back(s);
+            return v;
+        };
+        Check(shown(0) == std::vector<int>{ -13, -10, -5, 0, 5, 10 } &&
+            shown(-12) == std::vector<int>{ -12, -5, 0, 5, 10 } &&
+            shown(9) == std::vector<int>{ -13, -10, -5, 0, 5, 9 } &&
+            shown(3) == std::vector<int>{ -13, -10, -5, 0, 3, 10 },
+            "019 FR-004: every 5th value and the current one; 5th values within 2 ticks of it are hidden");
+
+        bool caption = true;
+        const int dpis[] = { 96, 120, 144 };
+        for (int dpi : dpis)
+        {
+            const DiagramRect c = SpeedCaptionRect(dpi);
+            caption = caption && c.Right <= SpeedTickX(kMinSpeed, dpi) - ScaleToDpi(kSpeedTickPitch / 2, dpi) &&
+                c.Left >= SimTimeAreaRect(dpi).Right && c.Bottom <= ScaleToDpi(kToolbarHeight, dpi) &&
+                !IsOnSpeedSlider((c.Left + c.Right) / 2, (c.Top + c.Bottom) / 2, dpi);
+        }
+        Check(caption, "019 FR-005: the Speed: caption is between the simulated time and the slider, outside the slider hit area");
+    }
+    void CheckFeature020()
+    {
+        std::cout << "\n== feature 020: event & log view label ==\n";
+        const int dpis[] = { 96, 120, 144 };
+        bool logOk = true;
+        for (int dpi : dpis)
+        {
+            const DiagramRect frame = ScaleLogFrameRect(dpi);
+            const DiagramRect g = ScaleLogLabelRect(dpi);
+            logOk = logOk && g.Top >= ScaleToDpi(kDiagramHeight, dpi) && g.Bottom <= frame.Top &&
+                g.Left == frame.Left && g.Right <= frame.Right && g.Bottom - g.Top >= ScaleToDpi(16, dpi);
+        }
+        Check(logOk, "020: the event & log view label is between the diagram and the log view border, at its left edge (DPI 96/120/144)");
+    }
+    void CheckFeature022()
+    {
+        std::cout << "\n== feature 022: ECU label ==\n";
+        // UTF-8 test strings written as bytes (this file stays ASCII)
+        const std::string engine = "\xE3\x82\xA8\xE3\x83\xB3\xE3\x82\xB8\xE3\x83\xB3";           // 4 characters
+        const std::string ten = "0123456789";
+        const std::string eleven = "0123456789A";
+        std::string longJp;                                                                       // 14 characters
+        for (int i = 0; i < 14; ++i)
+            longJp += "\xE3\x81\x82";
+        std::string firstTenJp;
+        for (int i = 0; i < 10; ++i)
+            firstTenJp += "\xE3\x81\x82";
+        Check(CountUtf8Chars(engine) == 4 && CountUtf8Chars("ABC") == 3 && CountUtf8Chars("") == 0 && CountUtf8Chars(longJp) == 14,
+            "022: CountUtf8Chars counts full and half width characters as 1");
+        Check(EcuLabelForDiagram(engine) == engine && EcuLabelForDiagram(ten) == ten &&
+            EcuLabelForDiagram(eleven) == ten + "..." && EcuLabelForDiagram(longJp) == firstTenJp + "..." &&
+            EcuLabelForDiagram("") == "",
+            "022 FR-003: up to 10 characters as they are, longer labels as the first 10 characters and ...");
+        Check(TrimEcuLabel("  " + engine + "\t") == engine && TrimEcuLabel("\xE3\x80\x80" + engine + "\xE3\x80\x80") == engine &&
+            TrimEcuLabel(" \xE3\x80\x80 ") == "" && TrimEcuLabel("a b") == "a b",
+            "022: TrimEcuLabel removes leading / trailing spaces, tabs and ideographic spaces only");
+        std::string thirtyThree;
+        for (int i = 0; i < 33; ++i)
+            thirtyThree += "\xE3\x81\x82";
+        Check(CountUtf8Chars(LimitEcuLabel(thirtyThree)) == 32 && LimitEcuLabel(engine) == engine,
+            "022: LimitEcuLabel keeps the first 32 characters");
+
+        // Label= round trip; not written when empty; missing -> empty
+        {
+            ProjectSettings settings;
+            Network net;
+            net.BitRateBps = 500000;
+            Node a;
+            a.NodeId = 1;
+            a.Name = "ECU1";
+            a.Label = engine;
+            Node b;
+            b.NodeId = 2;
+            b.Name = "ECU2";
+            net.Nodes.push_back(a);
+            net.Nodes.push_back(b);
+            const std::string path = Join(g_tempDir, "label_roundtrip.canprj");
+            const bool saved = SaveProject(Widen(path), settings, net);
+            std::ifstream in(path, std::ios::binary);
+            std::stringstream ss;
+            ss << in.rdbuf();
+            const std::string text = ss.str();
+            std::size_t labels = 0;
+            for (std::size_t p = text.find("Label="); p != std::string::npos; p = text.find("Label=", p + 1))
+                ++labels;
+            const ConfigLoadResult back = LoadConfig(Widen(path));
+            Check(saved && labels == 1 && back.Success && back.Config.Nodes.size() == 2 &&
+                back.Config.Nodes[0].Label == engine && back.Config.Nodes[1].Label.empty() &&
+                back.Config.Nodes[0].Name == "ECU1",
+                "022 FR-006: Label= is saved only when set and read back; Name is unchanged");
+            ConfigLoadResult old = LoadText("label_missing.canprj", "[Node1]\r\nNodeId=1\r\nName=X\r\n");
+            Check(old.Success && old.Config.Nodes.size() == 1 && old.Config.Nodes[0].Label.empty(),
+                "022: a file without Label= gives an empty label");
+        }
+
+        // Taller boxes stay inside the border and clear of the bus
+        bool boxes = kEcuBoxHeight == 48;
+        for (int n = 0; n <= kMaxEcuCount; ++n)
+        {
+            const BusDiagramLayout layout = ComputeBusDiagramLayout(n);
+            for (const EcuPlacement& e : layout.Ecus)
+            {
+                boxes = boxes && e.Box.Bottom - e.Box.Top == 48 && e.Box.Top > layout.Frame.Top && e.Box.Bottom < layout.Frame.Bottom;
+                boxes = boxes && (e.OnTop ? (e.Box.Top == 20 && e.Box.Bottom == 68) : (e.Box.Top == 152 && e.Box.Bottom == 200));
+            }
+        }
+        Check(boxes, "022 FR-004: ECU boxes are 48 high (upper 20..68, lower 152..200), inside the diagram border");
     }
 }
 
@@ -1820,6 +1970,9 @@ int main(int argc, char** argv)
     CheckFeature015();
     CheckFeature017();
     CheckFeature018();
+    CheckFeature019();
+    CheckFeature020();
+    CheckFeature022();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

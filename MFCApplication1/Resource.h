@@ -68,6 +68,7 @@
 
 // feature 009: log view
 #define IDC_SCROLL_LOG					1025
+#define IDC_EDIT_ECU_LABEL				1026	// feature 022
 #define IDS_LOG_STATE_INIT				233
 #define IDS_LOG_STATE_SYNC				234
 #define IDS_LOG_STATE_NORMAL			235
@@ -83,6 +84,8 @@
 #define IDS_FRAME_DISPLAY_LABEL			245	// feature 017
 #define IDS_SIM_TIME_CAPTION			246
 #define IDS_SIM_TIME_UNIT				247
+#define IDS_SPEED_CAPTION				248	// feature 019
+#define IDS_LOG_VIEW_LABEL				250	// feature 020
 
 #define ID_FILE_LOAD_PROJECT			32771
 #define ID_FILE_SAVE_PROJECT			32772
@@ -97,8 +100,8 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 
 #define _APS_NEXT_RESOURCE_VALUE	133
-#define _APS_NEXT_CONTROL_VALUE		1026
-#define _APS_NEXT_SYMED_VALUE		248
+#define _APS_NEXT_CONTROL_VALUE		1027
+#define _APS_NEXT_SYMED_VALUE		251
 #define _APS_NEXT_COMMAND_VALUE		32779
 #endif
 #endif

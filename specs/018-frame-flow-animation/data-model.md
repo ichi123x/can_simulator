@@ -36,3 +36,15 @@
 | `m_flowElapsedUs` | エフェクトの時計（実行中だけ進む実時間の累積） |
 | `m_flowLastQpc` | 最後に時計を進めた時刻 |
 | 描画 | `DrawBusDiagram` の最後で、`active && active->BusBusy` のとき、光の枠 → 粒 |
+
+## 改訂 1（案 A・C・D）
+
+| 要素 | 内容 |
+|---|---|
+| `kFlowSpeed = 150` / `kFlowSpacing = 16` | 粒の速さ（px/秒、96 dpi）と間隔（px）。`kFlowPeriodUs`・`kFlowParticles`・`FlowPhase` は使わない（削除） |
+| `kFlowGlowPeriodUs = 800000` | 光の明滅の周期 |
+| `kFlowHoldUs = 300000` | 道筋を残す時間 |
+| `FlowEffect ComputeFlowEffect(const BusDiagramLayout&, const std::vector<std::pair<int,int>>& flows, long long elapsedUs)` | `flows` の各組の道筋に、距離 `d = offset + 16k ≤ L` の粒を置く（`offset = (elapsedUs × 150 / 1e6) mod 16`）。光は道筋の送信・受信の ECU ごとに 1 つ。強さは `0.5 + 0.5 sin(2πt/800ms + φ)`（送信 φ=0、受信 φ=π）を 0.05〜1 に丸めたもの |
+| `class FlowPathHold { void Update(const std::vector<std::pair<int,int>>&, long long nowUs); std::vector<std::pair<int,int>> Current(long long nowUs); void Clear(); }` | 道筋を最後に見えてから 300 ms 残す |
+
+- 色: 粒は `RGB(255,140,0)` の芯と白い縁。光の枠は `RGB(255,190,120)`〜`RGB(255,140,0)`、太さは 1〜4 px（96 dpi）。

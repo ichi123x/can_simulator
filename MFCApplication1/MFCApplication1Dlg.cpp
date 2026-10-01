@@ -8,6 +8,7 @@
 #include "MFCApplication1Dlg.h"
 #include "afxdialogex.h"
 
+#include "CanSim/FrameEditor.h"
 #include "CanSim/ConfigLoader.h"
 #include "CanSim/SimulationEngine.h"
 #include "CanSim/Logger.h"
@@ -96,6 +97,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_WM_MOUSEMOVE()
 	ON_WM_CAPTURECHANGED()
 	ON_MESSAGE(WM_APP_FRAME_EDITOR_CLOSED, &CMFCApplication1Dlg::OnFrameEditorClosed)
+	ON_MESSAGE(WM_APP_ECU_LABEL_CHANGED, &CMFCApplication1Dlg::OnEcuLabelChanged)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
@@ -333,6 +335,11 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
 		DEFAULT_PITCH | FF_SWISS, _T("Arial"));
 	mem.SelectObject(&labelFont);
+	// 022: small font for the ECU label
+	CFont ecuLabelFont;
+	ecuLabelFont.CreateFont(-ScalePx(10, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+		DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
 
 	CPen linePen(PS_SOLID, (std::max)(1, ScalePx(1, dpi)), kBusColor);
 	CPen activeLinePen(PS_SOLID, ScalePx(3, dpi), kActiveBusColor);
@@ -382,16 +389,50 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 
 		CString label;
 		label.Format(_T("ECU %02d"), ecu.Number);
-		CRect textRect = box;
 		mem.SetTextColor(isGray ? kGrayText : kTextColor);
-		mem.DrawText(label, textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+		// 022: with an ECU label, "ECU nn" goes to the upper row and the label
+		// (10 characters at most, then "...") to the lower row in small text.
+		const CanSim::Node* def = CanSim::FindNodeDefinition(m_definitions, ecu.Number);
+		const std::string ecuLabel = def != nullptr ? CanSim::EcuLabelForDiagram(def->Label) : std::string();
+		if (ecuLabel.empty())
+		{
+			CRect textRect = box;
+			mem.DrawText(label, textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+		}
+		else
+		{
+			CRect upper(box.left, box.top + ScalePx(6, dpi), box.right, box.top + ScalePx(26, dpi));
+			mem.DrawText(label, upper, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+			CRect lower(box.left + ScalePx(3, dpi), box.top + ScalePx(26, dpi), box.right - ScalePx(3, dpi), box.top + ScalePx(44, dpi));
+			const CString text(CA2W(ecuLabel.c_str(), CP_UTF8));
+			// Small text (10 px); a long label is drawn smaller, down to 7 px,
+			// so that it stays inside the box at every DPI.
+			CFont* previous = mem.SelectObject(&ecuLabelFont);
+			CFont smaller;
+			for (int px = 9; px >= 7 && mem.GetTextExtent(text).cx > lower.Width(); --px)
+			{
+				mem.SelectObject(&ecuLabelFont);
+				smaller.DeleteObject();
+				smaller.CreateFont(-ScalePx(px, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+					DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+					DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
+				mem.SelectObject(&smaller);
+			}
+			mem.DrawText(text, lower, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+			mem.SelectObject(previous);
+		}
 		mem.SetTextColor(kTextColor);
 	}
 
 	// 018: flow animation over the highlight: glows around the boxes, then
-	// the particles moving from the senders to the receivers.
-	if (active != nullptr && active->BusBusy)
-		DrawFlowEffect(mem, layout, *active, dpi);
+	// the particles moving from the senders to the receivers. Revision 1:
+	// the paths of the last 0.3 s are kept so that they do not blink.
+	if (active != nullptr)
+	{
+		const std::vector<std::pair<int, int>> flows = m_flowHold.Current(m_flowElapsedUs);
+		if (!flows.empty())
+			DrawFlowEffect(mem, layout, flows, dpi);
+	}
 
 	mem.SelectObject(oldFont);
 	dc.BitBlt(area.left, area.top + ContentTop(), area.Width(), area.Height(), &mem, 0, 0, SRCCOPY);
@@ -399,11 +440,10 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 }
 
 void CMFCApplication1Dlg::DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayout& layout,
-	const CanSim::ActiveFrames& active, int dpi)
+	const std::vector<std::pair<int, int>>& flows, int dpi)
 {
-	const CanSim::FlowEffect effect =
-		CanSim::ComputeFlowEffect(layout, active, CanSim::FlowPhase(m_flowElapsedUs));
-	const COLORREF kFlowColor = RGB(255, 235, 90);
+	const CanSim::FlowEffect effect = CanSim::ComputeFlowEffect(layout, flows, m_flowElapsedUs);
+	const COLORREF kFlowColor = RGB(255, 140, 0); // 018 revision 1: orange, visible on white and on blue
 	CGdiObject* oldBrush = mem.SelectStockObject(NULL_BRUSH);
 	for (const CanSim::FlowGlow& glow : effect.Glows)
 	{
@@ -413,10 +453,10 @@ void CMFCApplication1Dlg::DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayou
 				ecu = &e;
 		if (ecu == nullptr)
 			continue;
-		// Yellow towards white as the glow gets stronger.
+		// Light orange towards orange, 1 to 4 px, as the glow gets stronger.
 		const double s = glow.Strength;
-		const COLORREF color = RGB(255, 235 + static_cast<int>(20 * s), 90 + static_cast<int>(165 * s));
-		CPen pen(PS_SOLID, (std::max)(1, static_cast<int>(ScalePx(1, dpi) + 3.0 * s * dpi / 96.0 + 0.5)), color);
+		const COLORREF color = RGB(255, 190 - static_cast<int>(50 * s), 120 - static_cast<int>(120 * s));
+		CPen pen(PS_SOLID, (std::max)(1, static_cast<int>((1.0 + 3.0 * s) * dpi / 96.0 + 0.5)), color);
 		CPen* oldPen = mem.SelectObject(&pen);
 		CRect r = ScaleRect(ecu->Box, dpi);
 		r.InflateRect(ScalePx(CanSim::kFlowGlowInset, dpi), ScalePx(CanSim::kFlowGlowInset, dpi));
@@ -457,6 +497,7 @@ namespace
 	const UINT kButtonNames[CanSim::kSimButtonCount] = { IDS_SIM_BTN_START, IDS_SIM_BTN_PAUSE, IDS_SIM_BTN_STOP };
 	const UINT kButtonCommands[CanSim::kSimButtonCount] = { ID_SIM_START, ID_SIM_PAUSE, ID_SIM_STOP };
 	const int kButtonLabelPx = 12;
+	const int kButtonNamePx = 10; // 019: names under the half size buttons
 	// 015: speed slider
 	const int kSpeedLabelPx = 11;
 	const COLORREF kSpeedCurrentText = RGB(255, 210, 60);
@@ -506,6 +547,11 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
 		DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
 	CFont* oldFont = mem.SelectObject(&font);
+	// 019: the button names are smaller (half size buttons)
+	CFont nameFont;
+	nameFont.CreateFont(-ScalePx(kButtonNamePx, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+		DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
 
 	const CanSim::SimCommandStates states = SimStates();
 	for (int i = 0; i < CanSim::kSimButtonCount; ++i)
@@ -542,15 +588,15 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		}
 		else if (i == 1)
 		{
-			const int bar = ScalePx(6, dpi);
-			const int gap = ScalePx(6, dpi);
+			const int bar = ScalePx(3, dpi); // 019: half size
+			const int gap = ScalePx(3, dpi);
 			const int left = c.x - (bar * 2 + gap) / 2;
 			mem.FillSolidRect(left, glyphRect.top, bar, g, glyph);
 			mem.FillSolidRect(left + bar + gap, glyphRect.top, bar, g, glyph);
 		}
 		else
 		{
-			const int s = ScalePx(16, dpi);
+			const int s = ScalePx(8, dpi); // 019: half size
 			mem.FillSolidRect(c.x - s / 2, c.y - s / 2, s, s, glyph);
 		}
 		mem.SelectObject(oldBrush);
@@ -561,7 +607,9 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		mem.SetTextColor(enabled ? RGB(255, 255, 255) : kGlyphDisabled);
 		CString name;
 		name.LoadString(kButtonNames[i]);
+		mem.SelectObject(&nameFont);
 		mem.DrawText(name, label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+		mem.SelectObject(&font);
 	}
 
 	// 017: frame display check box
@@ -614,7 +662,17 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		mem.SelectObject(&font);
 	}
 
-	// 015: speed slider right of the buttons
+	// 019: "Speed:" caption left of the slider
+	{
+		CString caption;
+		caption.LoadString(IDS_SPEED_CAPTION);
+		CRect r = ButtonRect(CanSim::SpeedCaptionRect(dpi));
+		mem.SelectObject(&font);
+		mem.SetTextColor(RGB(255, 255, 255));
+		mem.DrawText(caption, r, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+	}
+
+	// 015: speed slider (019: at the right end, half size)
 	{
 		const COLORREF track = RGB(160, 160, 165);
 		mem.FillSolidRect(ButtonRect(CanSim::SpeedTrackRect(dpi)), track);
@@ -632,6 +690,8 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		{
 			const int x = CanSim::SpeedTickX(s, dpi);
 			mem.FillSolidRect(x, tickTop, (std::max)(1, ScalePx(1, dpi)), tickBottom - tickTop, track);
+			if (!CanSim::IsSpeedLabelShown(s, m_settings.Speed))
+				continue; // 019 FR-004: every 5th value and the current one only
 			const bool current = s == m_settings.Speed;
 			mem.SelectObject(current ? &boldFont : &labelFont);
 			mem.SetTextColor(current ? kSpeedCurrentText : RGB(255, 255, 255));
@@ -643,7 +703,7 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		mem.SelectObject(&font);
 
 		const CRect thumb = ButtonRect(CanSim::SpeedThumbRect(m_settings.Speed, dpi));
-		const int border = (std::max)(1, ScalePx(2, dpi));
+		const int border = (std::max)(1, ScalePx(1, dpi)); // 019: half size thumb
 		mem.FillSolidRect(thumb, kSpeedThumbFrame);
 		CRect inner = thumb;
 		inner.DeflateRect(border, border);
@@ -1065,6 +1125,13 @@ void CMFCApplication1Dlg::CloseFrameEditor()
 	UpdateSimControls();
 }
 
+// 022: the ECU label was edited in the frame editor
+LRESULT CMFCApplication1Dlg::OnEcuLabelChanged(WPARAM /*wParam*/, LPARAM /*lParam*/)
+{
+	InvalidateRect(GetDiagramRect(), FALSE);
+	return 0;
+}
+
 LRESULT CMFCApplication1Dlg::OnFrameEditorClosed(WPARAM /*wParam*/, LPARAM /*lParam*/)
 {
 	m_frameEditor = nullptr;
@@ -1264,6 +1331,7 @@ void CMFCApplication1Dlg::OnSimStart()
 	QueryPerformanceCounter(&m_replayStartQpc);
 	m_flowElapsedUs = 0; // 018: the flow animation starts a new round
 	m_flowLastQpc = m_replayStartQpc;
+	m_flowHold.Clear();
 	m_runPhase = CanSim::RunPhase::Running;
 	UpdateSimControls();
 	m_replayTimer = SetTimer(kReplayTimerId, kRefreshMs, nullptr);
@@ -1401,6 +1469,7 @@ bool CMFCApplication1Dlg::AdvanceReplay()
 	// (005 FR-009).
 	m_curSimUs = CurrentSimTimeUs();
 	m_active = m_cursor->Collect(m_prevSimUs, m_curSimUs);
+	m_flowHold.Update(m_active.Flows, m_flowElapsedUs); // 018 revision 1: paths stay 0.3 s
 	m_prevSimUs = m_curSimUs;
 	ShowLogUpTo(m_curSimUs); // 009: rows appear on the same clock, display on or off
 	SetDisplaySimUs(m_curSimUs); // 017
@@ -1597,6 +1666,31 @@ void CMFCApplication1Dlg::DrawLogFrame(CDC& dc)
 	dc.Rectangle(frame);
 	dc.SelectObject(oldBrush);
 	dc.SelectObject(oldPen);
+
+	// 020: "Event & log view" label just above the border, at its left edge
+	const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
+	CRect label = ToCRect(CanSim::ScaleLogLabelRect(dpi));
+	label.OffsetRect(0, ContentTop());
+	DrawAreaLabel(dc, label, IDS_LOG_VIEW_LABEL, dpi);
+}
+
+// 020: name of an area in small dark grey text.
+void CMFCApplication1Dlg::DrawAreaLabel(CDC& dc, const CRect& rect, UINT textId, int dpi)
+{
+	CFont font;
+	font.CreateFont(-MulDiv(12, dpi, 96), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+		DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
+	CFont* oldFont = dc.SelectObject(&font);
+	const int oldMode = dc.SetBkMode(TRANSPARENT);
+	const COLORREF oldColor = dc.SetTextColor(RGB(90, 90, 90));
+	CString text;
+	text.LoadString(textId);
+	CRect r = rect;
+	dc.DrawText(text, r, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+	dc.SetTextColor(oldColor);
+	dc.SetBkMode(oldMode);
+	dc.SelectObject(oldFont);
 }
 
 void CMFCApplication1Dlg::ClearLog()

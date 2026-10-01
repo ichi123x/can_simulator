@@ -200,3 +200,66 @@ description: "Task list for feature 018-frame-flow-animation"
     - エフェクトありは 38 回中 38 回で画面が更新されていた。
     - 取得の回数は、フレーム表示 OFF（39 回）と同程度で、エフェクトによる遅れは見られなかった。
   - 2-7: スピード -10（`sample_appendix_a`）でも、粒が描かれて動いた（30 枚中 6 枚に粒。フレームの無い間は描かない）。
+
+---
+
+## Phase 5: 改訂 1（ユーザーの確認を受けて: 案 A・C・D）
+
+- [X] T011 `MFCApplication1/CanSim/FlowEffect.h/.cpp` を改訂 1 に合わせて変える（research.md 決定7〜9、data-model.md 改訂 1）。
+  - 削除: `kFlowPeriodUs`・`kFlowParticles`・`kFlowGlowWindow`・`FlowPhase`。
+  - 追加: `kFlowSpeed = 150`、`kFlowSpacing = 16`、`kFlowGlowPeriodUs = 800000`、`kFlowHoldUs = 300000`。
+  - `ComputeFlowEffect(layout, flows, elapsedUs)` に変える。
+    - 粒: `offset = (elapsedUs × 150 / 1e6) mod 16`、距離 `d = offset + 16k ≤ L`。
+    - 光: 道筋の送信・受信の ECU ごとに 1 つ。強さは `0.5 + 0.5 sin(2πt/800ms + φ)` を 0.05〜1 に丸めたもの（φ は送信 0、受信 π。両方に当たる ECU は送信の値）。
+  - `FlowPathHold`（`Update` / `Current` / `Clear`）を追加する。
+- [X] T012 `MFCApplication1/MFCApplication1Dlg.h/.cpp` を変える。（依存: T011）
+  - メンバ `CanSim::FlowPathHold m_flowHold` を追加する。
+  - `AdvanceReplay` で、時計を進めた後に `m_flowHold.Update(m_active.Flows, m_flowElapsedUs)` を呼ぶ。
+    - `m_active` は、`AdvanceReplay` の中の `Collect` の後に更新する。
+  - 新しい実行の開始で `m_flowHold.Clear()` を呼ぶ。
+  - `DrawBusDiagram` の描く条件を `InRun() && FrameDisplay` にする。その中で `Current(m_flowElapsedUs)` が空でなければ描く。
+  - 色を変える。
+    - 粒: `RGB(255,140,0)` の芯と白い縁。
+    - 光: `RGB(255,190,120)`〜`RGB(255,140,0)`、太さ 1〜4 px。
+- [X] T013 `tools/cansim_runner/checks.cpp` の `CheckFeature018` を改訂 1 に合わせて変える。（依存: T011）
+  - 粒:
+    - 間隔が 16（同じ道筋の隣どうしの距離）。
+    - 時計を Δ 進めると、各粒が `150 × Δ` 進む（`mod 16`）。
+    - 数が `floor((L − offset)/16) + 1`。
+  - 光: 強さが 0.05〜1。送信と受信で半周期ずれる。
+  - `FlowPathHold`: t=0 で見た組が t=300 ms まで残り、t=300.001 ms で消える。再び見ると残る時間が延びる。`Clear` で空になる。
+  - 性能（送信 8 × 受信 8 の 1,000 回）が 1 秒未満。
+- [X] T014 Debug|x64 をビルドし、実機で確かめる（依存: T012, T013）。
+  - 次の確認の色を `FFEB5A` から `FF8C00` に読み替えて、もう一度確かめる。
+    - quickstart.md の手順 2-1〜2-7
+    - ECU 2 の判定は、オレンジの判定に変える。
+  - 加えて、`sample_collision`（スピード 0）で 25 ms おきに構成図を 20 枚撮る。オレンジの画素の数の変動が小さい（点滅しない）ことを確かめる（最小 ÷ 最大 ≥ 0.5）。
+  - バスが空いてから 0.3 秒たつと消えることは、スピード -10 で確かめる。
+  - 5 枚を並べた画像を目視して、滑らかさ・色の見え方を確かめる。
+- [X] T015 `CLAUDE.md`・`tools/cansim_runner/README.md` の 018 の記述を改訂 1 に合わせて直し、4 構成のビルドと checks.exe（全項目 PASS・CSV 一致）を確かめる（依存: T014）。
+
+## 改訂 1 の実装結果（2026-10-01）
+
+- 変更:
+  - `CanSim/FlowEffect.h/.cpp`
+    - `FlowPhase` を削除し、`FlowOffset`（150 px/秒・16 px 間隔）を追加。
+    - `ComputeFlowEffect(layout, flows, elapsedUs)`。同じ位置の粒は 1 つにまとめる。
+    - 光の明滅、`FlowPathHold`。
+  - `MFCApplication1Dlg.h/.cpp`（`m_flowHold`、描く条件、オレンジの色）
+  - `tools/cansim_runner/checks.cpp`・`README.md`、`CLAUDE.md`
+- 実装中の追加: 16 ECU では送信と受信の組が多く、1 回に数千個の粒を描いて画面の取得が遅くなった（エフェクトなしの 0.76 倍）。
+  - 同じ送信 ECU から出る道筋は、送信側の接続線とバスの区間で粒の位置が同じになる。そこで、重なる粒は 1 つにまとめた。
+  - 最悪の場合（送信 8 × 受信 8）の粒は 2,129 → 164 個になり、計算は 1 回 0.3 ms になった。
+- ビルド: Debug/Release × x64/x86 の 4 構成とも、警告・エラーなしでビルドできた。
+- checks.exe: 全 163 項目 PASS（018 の項目を改訂 1 で書き直し、12 項目）。基準 CSV との比較も一致した。
+- GUI（Debug|x64、120 dpi）: scratchpad の `t018/gui.ps1`（色の判定を `FF8C00` に変更）で、全項目が合格した。
+  - 2-1:
+    - 0.1 秒おきの 5 枚で、構成図はすべて異なった。
+    - `t018/rev1_0.png` で、オレンジの粒が 16 px おきに接続線とバスに沿って並び、ECU 1・3 の外側にオレンジの光の枠があることを目視で確認した。
+  - 点滅: 25 ms おきの 20 枚で、オレンジの画素の数の最小 ÷ 最大は 0.52（735 / 1421）で、基準 0.5 以上だった。
+    - 光の枠の 0.8 秒周期の明滅（太さ 1〜4 px）で画素の数が変わる分を含む。
+  - 2-2: 8 秒の間、ECU 2 の箱の外側の帯と接続線に、オレンジの画素は 0 だった。
+    - 箱の中は、「ECU 02」の文字の ClearType の縁がオレンジに近い色になるため、判定から外した。
+  - 2-3〜2-5: 送信 ECU の塗り `F06E6E` は変わらなかった。中断中は止まり、再開で動き、チェックボックスで消えて戻った。
+  - 2-6: `sample_16ecu` で 2 秒間取得した。エフェクトありは 36 回（毎回画面が更新）、フレーム表示 OFF は 39 回で、0.92 倍だった。
+  - 2-7・道筋の保持: スピード -10 でも粒は動いた。バスが空いている間は消えた（30 枚中 8 枚に粒）。

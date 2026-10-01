@@ -67,6 +67,7 @@ protected:
 	// ---- feature 010: double-click an ECU to edit its frames ----
 	afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
 	afx_msg LRESULT OnFrameEditorClosed(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnEcuLabelChanged(WPARAM wParam, LPARAM lParam); // feature 022
 	afx_msg void OnDestroy();
 
 public:
@@ -143,6 +144,7 @@ private:
 	void StartGray(int ecu);
 	void ClearGray();
 	void DrawLogFrame(CDC& dc);
+	void DrawAreaLabel(CDC& dc, const CRect& rect, UINT textId, int dpi); // feature 020
 
 	int m_grayEcu = 0; // ECU drawn grey for a moment after a double-click, 0 = none
 
@@ -181,8 +183,10 @@ private:
 	long long m_displaySimUs = 0; // shown at the right end of the toolbar
 
 	// ---- feature 018: flow animation over the frame display ----
-	void DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayout& layout, const CanSim::ActiveFrames& active, int dpi);
+	void DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayout& layout,
+		const std::vector<std::pair<int, int>>& flows, int dpi);
 
 	long long m_flowElapsedUs = 0;   // animation clock: real time while Running only
 	LARGE_INTEGER m_flowLastQpc = {};
+	CanSim::FlowPathHold m_flowHold;  // paths kept 0.3 s after they were last seen (revision 1)
 };

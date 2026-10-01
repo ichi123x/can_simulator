@@ -34,14 +34,14 @@ namespace CanSim
     const int kToolbarHeight = 64;
     const int kSimButtonCount = 3;      // 0 = Start, 1 = Pause, 2 = Stop
     const int kSimButtonLeft = 8;
-    const int kSimButtonPitch = 56;
-    const int kSimButtonTop = 6;
-    const int kSimButtonWidth = 48;
-    const int kSimButtonBoxHeight = 36;
-    const int kSimButtonCorner = 8;
-    const int kSimButtonLabelTop = 42;  // name under the box
-    const int kSimButtonBottom = 60;
-    const int kSimButtonGlyph = 20;     // symbol drawn in the middle of the box
+    const int kSimButtonPitch = 28;
+    const int kSimButtonTop = 14;
+    const int kSimButtonWidth = 24;
+    const int kSimButtonBoxHeight = 18;
+    const int kSimButtonCorner = 4;
+    const int kSimButtonLabelTop = 33;  // name under the box
+    const int kSimButtonBottom = 49;
+    const int kSimButtonGlyph = 10;     // symbol drawn in the middle of the box
 
     // Rectangles of button index at the given DPI (scaled with ScaleToDpi).
     // SimButtonRect is the hit area: the box and the name together.
@@ -61,19 +61,27 @@ namespace CanSim
     // ---- feature 015: speed slider right of the buttons (96 DPI) ----
     // Ticks for kMinSpeed..kMaxSpeed, evenly spaced; the thumb is a vertical
     // bar on the tick of the current speed, the values are drawn under it.
-    const int kSpeedSliderLeft = 320;   // x of the -13 tick (017: moved right for the frame display check box)
-    const int kSpeedTickPitch = 26;
+    const int kSpeedSliderLeft = 520;   // x of the -13 tick (019: right end, after the simulated time)
+    const int kSpeedTickPitch = 13;
     const int kSpeedTrackY = 20;
-    const int kSpeedTrackThickness = 4;
-    const int kSpeedThumbWidth = 10;
-    const int kSpeedThumbTop = 7;
-    const int kSpeedThumbBottom = 33;
-    const int kSpeedTickTop = 28;
-    const int kSpeedTickBottom = 33;
-    const int kSpeedLabelTop = 38;
-    const int kSpeedLabelBottom = 56;
+    const int kSpeedTrackThickness = 2;
+    const int kSpeedThumbWidth = 5;
+    const int kSpeedThumbTop = 13;
+    const int kSpeedThumbBottom = 27;
+    const int kSpeedTickTop = 24;
+    const int kSpeedTickBottom = 27;
+    const int kSpeedLabelTop = 32;
+    const int kSpeedLabelBottom = 48;
     const int kSpeedHitTop = 4;
     const int kSpeedHitBottom = 60;
+    // 019: value labels are this wide; only every 5th value and the current
+    // one are shown, so they never overlap although the ticks are 13 apart.
+    const int kSpeedLabelWidth = 26;
+    // 019: "Speed:" caption left of the slider.
+    const int kSpeedCaptionLeft = 430;
+    const int kSpeedCaptionRight = 500;
+    const int kSpeedCaptionTop = 10;
+    const int kSpeedCaptionBottom = 30;
 
     // x of the tick of speed (clamped to kMinSpeed..kMaxSpeed) at the DPI.
     int SpeedTickX(int speed, int dpi);
@@ -89,6 +97,12 @@ namespace CanSim
     DiagramRect SpeedTrackRect(int dpi);
     DiagramRect SpeedThumbRect(int speed, int dpi);
     DiagramRect SpeedLabelRect(int speed, int dpi);
+    DiagramRect SpeedCaptionRect(int dpi);
+
+    // 019 FR-004: value label shown for speed when the current speed is
+    // currentSpeed: the current value, and -13 / -10 / -5 / 0 / +5 / +10 unless
+    // they are within 2 ticks of the current value.
+    bool IsSpeedLabelShown(int speed, int currentSpeed);
 
     // What a change of speed does to the current run (015 FR-007..FR-009).
     enum class SpeedChangeAction
@@ -101,27 +115,27 @@ namespace CanSim
 
     // ---- feature 017: frame display check box and the simulated time (96 DPI) ----
     // Check box between the Stop button and the speed slider.
-    const int kFrameDisplayBoxLeft = 186;
+    const int kFrameDisplayBoxLeft = 104;
     const int kFrameDisplayBoxTop = 25;
     const int kFrameDisplayBoxSize = 14;
-    const int kFrameDisplayLabelLeft = 206;
-    const int kFrameDisplayLabelRight = 290;
+    const int kFrameDisplayLabelLeft = 124;
+    const int kFrameDisplayLabelRight = 208;
     const int kFrameDisplayLabelTop = 22;
     const int kFrameDisplayLabelBottom = 42;
-    const int kFrameDisplayHitLeft = 182;
-    const int kFrameDisplayHitRight = 294;
+    const int kFrameDisplayHitLeft = 100;
+    const int kFrameDisplayHitRight = 212;
     const int kFrameDisplayHitTop = 4;
     const int kFrameDisplayHitBottom = 60;
 
     // Simulated time at the right end: caption above, value and unit below.
-    const int kSimTimeLeft = 950;
-    const int kSimTimeRight = 1130;
+    const int kSimTimeLeft = 230;
+    const int kSimTimeRight = 410;
     const int kSimTimeCaptionTop = 8;
     const int kSimTimeCaptionBottom = 28;
     const int kSimTimeValueTop = 30;
     const int kSimTimeValueBottom = 54;
-    const int kSimTimeValueRight = 1100;
-    const int kSimTimeUnitLeft = 1104;
+    const int kSimTimeValueRight = 380;
+    const int kSimTimeUnitLeft = 384;
 
     DiagramRect FrameDisplayBoxRect(int dpi);
     DiagramRect FrameDisplayLabelRect(int dpi);

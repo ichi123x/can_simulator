@@ -18,6 +18,9 @@ const UINT WM_APP_FRAME_EDITOR_CLOSED = WM_APP + 1;
 // is double-clicked (used only inside the editor window).
 const UINT WM_APP_FRAME_LIST_ADD = WM_APP + 2;
 
+// Feature 022: sent to the owner when the ECU label was edited.
+const UINT WM_APP_ECU_LABEL_CHANGED = WM_APP + 3;
+
 // Feature 013: header of the frame list. A double-click anywhere on it asks
 // the editor window to add a frame instead of the default handling (which
 // would auto-size a column on a divider).
@@ -53,6 +56,7 @@ protected:
 	afx_msg void OnListDoubleClick(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnListItemChanged(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg LRESULT OnListAddRequest(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnEcuLabelChanged(); // feature 022
 	DECLARE_MESSAGE_MAP()
 
 private:
@@ -62,11 +66,13 @@ private:
 	void UpdateButtons();
 	bool CanAdd() const;          // same condition as the Add button
 	void AddFromList();           // double-click in the frame list (feature 013)
+	void ShowEcuLabel();          // feature 022
 
 	CanSim::Network& m_definitions;
 	int m_ecuCount;
 	int m_initialEcu;
 	HWND m_owner = nullptr; // kept for the notice after the window is gone
+	bool m_settingLabel = false; // 022: the label edit is being filled by the program
 	CListCtrl m_list;
 	CFrameListHeader m_header;
 	CComboBox m_node;

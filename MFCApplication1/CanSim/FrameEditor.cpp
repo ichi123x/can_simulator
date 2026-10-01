@@ -185,4 +185,75 @@ namespace CanSim
         if (index >= 0 && index < static_cast<int>(node.Frames.size()))
             node.Frames.erase(node.Frames.begin() + index);
     }
+
+    namespace
+    {
+        bool IsLead(unsigned char b)
+        {
+            return (b & 0xC0) != 0x80;
+        }
+
+        // Byte offset of the character number n (or the size when shorter).
+        std::size_t OffsetOfChar(const std::string& s, int n)
+        {
+            int count = 0;
+            for (std::size_t i = 0; i < s.size(); ++i)
+            {
+                if (IsLead(static_cast<unsigned char>(s[i])))
+                {
+                    if (count == n)
+                        return i;
+                    ++count;
+                }
+            }
+            return s.size();
+        }
+    }
+
+    int CountUtf8Chars(const std::string& utf8)
+    {
+        int count = 0;
+        for (unsigned char b : utf8)
+            if (IsLead(b))
+                ++count;
+        return count;
+    }
+
+    std::string LimitEcuLabel(const std::string& utf8)
+    {
+        return utf8.substr(0, OffsetOfChar(utf8, kMaxEcuLabelChars));
+    }
+
+    std::string TrimEcuLabel(const std::string& utf8)
+    {
+        static const std::string ideographic = "\xE3\x80\x80"; // U+3000
+        std::size_t begin = 0;
+        std::size_t end = utf8.size();
+        for (;;)
+        {
+            if (begin < end && (utf8[begin] == ' ' || utf8[begin] == '\t'))
+                ++begin;
+            else if (end - begin >= 3 && utf8.compare(begin, 3, ideographic) == 0)
+                begin += 3;
+            else
+                break;
+        }
+        for (;;)
+        {
+            if (end > begin && (utf8[end - 1] == ' ' || utf8[end - 1] == '\t'))
+                --end;
+            else if (end - begin >= 3 && utf8.compare(end - 3, 3, ideographic) == 0)
+                end -= 3;
+            else
+                break;
+        }
+        return utf8.substr(begin, end - begin);
+    }
+
+    std::string EcuLabelForDiagram(const std::string& utf8)
+    {
+        if (CountUtf8Chars(utf8) <= kEcuLabelShownChars)
+            return utf8;
+        return utf8.substr(0, OffsetOfChar(utf8, kEcuLabelShownChars)) + "...";
+    }
 }

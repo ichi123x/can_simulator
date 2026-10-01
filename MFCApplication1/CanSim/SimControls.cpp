@@ -139,13 +139,32 @@ namespace CanSim
     DiagramRect SpeedLabelRect(int speed, int dpi)
     {
         const int x = SpeedTickX(speed, dpi);
-        const int half = ScaleToDpi(kSpeedTickPitch, dpi) / 2;
+        const int half = ScaleToDpi(kSpeedLabelWidth, dpi) / 2;
         DiagramRect r;
         r.Left = x - half;
         r.Right = x + half;
         r.Top = ScaleToDpi(kSpeedLabelTop, dpi);
         r.Bottom = ScaleToDpi(kSpeedLabelBottom, dpi);
         return r;
+    }
+
+    DiagramRect SpeedCaptionRect(int dpi)
+    {
+        DiagramRect r;
+        r.Left = ScaleToDpi(kSpeedCaptionLeft, dpi);
+        r.Top = ScaleToDpi(kSpeedCaptionTop, dpi);
+        r.Right = ScaleToDpi(kSpeedCaptionRight, dpi);
+        r.Bottom = ScaleToDpi(kSpeedCaptionBottom, dpi);
+        return r;
+    }
+
+    bool IsSpeedLabelShown(int speed, int currentSpeed)
+    {
+        if (speed == currentSpeed)
+            return true;
+        const bool fifth = speed == kMinSpeed || speed % 5 == 0;
+        const int distance = speed > currentSpeed ? speed - currentSpeed : currentSpeed - speed;
+        return fifth && distance > 2;
     }
 
     SpeedChangeAction GetSpeedChangeAction(RunPhase phase, int newSpeed)

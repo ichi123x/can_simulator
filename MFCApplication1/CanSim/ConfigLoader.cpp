@@ -1,6 +1,7 @@
 // ConfigLoader.cpp
 #include "pch.h"
 #include "ConfigLoader.h"
+#include "FrameEditor.h"
 
 #include <fstream>
 #include <sstream>
@@ -102,16 +103,6 @@ namespace CanSim
             nodeId = std::stoi(nodeDigits);
             frameIndex = std::stoi(frameDigits);
             return true;
-        }
-
-        // Number of characters (code points) in a UTF-8 string.
-        std::size_t CountUtf8Chars(const std::string& s)
-        {
-            std::size_t count = 0;
-            for (unsigned char c : s)
-                if ((c & 0xC0) != 0x80)
-                    ++count;
-            return count;
         }
 
         struct RawSections
@@ -322,6 +313,10 @@ namespace CanSim
 
             auto nameIt = kv.find("Name");
             node.Name = (nameIt != kv.end()) ? nameIt->second : ("Node" + std::to_string(node.NodeId));
+            // 022: optional ECU label shown in the diagram
+            auto labelIt = kv.find("Label");
+            if (labelIt != kv.end())
+                node.Label = LimitEcuLabel(TrimEcuLabel(labelIt->second));
 
             node.ReceiveDelayUs = 0;
             auto delayIt = kv.find("ReceiveDelayUs");
@@ -444,7 +439,7 @@ namespace CanSim
 
                     if (const std::string* nameStr = get("Name"))
                     {
-                        if (CountUtf8Chars(*nameStr) > static_cast<std::size_t>(kMaxFrameNameChars))
+                        if (CountUtf8Chars(*nameStr) > kMaxFrameNameChars) // shared with 022 (FrameEditor.h)
                         {
                             result.ErrorMessage = "[Node" + std::to_string(node.NodeId) + ".Frame" +
                                 std::to_string(frameEntry.first) + "] Name is longer than " +

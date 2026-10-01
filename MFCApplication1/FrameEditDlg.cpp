@@ -97,6 +97,7 @@ BEGIN_MESSAGE_MAP(CFrameEditDlg, CDialogEx)
 	ON_NOTIFY(NM_DBLCLK, IDC_LIST_FRAMES, &CFrameEditDlg::OnListDoubleClick)
 	ON_NOTIFY(LVN_ITEMCHANGED, IDC_LIST_FRAMES, &CFrameEditDlg::OnListItemChanged)
 	ON_MESSAGE(WM_APP_FRAME_LIST_ADD, &CFrameEditDlg::OnListAddRequest)
+	ON_EN_CHANGE(IDC_EDIT_ECU_LABEL, &CFrameEditDlg::OnEcuLabelChanged)
 END_MESSAGE_MAP()
 
 BOOL CFrameEditDlg::OnInitDialog()
@@ -131,6 +132,9 @@ BOOL CFrameEditDlg::OnInitDialog()
 	m_header.SubclassWindow(m_list.GetHeaderCtrl()->GetSafeHwnd()); // 013 FR-001
 
 	RefreshList(-1);
+	// 022: ECU label of the selected ECU
+	static_cast<CEdit*>(GetDlgItem(IDC_EDIT_ECU_LABEL))->SetLimitText(CanSim::kMaxEcuLabelChars);
+	ShowEcuLabel();
 	return TRUE;
 }
 
@@ -228,6 +232,35 @@ void CFrameEditDlg::AddFromList()
 void CFrameEditDlg::OnNodeChanged()
 {
 	RefreshList(-1);
+	ShowEcuLabel(); // 022
+}
+
+// 022: the label of the selected ECU (empty when it has none or when there is
+// no ECU). Setting the text raises EN_CHANGE, which must not write it back.
+void CFrameEditDlg::ShowEcuLabel()
+{
+	const CanSim::Node* node = CanSim::FindNodeDefinition(m_definitions, SelectedNodeId());
+	m_settingLabel = true;
+	SetDlgItemText(IDC_EDIT_ECU_LABEL, node != nullptr ? FromUtf8(node->Label) : CString());
+	m_settingLabel = false;
+	GetDlgItem(IDC_EDIT_ECU_LABEL)->EnableWindow(SelectedNodeId() > 0);
+}
+
+// 022 FR-002: every change is applied to the project at once and the main
+// dialog redraws the diagram.
+void CFrameEditDlg::OnEcuLabelChanged()
+{
+	if (m_settingLabel)
+		return;
+	const int nodeId = SelectedNodeId();
+	if (nodeId <= 0)
+		return;
+	CString text;
+	GetDlgItemText(IDC_EDIT_ECU_LABEL, text);
+	const std::string utf8(CW2A(text, CP_UTF8));
+	CanSim::EnsureNode(m_definitions, nodeId).Label = CanSim::LimitEcuLabel(CanSim::TrimEcuLabel(utf8));
+	if (m_owner != nullptr && ::IsWindow(m_owner))
+		::SendMessage(m_owner, WM_APP_ECU_LABEL_CHANGED, 0, 0);
 }
 
 void CFrameEditDlg::OnAdd()
