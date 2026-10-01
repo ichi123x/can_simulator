@@ -78,6 +78,9 @@
 #define IDS_LOG_FRAME_OK				239
 #define IDS_LOG_FRAME_RETRY				240
 #define IDS_LOG_FRAME_DROPPED			241
+#define IDS_SIM_BTN_START				242	// feature 014
+#define IDS_SIM_BTN_PAUSE				243
+#define IDS_SIM_BTN_STOP				244
 
 #define ID_FILE_LOAD_PROJECT			32771
 #define ID_FILE_SAVE_PROJECT			32772
@@ -85,6 +88,7 @@
 #define ID_EDIT_FRAME_DISPLAY			32774
 #define ID_SIM_START					32775
 #define ID_SIM_STOP						32776
+#define ID_SIM_PAUSE					32778	// feature 014
 
 // 新しいオブジェクトの次の既定値
 //
@@ -93,7 +97,7 @@
 
 #define _APS_NEXT_RESOURCE_VALUE	133
 #define _APS_NEXT_CONTROL_VALUE		1026
-#define _APS_NEXT_SYMED_VALUE		242
-#define _APS_NEXT_COMMAND_VALUE		32778
+#define _APS_NEXT_SYMED_VALUE		245
+#define _APS_NEXT_COMMAND_VALUE		32779
 #endif
 #endif

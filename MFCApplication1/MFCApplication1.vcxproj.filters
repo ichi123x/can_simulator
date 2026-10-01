@@ -84,6 +84,9 @@
     <ClInclude Include="CanSim\ReplayClock.h">
       <Filter>CanSim</Filter>
     </ClInclude>
+    <ClInclude Include="CanSim\SimControls.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
     <ClInclude Include="CanSim\FrameEditor.h">
       <Filter>CanSim</Filter>
     </ClInclude>
@@ -144,6 +147,9 @@
       <Filter>CanSim</Filter>
     </ClCompile>
     <ClCompile Include="CanSim\ReplayClock.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\SimControls.cpp">
       <Filter>CanSim</Filter>
     </ClCompile>
     <ClCompile Include="CanSim\FrameEditor.cpp">

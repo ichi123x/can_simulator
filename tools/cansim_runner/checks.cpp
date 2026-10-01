@@ -20,6 +20,7 @@
 #include "ReplayClock.h"
 #include "LogLines.h"
 #include "FrameEditor.h"
+#include "SimControls.h"
 
 #include <climits>
 
@@ -1487,6 +1488,80 @@ namespace
         Check(logClear, "011 FR-009/FR-011: the log view border is clear of the grey area, the scroll bar and the diagram (DPI 96/120/144)");
         Check(sameAsBefore, "011 FR-012: the log view keeps its 009 position (150, 260, 850 x 260 at 96 DPI)");
     }
+    void CheckFeature014()
+    {
+        std::cout << "\n== feature 014: simulation commands and toolbar ==\n";
+
+        // FR-004: Start / Pause / Stop for every phase, with and without the
+        // frame editor open.
+        struct Row { RunPhase Phase; bool Editing; bool Start; bool Pause; bool Stop; };
+        const Row rows[] = {
+            { RunPhase::Idle, false, true, false, false },
+            { RunPhase::Idle, true, false, false, false },
+            { RunPhase::Running, false, false, true, true },
+            { RunPhase::Running, true, false, true, true },
+            { RunPhase::Paused, false, true, false, true },
+            { RunPhase::Paused, true, true, false, true },
+        };
+        bool table = true;
+        for (const Row& r : rows)
+        {
+            const SimCommandStates s = GetSimCommandStates(r.Phase, r.Editing);
+            table = table && s.Start == r.Start && s.Pause == r.Pause && s.Stop == r.Stop;
+        }
+        Check(table, "014 FR-004: Start / Pause / Stop states match the table for Idle, Running and Paused");
+
+        // Toolbar geometry at DPI 96/120/144
+        const int dpis[] = { 96, 120, 144 };
+        bool inBand = true;
+        bool ordered = true;
+        bool partsInside = true;
+        bool hit = true;
+        for (int dpi : dpis)
+        {
+            const int band = ScaleToDpi(kToolbarHeight, dpi);
+            for (int i = 0; i < kSimButtonCount; ++i)
+            {
+                const DiagramRect r = SimButtonRect(i, dpi);
+                const DiagramRect box = SimButtonBoxRect(i, dpi);
+                const DiagramRect label = SimButtonLabelRect(i, dpi);
+                inBand = inBand && r.Left >= 0 && r.Top >= 0 && r.Bottom <= band && r.Left < r.Right && r.Top < r.Bottom;
+                if (i > 0)
+                    ordered = ordered && SimButtonRect(i - 1, dpi).Right < r.Left;
+                partsInside = partsInside &&
+                    box.Left >= r.Left && box.Right <= r.Right && box.Top >= r.Top && box.Bottom <= label.Top &&
+                    label.Left >= r.Left && label.Right <= r.Right && label.Bottom <= r.Bottom;
+                hit = hit && FindSimButtonAt(r.Left, r.Top, dpi) == i &&
+                    FindSimButtonAt(r.Right - 1, r.Bottom - 1, dpi) == i &&
+                    FindSimButtonAt(r.Right, r.Top, dpi) != i && FindSimButtonAt(r.Left, r.Bottom, dpi) == -1 &&
+                    FindSimButtonAt(r.Left - 1, r.Top, dpi) != i;
+                if (i > 0)
+                    hit = hit && FindSimButtonAt(SimButtonRect(i - 1, dpi).Right, r.Top, dpi) == -1;
+            }
+            hit = hit && FindSimButtonAt(0, 0, dpi) == -1 && FindSimButtonAt(10, band + 5, dpi) == -1;
+        }
+        Check(inBand, "014 FR-002/FR-009: the three buttons stay inside the toolbar band, above the moved diagram (DPI 96/120/144)");
+        Check(ordered, "014 FR-002: Start, Pause and Stop are placed left to right without overlapping");
+        Check(partsInside, "014 FR-002: box and name of each button are inside its hit area, the name under the box");
+        Check(hit, "014 FR-003: FindSimButtonAt agrees with the button rectangles [Left, Right) x [Top, Bottom)");
+
+        // FR-006: resumed time
+        bool same = true;
+        const long long elapsed[] = { 0, 1, 999, 1000000, 37000001 };
+        const int speeds[] = { -13, 0, 5 };
+        for (long long e : elapsed)
+            for (int s : speeds)
+                same = same && ResumedSimTimeUs(0, e, s) == SimTimeAtUs(e, s);
+        Check(same, "014 FR-006: with base 0 the resumed time equals the 005 clock");
+
+        bool split = true;
+        const long long pairs[][2] = { { 0, 5 }, { 3000000, 7000000 }, { 1, 1 }, { 123456, 654321 }, { 9999999, 1 } };
+        for (const auto& p : pairs)
+            split = split && ResumedSimTimeUs(ResumedSimTimeUs(0, p[0], 0), p[1], 0) == SimTimeAtUs(p[0] + p[1], 0);
+        Check(split, "014 SC-003: pausing and resuming (speed 0) gives the same time as running without a pause");
+        Check(ResumedSimTimeUs(LLONG_MAX - 1, 1000000, 0) == LLONG_MAX && ResumedSimTimeUs(-5, 10, 0) == 10,
+            "014: the resumed time saturates and treats a negative base as 0");
+    }
 }
 
 int main(int argc, char** argv)
@@ -1512,6 +1587,7 @@ int main(int argc, char** argv)
     CheckFeature009();
     CheckFeature010();
     CheckFeature011();
+    CheckFeature014();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

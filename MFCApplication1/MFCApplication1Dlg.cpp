@@ -89,8 +89,13 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_COMMAND(ID_EDIT_FRAMES, &CMFCApplication1Dlg::OnEditFrames)
 	ON_COMMAND(ID_EDIT_FRAME_DISPLAY, &CMFCApplication1Dlg::OnEditFrameDisplay)
 	ON_COMMAND(ID_SIM_START, &CMFCApplication1Dlg::OnSimStart)
+	ON_COMMAND(ID_SIM_PAUSE, &CMFCApplication1Dlg::OnSimPause)
 	ON_COMMAND(ID_SIM_STOP, &CMFCApplication1Dlg::OnSimStop)
 	ON_WM_LBUTTONDBLCLK()
+	ON_WM_LBUTTONDOWN()
+	ON_WM_LBUTTONUP()
+	ON_WM_MOUSEMOVE()
+	ON_WM_CAPTURECHANGED()
 	ON_MESSAGE(WM_APP_FRAME_EDITOR_CLOSED, &CMFCApplication1Dlg::OnFrameEditorClosed)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
@@ -126,6 +131,14 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	//  Framework は、この設定を自動的に行います。
 	SetIcon(m_hIcon, TRUE);			// 大きいアイコンの設定
 	SetIcon(m_hIcon, FALSE);		// 小さいアイコンの設定
+
+	// 014 FR-009: the toolbar takes the top of the client area; the window
+	// grows by its height so that the diagram and the log view keep their size.
+	{
+		CRect window;
+		GetWindowRect(&window);
+		SetWindowPos(nullptr, 0, 0, window.Width(), window.Height() + ContentTop(), SWP_NOMOVE | SWP_NOZORDER);
+	}
 
 	// Start with the default project: 2 ECUs, 500 kbps, 10 s, frame display off (004 FR-006).
 	SetEcuCount(m_settings.EcuCount);
@@ -185,6 +198,7 @@ void CMFCApplication1Dlg::OnPaint()
 	else
 	{
 		CPaintDC dc(this);
+		DrawSimToolbar(dc);
 		DrawBusDiagram(dc);
 		DrawLogView(dc);
 		DrawLogFrame(dc);
@@ -235,7 +249,16 @@ CRect CMFCApplication1Dlg::GetDiagramRect() const
 {
 	CClientDC dc(const_cast<CMFCApplication1Dlg*>(this));
 	const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
-	return CRect(0, 0, ScalePx(CanSim::kDiagramWidth, dpi), ScalePx(CanSim::kDiagramHeight, dpi));
+	const int top = ContentTop();
+	return CRect(0, top, ScalePx(CanSim::kDiagramWidth, dpi), top + ScalePx(CanSim::kDiagramHeight, dpi));
+}
+
+// 014: the diagram and the log view are moved down by the toolbar. Their
+// CanSim geometry stays relative to this content origin.
+int CMFCApplication1Dlg::ContentTop() const
+{
+	CClientDC dc(const_cast<CMFCApplication1Dlg*>(this));
+	return ScalePx(CanSim::kToolbarHeight, dc.GetDeviceCaps(LOGPIXELSX));
 }
 
 void CMFCApplication1Dlg::SetEcuCount(int ecuCount)
@@ -283,7 +306,7 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 	// highlighted when the frame display is off (005 FR-010) or no
 	// simulation is running.
 	const CanSim::ActiveFrames* active = nullptr;
-	if (m_runState == RunState::Running && m_settings.FrameDisplay)
+	if (InRun() && m_settings.FrameDisplay)
 		active = &m_active;
 	const bool busBusy = active != nullptr && active->BusBusy;
 
@@ -364,8 +387,220 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 	}
 
 	mem.SelectObject(oldFont);
+	dc.BitBlt(area.left, area.top + ContentTop(), area.Width(), area.Height(), &mem, 0, 0, SRCCOPY);
+	mem.SelectObject(oldBmp);
+}
+
+// ---- feature 014: toolbar with Start / Pause / Stop ----
+
+namespace
+{
+	const COLORREF kToolbarBack = RGB(45, 45, 48);
+	const COLORREF kButtonFace = RGB(240, 240, 240);
+	const COLORREF kButtonPressed = RGB(200, 200, 200);
+	const COLORREF kButtonDisabled = RGB(95, 95, 98);
+	const COLORREF kGlyphDisabled = RGB(140, 140, 140);
+	const COLORREF kGlyphColors[CanSim::kSimButtonCount] = {
+		RGB(30, 160, 70),   // Start: green triangle
+		RGB(30, 110, 200),  // Pause: blue bars
+		RGB(210, 40, 40),   // Stop: red square
+	};
+	const UINT kButtonNames[CanSim::kSimButtonCount] = { IDS_SIM_BTN_START, IDS_SIM_BTN_PAUSE, IDS_SIM_BTN_STOP };
+	const UINT kButtonCommands[CanSim::kSimButtonCount] = { ID_SIM_START, ID_SIM_PAUSE, ID_SIM_STOP };
+	const int kButtonLabelPx = 12;
+
+	// The rectangles from SimControls are already scaled to the DPI.
+	CRect ButtonRect(const CanSim::DiagramRect& r)
+	{
+		return CRect(r.Left, r.Top, r.Right, r.Bottom);
+	}
+
+	bool IsButtonEnabled(const CanSim::SimCommandStates& s, int index)
+	{
+		return index == 0 ? s.Start : (index == 1 ? s.Pause : s.Stop);
+	}
+}
+
+CRect CMFCApplication1Dlg::GetToolbarRect() const
+{
+	CRect client;
+	GetClientRect(&client);
+	return CRect(0, 0, client.right, ContentTop());
+}
+
+CanSim::SimCommandStates CMFCApplication1Dlg::SimStates() const
+{
+	return CanSim::GetSimCommandStates(m_runPhase, IsEditingFrames());
+}
+
+void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
+{
+	const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
+	const CRect area = GetToolbarRect();
+	if (area.IsRectEmpty())
+		return;
+
+	CDC mem;
+	mem.CreateCompatibleDC(&dc);
+	CBitmap bmp;
+	bmp.CreateCompatibleBitmap(&dc, area.Width(), area.Height());
+	CBitmap* oldBmp = mem.SelectObject(&bmp);
+	mem.FillSolidRect(area, kToolbarBack);
+	mem.SetBkMode(TRANSPARENT);
+
+	CFont font;
+	font.CreateFont(-ScalePx(kButtonLabelPx, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+		DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
+	CFont* oldFont = mem.SelectObject(&font);
+
+	const CanSim::SimCommandStates states = SimStates();
+	for (int i = 0; i < CanSim::kSimButtonCount; ++i)
+	{
+		const bool enabled = IsButtonEnabled(states, i);
+		const COLORREF face = !enabled ? kButtonDisabled : (m_pressedButton == i && m_pressedInside ? kButtonPressed : kButtonFace);
+		const COLORREF glyph = enabled ? kGlyphColors[i] : kGlyphDisabled;
+
+		// Box with rounded corners
+		const CRect box = ButtonRect(CanSim::SimButtonBoxRect(i, dpi));
+		CBrush faceBrush(face);
+		CPen facePen(PS_SOLID, 1, face);
+		CBrush* oldBrush = mem.SelectObject(&faceBrush);
+		CPen* oldPen = mem.SelectObject(&facePen);
+		const int corner = ScalePx(CanSim::kSimButtonCorner, dpi);
+		mem.RoundRect(box, CPoint(corner, corner));
+
+		// Symbol in the middle of the box
+		const int g = ScalePx(CanSim::kSimButtonGlyph, dpi);
+		const CPoint c = box.CenterPoint();
+		const CRect glyphRect(c.x - g / 2, c.y - g / 2, c.x - g / 2 + g, c.y - g / 2 + g);
+		CBrush glyphBrush(glyph);
+		CPen glyphPen(PS_SOLID, 1, glyph);
+		mem.SelectObject(&glyphBrush);
+		mem.SelectObject(&glyphPen);
+		if (i == 0)
+		{
+			const POINT tri[3] = {
+				{ glyphRect.left + g / 8, glyphRect.top },
+				{ glyphRect.right - g / 8, c.y },
+				{ glyphRect.left + g / 8, glyphRect.bottom },
+			};
+			mem.Polygon(tri, 3);
+		}
+		else if (i == 1)
+		{
+			const int bar = ScalePx(6, dpi);
+			const int gap = ScalePx(6, dpi);
+			const int left = c.x - (bar * 2 + gap) / 2;
+			mem.FillSolidRect(left, glyphRect.top, bar, g, glyph);
+			mem.FillSolidRect(left + bar + gap, glyphRect.top, bar, g, glyph);
+		}
+		else
+		{
+			const int s = ScalePx(16, dpi);
+			mem.FillSolidRect(c.x - s / 2, c.y - s / 2, s, s, glyph);
+		}
+		mem.SelectObject(oldBrush);
+		mem.SelectObject(oldPen);
+
+		// Name under the box
+		CRect label = ButtonRect(CanSim::SimButtonLabelRect(i, dpi));
+		mem.SetTextColor(enabled ? RGB(255, 255, 255) : kGlyphDisabled);
+		CString name;
+		name.LoadString(kButtonNames[i]);
+		mem.DrawText(name, label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+	}
+
+	mem.SelectObject(oldFont);
 	dc.BitBlt(area.left, area.top, area.Width(), area.Height(), &mem, 0, 0, SRCCOPY);
 	mem.SelectObject(oldBmp);
+}
+
+void CMFCApplication1Dlg::InvalidateToolbar()
+{
+	if (GetSafeHwnd() != nullptr)
+		InvalidateRect(GetToolbarRect(), FALSE);
+}
+
+// 014 FR-004: the menu bar and the toolbar follow the run phase and the
+// frame editor (Start is greyed while editing).
+void CMFCApplication1Dlg::UpdateSimControls()
+{
+	UpdateTopMenus();
+	InvalidateToolbar();
+}
+
+int CMFCApplication1Dlg::ToolbarButtonAt(CPoint point) const
+{
+	CClientDC dc(const_cast<CMFCApplication1Dlg*>(this));
+	return CanSim::FindSimButtonAt(point.x, point.y, dc.GetDeviceCaps(LOGPIXELSX));
+}
+
+// A press on an enabled button; the command is sent on release over the same
+// button (014 FR-003). Returns false when the point is not on such a button.
+bool CMFCApplication1Dlg::PressToolbarButton(CPoint point)
+{
+	const int index = ToolbarButtonAt(point);
+	if (index < 0 || !IsButtonEnabled(SimStates(), index))
+		return false;
+	m_pressedButton = index;
+	m_pressedInside = true;
+	SetCapture();
+	InvalidateToolbar();
+	return true;
+}
+
+void CMFCApplication1Dlg::OnLButtonDown(UINT nFlags, CPoint point)
+{
+	if (PressToolbarButton(point))
+		return;
+	CDialogEx::OnLButtonDown(nFlags, point);
+}
+
+void CMFCApplication1Dlg::OnMouseMove(UINT nFlags, CPoint point)
+{
+	if (m_pressedButton >= 0)
+	{
+		const bool inside = ToolbarButtonAt(point) == m_pressedButton;
+		if (inside != m_pressedInside)
+		{
+			m_pressedInside = inside;
+			InvalidateToolbar();
+		}
+	}
+	CDialogEx::OnMouseMove(nFlags, point);
+}
+
+void CMFCApplication1Dlg::OnLButtonUp(UINT nFlags, CPoint point)
+{
+	if (m_pressedButton >= 0)
+	{
+		const int pressed = m_pressedButton;
+		const bool over = ToolbarButtonAt(point) == pressed;
+		ReleaseCapture(); // OnCaptureChanged clears the pressed button
+		ReleaseToolbarButton();
+		if (over && IsButtonEnabled(SimStates(), pressed))
+			PostMessage(WM_COMMAND, MAKEWPARAM(kButtonCommands[pressed], 0), 0);
+		return;
+	}
+	CDialogEx::OnLButtonUp(nFlags, point);
+}
+
+void CMFCApplication1Dlg::OnCaptureChanged(CWnd* pWnd)
+{
+	ReleaseToolbarButton();
+	CDialogEx::OnCaptureChanged(pWnd);
+}
+
+void CMFCApplication1Dlg::ReleaseToolbarButton()
+{
+	if (m_pressedButton < 0)
+		return;
+	m_pressedButton = -1;
+	m_pressedInside = false;
+	if (GetCapture() == this)
+		ReleaseCapture(); // e.g. the run ended while the button was held
+	InvalidateToolbar();
 }
 
 // ユーザーが最小化したウィンドウをドラッグしているときに表示するカーソルを取得するために、
@@ -451,23 +686,24 @@ void CMFCApplication1Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL b
 	if (bSysMenu)
 		return;
 
-	const bool running = m_runState == RunState::Running;
+	const bool running = InRun();
 	const UINT idleOnly = MF_BYCOMMAND | (running ? MF_GRAYED : MF_ENABLED);
-	const UINT runningOnly = MF_BYCOMMAND | (running ? MF_ENABLED : MF_GRAYED);
 	pPopupMenu->EnableMenuItem(ID_FILE_LOAD_PROJECT, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_SETTINGS, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_FRAMES, idleOnly);
-	// 010 FR-013: no simulation while the frame editor is open (or reopening)
-	pPopupMenu->EnableMenuItem(ID_SIM_START,
-		MF_BYCOMMAND | (running || IsEditingFrames() ? MF_GRAYED : MF_ENABLED));
-	pPopupMenu->EnableMenuItem(ID_SIM_STOP, runningOnly);
+	// 014 FR-004: same states as the toolbar buttons (Start is also greyed
+	// while the frame editor is open, 010 FR-013)
+	const CanSim::SimCommandStates sim = SimStates();
+	pPopupMenu->EnableMenuItem(ID_SIM_START, MF_BYCOMMAND | (sim.Start ? MF_ENABLED : MF_GRAYED));
+	pPopupMenu->EnableMenuItem(ID_SIM_PAUSE, MF_BYCOMMAND | (sim.Pause ? MF_ENABLED : MF_GRAYED));
+	pPopupMenu->EnableMenuItem(ID_SIM_STOP, MF_BYCOMMAND | (sim.Stop ? MF_ENABLED : MF_GRAYED));
 	pPopupMenu->CheckMenuItem(ID_EDIT_FRAME_DISPLAY,
 		MF_BYCOMMAND | (m_settings.FrameDisplay ? MF_CHECKED : MF_UNCHECKED));
 }
 
 void CMFCApplication1Dlg::OnFileLoadProject()
 {
-	if (m_runState == RunState::Running)
+	if (InRun())
 		return;
 	CloseFrameEditor(); // 010 FR-014: the editor refers to the current project
 
@@ -512,7 +748,7 @@ bool CMFCApplication1Dlg::AskSavePath(CString& path)
 
 void CMFCApplication1Dlg::OnFileSaveProject()
 {
-	if (m_runState == RunState::Running)
+	if (InRun())
 		return; // 007 FR-001: the File menu is locked while running
 
 	CString path;
@@ -530,7 +766,7 @@ void CMFCApplication1Dlg::OnFileSaveProject()
 
 void CMFCApplication1Dlg::OnEditSettings()
 {
-	if (m_runState == RunState::Running)
+	if (InRun())
 		return;
 	CloseFrameEditor(); // 010 FR-014: ECU count and bit rate may change
 
@@ -551,7 +787,7 @@ void CMFCApplication1Dlg::OnEditSettings()
 // while a switch is pending nothing happens (it opens shortly).
 void CMFCApplication1Dlg::OnEditFrames()
 {
-	if (m_runState == RunState::Running)
+	if (InRun())
 		return; // 006 FR-001: not while a simulation runs
 	if (m_frameEditor != nullptr)
 	{
@@ -585,7 +821,7 @@ void CMFCApplication1Dlg::OpenFrameEditor(int ecu)
 	// FR-017: below the diagram, kept inside the monitor's work area.
 	CClientDC dc(this);
 	const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
-	CPoint pos(ScalePx(kEditorLeftPx, dpi), ScalePx(CanSim::kDiagramHeight + kEditorGapPx, dpi));
+	CPoint pos(ScalePx(kEditorLeftPx, dpi), ContentTop() + ScalePx(CanSim::kDiagramHeight + kEditorGapPx, dpi));
 	ClientToScreen(&pos);
 	CRect rect;
 	editor->GetWindowRect(&rect);
@@ -598,6 +834,7 @@ void CMFCApplication1Dlg::OpenFrameEditor(int ecu)
 	}
 	editor->SetWindowPos(nullptr, pos.x, pos.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 	editor->ShowWindow(SW_SHOW);
+	UpdateSimControls(); // 014: Start is greyed while editing
 }
 
 void CMFCApplication1Dlg::CloseFrameEditor()
@@ -606,11 +843,13 @@ void CMFCApplication1Dlg::CloseFrameEditor()
 	m_pendingEcu = 0;
 	if (m_frameEditor != nullptr)
 		m_frameEditor->DestroyWindow(); // the closed notice clears m_frameEditor
+	UpdateSimControls();
 }
 
 LRESULT CMFCApplication1Dlg::OnFrameEditorClosed(WPARAM /*wParam*/, LPARAM /*lParam*/)
 {
 	m_frameEditor = nullptr;
+	UpdateSimControls();
 	return 0;
 }
 
@@ -647,13 +886,19 @@ void CMFCApplication1Dlg::ClearGray()
 
 void CMFCApplication1Dlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 {
+	// 014: the second click of a quick double click on the toolbar is a press
+	if (point.y < ContentTop())
+	{
+		PressToolbarButton(point);
+		return;
+	}
 	CDialogEx::OnLButtonDblClk(nFlags, point);
-	if (m_runState == RunState::Running)
+	if (InRun())
 		return; // FR-006
 
 	CClientDC dc(this);
 	const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
-	const int ecu = CanSim::FindEcuAt(CanSim::ComputeBusDiagramLayout(m_ecuCount), point.x, point.y, dpi);
+	const int ecu = CanSim::FindEcuAt(CanSim::ComputeBusDiagramLayout(m_ecuCount), point.x, point.y - ContentTop(), dpi);
 	if (ecu == 0)
 		return; // FR-005: not on an ECU box
 
@@ -672,6 +917,7 @@ void CMFCApplication1Dlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 		CloseFrameEditor();
 		m_pendingEcu = ecu;
 		SetTimer(kSwitchTimerId, kSwitchDelayMs, nullptr);
+		UpdateSimControls();
 		return;
 	}
 	if (m_pendingEcu != 0)
@@ -687,7 +933,7 @@ void CMFCApplication1Dlg::OnEditFrameDisplay()
 	// Only decides whether the traffic is drawn (005 FR-007, FR-010). It
 	// cannot be switched while a simulation runs: the Edit menu is locked and
 	// the highlight follows the setting chosen at Start (007 FR-004).
-	if (m_runState == RunState::Running)
+	if (InRun())
 		return;
 	m_settings.FrameDisplay = !m_settings.FrameDisplay;
 	InvalidateRect(GetDiagramRect(), FALSE);
@@ -720,8 +966,13 @@ bool CMFCApplication1Dlg::WriteResults(const std::vector<CanSim::LogRow>& rows,
 
 void CMFCApplication1Dlg::OnSimStart()
 {
-	if (m_runState == RunState::Running)
+	if (m_runPhase == CanSim::RunPhase::Running)
 		return;
+	if (m_runPhase == CanSim::RunPhase::Paused)
+	{
+		ResumeReplay(); // 014 FR-006: no new run while paused
+		return;
+	}
 	if (IsEditingFrames())
 		return; // 010 FR-013: the menu item is greyed; guard other routes too
 
@@ -776,10 +1027,11 @@ void CMFCApplication1Dlg::OnSimStart()
 	m_active = CanSim::ActiveFrames();
 	m_prevSimUs = 0;
 	m_curSimUs = 0;
+	m_simBaseUs = 0;
 	QueryPerformanceFrequency(&m_qpcFrequency);
 	QueryPerformanceCounter(&m_replayStartQpc);
-	m_runState = RunState::Running;
-	UpdateTopMenus();
+	m_runPhase = CanSim::RunPhase::Running;
+	UpdateSimControls();
 	m_replayTimer = SetTimer(kReplayTimerId, kRefreshMs, nullptr);
 	InvalidateRect(GetDiagramRect(), FALSE);
 }
@@ -805,7 +1057,7 @@ void CMFCApplication1Dlg::UpdateTopMenus()
 	CMenu* menu = GetMenu();
 	if (menu == nullptr)
 		return;
-	const UINT state = MF_BYPOSITION | (m_runState == RunState::Running ? MF_GRAYED : MF_ENABLED);
+	const UINT state = MF_BYPOSITION | (InRun() ? MF_GRAYED : MF_ENABLED);
 	menu->EnableMenuItem(0, state);
 	menu->EnableMenuItem(1, state);
 	DrawMenuBar();
@@ -824,8 +1076,10 @@ void CMFCApplication1Dlg::StopReplayTimer()
 void CMFCApplication1Dlg::EndRun()
 {
 	StopReplayTimer();
-	m_runState = RunState::Idle;
-	UpdateTopMenus();
+	m_runPhase = CanSim::RunPhase::Idle;
+	m_simBaseUs = 0;
+	ReleaseToolbarButton();
+	UpdateSimControls();
 	m_cursor.reset();
 	m_events.clear();
 	m_active = CanSim::ActiveFrames();
@@ -853,6 +1107,8 @@ void CMFCApplication1Dlg::FinishReplay()
 // number of timer ticks (005 FR-005). Clamped to the simulation duration.
 long long CMFCApplication1Dlg::CurrentSimTimeUs() const
 {
+	if (m_runPhase == CanSim::RunPhase::Paused)
+		return m_curSimUs; // 014 FR-005: the clock is stopped
 	LARGE_INTEGER now;
 	QueryPerformanceCounter(&now);
 	const long long ticks = now.QuadPart - m_replayStartQpc.QuadPart;
@@ -860,7 +1116,7 @@ long long CMFCApplication1Dlg::CurrentSimTimeUs() const
 		? static_cast<long long>(static_cast<double>(ticks) * 1000000.0 / static_cast<double>(m_qpcFrequency.QuadPart))
 		: 0;
 	const long long endUs = m_settings.DurationSec * 1000000LL;
-	return (std::min)(CanSim::SimTimeAtUs(elapsedUs, m_settings.Speed), endUs);
+	return (std::min)(CanSim::ResumedSimTimeUs(m_simBaseUs, elapsedUs, m_settings.Speed), endUs);
 }
 
 void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
@@ -876,16 +1132,24 @@ void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 		KillTimer(kSwitchTimerId);
 		const int ecu = m_pendingEcu;
 		m_pendingEcu = 0;
-		if (ecu != 0 && m_runState != RunState::Running && m_frameEditor == nullptr)
+		if (ecu != 0 && !InRun() && m_frameEditor == nullptr)
 			OpenFrameEditor(ecu);
+		UpdateSimControls();
 		return;
 	}
-	if (nIDEvent != kReplayTimerId || m_runState != RunState::Running)
+	if (nIDEvent != kReplayTimerId || m_runPhase != CanSim::RunPhase::Running)
 	{
 		CDialogEx::OnTimer(nIDEvent);
 		return;
 	}
 
+	AdvanceReplay();
+}
+
+// One refresh of the replay: brings the display up to the current simulated
+// time. Returns false when the end was reached and the run is finished.
+bool CMFCApplication1Dlg::AdvanceReplay()
+{
 	// Highlight every frame that was on the bus since the previous refresh
 	// (005 FR-009).
 	m_curSimUs = CurrentSimTimeUs();
@@ -896,9 +1160,36 @@ void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 	if (m_curSimUs >= m_settings.DurationSec * 1000000LL)
 	{
 		FinishReplay();
-		return;
+		return false;
 	}
 	InvalidateRect(GetDiagramRect(), FALSE);
+	return true;
+}
+
+// 014 FR-005: the display is brought up to now, then the clock stops. The
+// highlight and the log stay as they are until Start (resume) or Stop.
+void CMFCApplication1Dlg::OnSimPause()
+{
+	if (m_runPhase != CanSim::RunPhase::Running)
+		return;
+	if (!AdvanceReplay())
+		return; // the end was reached: finished as usual
+	StopReplayTimer();
+	m_runPhase = CanSim::RunPhase::Paused;
+	UpdateSimControls();
+	UpdateWindow();
+}
+
+// 014 FR-006: continues from the simulated time of the pause at the same
+// speed; nothing is recomputed and the displays are kept.
+void CMFCApplication1Dlg::ResumeReplay()
+{
+	m_simBaseUs = m_curSimUs;
+	m_prevSimUs = m_curSimUs;
+	QueryPerformanceCounter(&m_replayStartQpc);
+	m_runPhase = CanSim::RunPhase::Running;
+	m_replayTimer = SetTimer(kReplayTimerId, kRefreshMs, nullptr);
+	UpdateSimControls();
 }
 
 // Stops at the current simulated time. The run is repeated up to that time
@@ -906,7 +1197,7 @@ void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 // by then (005 FR-012).
 void CMFCApplication1Dlg::OnSimStop()
 {
-	if (m_runState != RunState::Running)
+	if (!InRun())
 		return;
 
 	const long long stopUs = CurrentSimTimeUs();
@@ -958,7 +1249,9 @@ namespace
 CRect CMFCApplication1Dlg::GetLogRect() const
 {
 	CClientDC dc(const_cast<CMFCApplication1Dlg*>(this));
-	return ToCRect(CanSim::ScaleLogViewRect(dc.GetDeviceCaps(LOGPIXELSX)));
+	CRect r = ToCRect(CanSim::ScaleLogViewRect(dc.GetDeviceCaps(LOGPIXELSX)));
+	r.OffsetRect(0, ContentTop()); // 014: below the toolbar
+	return r;
 }
 
 CRect CMFCApplication1Dlg::GetLogTextRect() const
@@ -1045,7 +1338,8 @@ void CMFCApplication1Dlg::DrawLogView(CDC& dc)
 // that redrawing the rows never touches it.
 void CMFCApplication1Dlg::DrawLogFrame(CDC& dc)
 {
-	const CRect frame = ToCRect(CanSim::ScaleLogFrameRect(dc.GetDeviceCaps(LOGPIXELSX)));
+	CRect frame = ToCRect(CanSim::ScaleLogFrameRect(dc.GetDeviceCaps(LOGPIXELSX)));
+	frame.OffsetRect(0, ContentTop()); // 014: below the toolbar
 	CPen pen(PS_SOLID, (std::max)(1, ScaleForDialog(this, 1)), kAreaFrameColor);
 	CPen* oldPen = dc.SelectObject(&pen);
 	CGdiObject* oldBrush = dc.SelectStockObject(NULL_BRUSH);
