@@ -138,4 +138,7 @@ private:
 	void DrawLogFrame(CDC& dc);
 
 	int m_grayEcu = 0; // ECU drawn grey for a moment after a double-click, 0 = none
+
+	// ---- feature 012 ----
+	void ResetDisplaysForRun(); // empty log view and diagram, painted at once
 };

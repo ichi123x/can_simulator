@@ -743,9 +743,10 @@ void CMFCApplication1Dlg::OnSimStart()
 	}
 
 	// 009 FR-010: a new run starts with an empty log view. Cleared before
-	// m_runRows is replaced, since the rows refer to it.
-	ClearLog();
-	ClearGray(); // 011 FR-007
+	// m_runRows is replaced, since the rows refer to it. 012 FR-005: the
+	// displays are reset and painted before anything of the run is set up,
+	// so the previous result is gone while the run is being computed.
+	ResetDisplaysForRun();
 
 	{
 		// The run is synchronous; at most 600 s of simulated time
@@ -781,6 +782,19 @@ void CMFCApplication1Dlg::OnSimStart()
 	UpdateTopMenus();
 	m_replayTimer = SetTimer(kReplayTimerId, kRefreshMs, nullptr);
 	InvalidateRect(GetDiagramRect(), FALSE);
+}
+
+// 012 FR-001..FR-003: empty log view scrolled to the top, no grey ECU and no
+// highlight. UpdateWindow paints it now; otherwise it would only show after
+// the synchronous computation of the run.
+void CMFCApplication1Dlg::ResetDisplaysForRun()
+{
+	ClearLog();
+	ClearGray();
+	m_active = CanSim::ActiveFrames();
+	InvalidateRect(GetDiagramRect(), FALSE);
+	InvalidateRect(GetLogTextRect(), FALSE);
+	UpdateWindow();
 }
 
 // 007 FR-001/FR-002: while running, the File (position 0) and Edit
