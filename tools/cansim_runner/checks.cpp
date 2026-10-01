@@ -21,10 +21,13 @@
 #include "LogLines.h"
 #include "FrameEditor.h"
 #include "SimControls.h"
+#include "FlowEffect.h"
 
 #include <climits>
 
 #include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -1626,6 +1629,168 @@ namespace
             actions = actions && GetSpeedChangeAction(r.Phase, r.Speed) == r.Action;
         Check(actions, "015 FR-007..FR-009: a speed change rebases while running, waits while paused, and +10 finishes at once");
     }
+    void CheckFeature017()
+    {
+        std::cout << "\n== feature 017: frame display check box and simulated time ==\n";
+        const int dpis[] = { 96, 120, 144 };
+        bool order = true, inside = true, toggle = true;
+        for (int dpi : dpis)
+        {
+            const int band = ScaleToDpi(kToolbarHeight, dpi);
+            const int hitLeft = ScaleToDpi(kFrameDisplayHitLeft, dpi);
+            const int hitRight = ScaleToDpi(kFrameDisplayHitRight, dpi);
+            const int sliderLeft = SpeedTickX(kMinSpeed, dpi) - ScaleToDpi(kSpeedTickPitch / 2, dpi);
+            const int sliderRight = SpeedTickX(kMaxSpeed, dpi) + ScaleToDpi(kSpeedTickPitch / 2, dpi);
+            const DiagramRect area = SimTimeAreaRect(dpi);
+            order = order && SimButtonRect(2, dpi).Right < hitLeft && hitRight <= sliderLeft && sliderRight <= area.Left;
+
+            const DiagramRect box = FrameDisplayBoxRect(dpi);
+            const DiagramRect label = FrameDisplayLabelRect(dpi);
+            const DiagramRect value = SimTimeValueRect(dpi);
+            const DiagramRect unit = SimTimeUnitRect(dpi);
+            const DiagramRect caption = SimTimeCaptionRect(dpi);
+            inside = inside && area.Right <= ScaleToDpi(kDiagramWidth, dpi) && area.Bottom <= band &&
+                box.Left >= hitLeft && box.Right <= label.Left && label.Right <= hitRight &&
+                box.Top >= ScaleToDpi(kFrameDisplayHitTop, dpi) && label.Bottom <= ScaleToDpi(kFrameDisplayHitBottom, dpi) &&
+                ScaleToDpi(kFrameDisplayHitBottom, dpi) <= band &&
+                value.Right <= unit.Left && caption.Bottom <= value.Top && unit.Right <= area.Right;
+
+            const DiagramRect stop = SimButtonRect(2, dpi);
+            toggle = toggle && IsOnFrameDisplayToggle((box.Left + box.Right) / 2, (box.Top + box.Bottom) / 2, dpi) &&
+                IsOnFrameDisplayToggle((label.Left + label.Right) / 2, (label.Top + label.Bottom) / 2, dpi) &&
+                !IsOnFrameDisplayToggle((stop.Left + stop.Right) / 2, (stop.Top + stop.Bottom) / 2, dpi) &&
+                !IsOnFrameDisplayToggle(SpeedTickX(kMinSpeed, dpi), ScaleToDpi(20, dpi), dpi) &&
+                !IsOnFrameDisplayToggle((box.Left + box.Right) / 2, band + 1, dpi);
+        }
+        Check(order, "017 FR-002/FR-006: buttons, check box, slider and simulated time are placed left to right without overlap (DPI 96/120/144)");
+        Check(inside, "017: everything stays inside the toolbar band and the window width; box and label inside the hit area");
+        Check(toggle, "017 FR-003: IsOnFrameDisplayToggle covers the box and the label only");
+        Check(FormatSimTimeUs(0) == "0" && FormatSimTimeUs(999) == "999" && FormatSimTimeUs(1000) == "1,000" &&
+            FormatSimTimeUs(1234567) == "1,234,567" && FormatSimTimeUs(10000000) == "10,000,000" &&
+            FormatSimTimeUs(600000000) == "600,000,000" && FormatSimTimeUs(-5) == "0",
+            "017 FR-007: FormatSimTimeUs groups the digits by three");
+    }
+    void CheckFeature018()
+    {
+        std::cout << "\n== feature 018: flow animation ==\n";
+        bool phaseOk = FlowPhase(0) == 0.0 && FlowPhase(300000) == 0.5 && FlowPhase(600000) == 0.0 && FlowPhase(-1) == 0.0;
+        for (long long us = 0; us < 3000000; us += 3001)
+        {
+            const double p = FlowPhase(us);
+            phaseOk = phaseOk && p >= 0.0 && p < 1.0;
+        }
+        Check(phaseOk, "018 FR-002: FlowPhase repeats every 600 ms of real time and stays in [0, 1)");
+
+        const BusDiagramLayout six = ComputeBusDiagramLayout(6);
+        const int pairs[][2] = { { 1, 2 }, { 2, 1 }, { 1, 3 }, { 3, 1 }, { 6, 1 } };
+        bool ends = true, onPath = true, forward = true;
+        for (const auto& pr : pairs)
+        {
+            const EcuPlacement& s = six.Ecus[pr[0] - 1];
+            const EcuPlacement& r = six.Ecus[pr[1] - 1];
+            const FlowPoint a = FlowPointAt(s, r, 0.0);
+            const FlowPoint b = FlowPointAt(s, r, 1.0);
+            ends = ends && std::fabs(a.X - s.LineX) < 1e-6 && std::fabs(a.Y - s.LineY1) < 1e-6 &&
+                std::fabs(b.X - r.LineX) < 1e-6 && std::fabs(b.Y - r.LineY1) < 1e-6;
+            double travelled = -1.0;
+            FlowPoint prev = a;
+            double total = 0.0;
+            for (int i = 0; i <= 100; ++i)
+            {
+                const FlowPoint q = FlowPointAt(s, r, i / 100.0);
+                onPath = onPath && (std::fabs(q.X - s.LineX) < 1e-6 || std::fabs(q.X - r.LineX) < 1e-6 ||
+                    std::fabs(q.Y - kBusY) < 1e-6);
+                total += std::fabs(q.X - prev.X) + std::fabs(q.Y - prev.Y);
+                forward = forward && total >= travelled;
+                travelled = total;
+                prev = q;
+            }
+            forward = forward && std::fabs(total - FlowPathLength(s, r)) < 1e-6;
+        }
+        Check(ends, "018 FR-001: a path starts at the sender box edge and ends at the receiver box edge");
+        Check(onPath, "018 FR-005: every point of a path is on the sender stub, the bus or the receiver stub");
+        Check(forward, "018 FR-001: particles move forward along the path as f grows");
+
+        ActiveFrames active;
+        active.Senders = { 1 };
+        active.Receivers = { 3, 5 };
+        active.BusBusy = true;
+        active.Flows = { { 1, 3 }, { 1, 5 } };
+        const FlowEffect e = ComputeFlowEffect(six, active, 0.0);
+        bool countOk = e.Particles.size() == 6;
+        ActiveFrames none = active;
+        none.Flows.clear();
+        countOk = countOk && ComputeFlowEffect(six, none, 0.3).Particles.empty() && ComputeFlowEffect(six, none, 0.3).Glows.empty();
+        none = active;
+        none.BusBusy = false;
+        countOk = countOk && ComputeFlowEffect(six, none, 0.3).Particles.empty() && ComputeFlowEffect(six, none, 0.3).Glows.empty();
+        Check(countOk, "018 FR-001/FR-005: 3 particles per (sender, receiver) pair; nothing when the bus is idle or there is no pair");
+
+        // Collect keeps the pairs even when both ECUs send in the same interval
+        // (they are then both red and Receivers is empty).
+        {
+            std::vector<FrameEvent> events(2);
+            events[0].TxStartUs = 0; events[0].TxEndUs = 200; events[0].TxNodeId = 1; events[0].RxNodeIds = { 2, 3 };
+            events[1].TxStartUs = 300; events[1].TxEndUs = 500; events[1].TxNodeId = 3; events[1].RxNodeIds = { 1, 2 };
+            ActiveFrameCursor cursor(events);
+            const ActiveFrames a = cursor.Collect(0, 25000);
+            const std::vector<std::pair<int, int>> expect = { { 1, 2 }, { 1, 3 }, { 3, 1 }, { 3, 2 } };
+            Check(a.Flows == expect && a.Receivers == std::vector<int>{ 2 } && a.Senders == std::vector<int>{ 1, 3 },
+                "018 FR-001: Collect keeps every (sender, receiver) pair of the interval, also between two senders");
+            ActiveFrames both;
+            both.Senders = { 1, 3 };
+            both.BusBusy = true;
+            both.Flows = { { 1, 3 }, { 3, 1 } };
+            Check(ComputeFlowEffect(ComputeBusDiagramLayout(3), both, 0.5).Particles.size() == 6,
+                "018 FR-001: two ECUs sending to each other in one refresh still get particles");
+        }
+
+        ActiveFrames one;
+        one.Senders = { 1 };
+        one.Receivers = { 3 };
+        one.BusBusy = true;
+        one.Flows = { { 1, 3 } };
+        bool noOthers = true;
+        for (int i = 0; i < 50; ++i)
+        {
+            const FlowEffect f = ComputeFlowEffect(six, one, i / 50.0);
+            for (const FlowPoint& q : f.Particles)
+                for (int n : { 2, 4, 5, 6 })
+                {
+                    const EcuPlacement& o = six.Ecus[n - 1];
+                    const double lo = (std::min)(static_cast<double>(o.LineY1), static_cast<double>(kBusY));
+                    const double hi = (std::max)(static_cast<double>(o.LineY1), static_cast<double>(kBusY));
+                    noOthers = noOthers && !(std::fabs(q.X - o.LineX) < 1e-6 && q.Y > lo + 1e-6 && q.Y < hi - 1e-6);
+                }
+        }
+        Check(noOthers, "018 FR-005: no particle on the stub line of an ECU that does not receive");
+
+        bool glowOk = false;
+        for (const FlowGlow& g : e.Glows)
+            if (g.Ecu == 1 && g.Sender && std::fabs(g.Strength - 1.0) < 1e-9)
+                glowOk = true;
+        for (int i = 0; i < 50; ++i)
+            for (const FlowGlow& g : ComputeFlowEffect(six, active, i / 50.0).Glows)
+                glowOk = glowOk && g.Strength > 0.0 && g.Strength <= 1.0;
+        Check(glowOk, "018 FR-003: the sender glows fully when a particle leaves; glow strengths stay in (0, 1]");
+
+        const BusDiagramLayout sixteen = ComputeBusDiagramLayout(16);
+        ActiveFrames many;
+        for (int n = 1; n <= 8; ++n) many.Senders.push_back(n);
+        for (int n = 9; n <= 16; ++n) many.Receivers.push_back(n);
+        many.BusBusy = true;
+        for (int s = 1; s <= 8; ++s)
+            for (int r = 9; r <= 16; ++r)
+                many.Flows.emplace_back(s, r);
+        std::size_t sink = 0;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < 1000; ++i)
+            sink += ComputeFlowEffect(sixteen, many, (i % 600) / 600.0).Particles.size();
+        const double sec = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        std::ostringstream what;
+        what << "018 SC-005: 1000 effects for 8 x 8 ECUs take less than 1 s (" << sec << " s)";
+        Check(sec < 1.0 && sink == 1000u * 8 * 8 * 3, what.str());
+    }
 }
 
 int main(int argc, char** argv)
@@ -1653,6 +1818,8 @@ int main(int argc, char** argv)
     CheckFeature011();
     CheckFeature014();
     CheckFeature015();
+    CheckFeature017();
+    CheckFeature018();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

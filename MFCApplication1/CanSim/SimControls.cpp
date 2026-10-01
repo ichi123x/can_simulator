@@ -156,4 +156,69 @@ namespace CanSim
             return SpeedChangeAction::FinishNow;
         return phase == RunPhase::Running ? SpeedChangeAction::Rebase : SpeedChangeAction::None;
     }
+
+    namespace
+    {
+        DiagramRect ScaledRect(int left, int top, int right, int bottom, int dpi)
+        {
+            DiagramRect r;
+            r.Left = ScaleToDpi(left, dpi);
+            r.Top = ScaleToDpi(top, dpi);
+            r.Right = ScaleToDpi(right, dpi);
+            r.Bottom = ScaleToDpi(bottom, dpi);
+            return r;
+        }
+    }
+
+    DiagramRect FrameDisplayBoxRect(int dpi)
+    {
+        return ScaledRect(kFrameDisplayBoxLeft, kFrameDisplayBoxTop,
+            kFrameDisplayBoxLeft + kFrameDisplayBoxSize, kFrameDisplayBoxTop + kFrameDisplayBoxSize, dpi);
+    }
+
+    DiagramRect FrameDisplayLabelRect(int dpi)
+    {
+        return ScaledRect(kFrameDisplayLabelLeft, kFrameDisplayLabelTop, kFrameDisplayLabelRight, kFrameDisplayLabelBottom, dpi);
+    }
+
+    bool IsOnFrameDisplayToggle(int x, int y, int dpi)
+    {
+        const DiagramRect r = ScaledRect(kFrameDisplayHitLeft, kFrameDisplayHitTop, kFrameDisplayHitRight, kFrameDisplayHitBottom, dpi);
+        return x >= r.Left && x < r.Right && y >= r.Top && y < r.Bottom;
+    }
+
+    DiagramRect SimTimeCaptionRect(int dpi)
+    {
+        return ScaledRect(kSimTimeLeft, kSimTimeCaptionTop, kSimTimeRight, kSimTimeCaptionBottom, dpi);
+    }
+
+    DiagramRect SimTimeValueRect(int dpi)
+    {
+        return ScaledRect(kSimTimeLeft, kSimTimeValueTop, kSimTimeValueRight, kSimTimeValueBottom, dpi);
+    }
+
+    DiagramRect SimTimeUnitRect(int dpi)
+    {
+        return ScaledRect(kSimTimeUnitLeft, kSimTimeValueTop, kSimTimeRight, kSimTimeValueBottom, dpi);
+    }
+
+    DiagramRect SimTimeAreaRect(int dpi)
+    {
+        return ScaledRect(kSimTimeLeft, kSimTimeCaptionTop, kSimTimeRight, kSimTimeValueBottom, dpi);
+    }
+
+    std::string FormatSimTimeUs(long long us)
+    {
+        if (us < 0)
+            us = 0;
+        const std::string digits = std::to_string(us);
+        std::string out;
+        for (std::size_t i = 0; i < digits.size(); ++i)
+        {
+            if (i > 0 && (digits.size() - i) % 3 == 0)
+                out += ',';
+            out += digits[i];
+        }
+        return out;
+    }
 }

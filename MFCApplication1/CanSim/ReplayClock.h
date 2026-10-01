@@ -7,6 +7,7 @@
 #pragma once
 
 #include "FrameEvents.h"
+#include <utility>
 #include <vector>
 
 namespace CanSim
@@ -22,6 +23,11 @@ namespace CanSim
         std::vector<int> Senders;   // ECU numbers, ascending, unique
         std::vector<int> Receivers; // ascending, unique, never also in Senders
         bool BusBusy = false;
+        // Feature 018: (sender, receiver) of every frame in the interval,
+        // ascending, unique, sender != receiver. Unlike Receivers it keeps an
+        // ECU that also sent in the same interval, so that the flow animation
+        // has a path even when every ECU sends within one refresh.
+        std::vector<std::pair<int, int>> Flows;
     };
 
     // Walks the replay events (sorted by TxStartUs; frames never overlap on

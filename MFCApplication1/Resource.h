@@ -80,11 +80,13 @@
 #define IDS_SIM_BTN_START				242	// feature 014
 #define IDS_SIM_BTN_PAUSE				243
 #define IDS_SIM_BTN_STOP				244
+#define IDS_FRAME_DISPLAY_LABEL			245	// feature 017
+#define IDS_SIM_TIME_CAPTION			246
+#define IDS_SIM_TIME_UNIT				247
 
 #define ID_FILE_LOAD_PROJECT			32771
 #define ID_FILE_SAVE_PROJECT			32772
 #define ID_EDIT_SETTINGS				32773
-#define ID_EDIT_FRAME_DISPLAY			32774
 #define ID_SIM_START					32775
 #define ID_SIM_STOP						32776
 #define ID_SIM_PAUSE					32778	// feature 014
@@ -96,7 +98,7 @@
 
 #define _APS_NEXT_RESOURCE_VALUE	133
 #define _APS_NEXT_CONTROL_VALUE		1026
-#define _APS_NEXT_SYMED_VALUE		245
+#define _APS_NEXT_SYMED_VALUE		248
 #define _APS_NEXT_COMMAND_VALUE		32779
 #endif
 #endif

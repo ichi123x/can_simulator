@@ -46,7 +46,12 @@ namespace CanSim
             active.BusBusy = true;
             active.Senders.push_back(ev.TxNodeId);
             active.Receivers.insert(active.Receivers.end(), ev.RxNodeIds.begin(), ev.RxNodeIds.end());
+            for (int rx : ev.RxNodeIds)
+                if (rx != ev.TxNodeId)
+                    active.Flows.emplace_back(ev.TxNodeId, rx);
         }
+        std::sort(active.Flows.begin(), active.Flows.end());
+        active.Flows.erase(std::unique(active.Flows.begin(), active.Flows.end()), active.Flows.end());
 
         std::sort(active.Senders.begin(), active.Senders.end());
         active.Senders.erase(std::unique(active.Senders.begin(), active.Senders.end()), active.Senders.end());

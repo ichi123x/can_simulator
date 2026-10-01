@@ -87,7 +87,6 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_COMMAND(ID_FILE_SAVE_PROJECT, &CMFCApplication1Dlg::OnFileSaveProject)
 	ON_COMMAND(ID_EDIT_SETTINGS, &CMFCApplication1Dlg::OnEditSettings)
 	ON_COMMAND(ID_EDIT_FRAMES, &CMFCApplication1Dlg::OnEditFrames)
-	ON_COMMAND(ID_EDIT_FRAME_DISPLAY, &CMFCApplication1Dlg::OnEditFrameDisplay)
 	ON_COMMAND(ID_SIM_START, &CMFCApplication1Dlg::OnSimStart)
 	ON_COMMAND(ID_SIM_PAUSE, &CMFCApplication1Dlg::OnSimPause)
 	ON_COMMAND(ID_SIM_STOP, &CMFCApplication1Dlg::OnSimStop)
@@ -305,7 +304,8 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 
 	// Frames on the bus since the previous refresh (005 FR-009). Nothing is
 	// highlighted when the frame display is off (005 FR-010) or no
-	// simulation is running.
+	// simulation is running. 017: the toolbar check box switches it at any
+	// time; m_active is collected either way, so the change shows at once.
 	const CanSim::ActiveFrames* active = nullptr;
 	if (InRun() && m_settings.FrameDisplay)
 		active = &m_active;
@@ -388,9 +388,56 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 		mem.SetTextColor(kTextColor);
 	}
 
+	// 018: flow animation over the highlight: glows around the boxes, then
+	// the particles moving from the senders to the receivers.
+	if (active != nullptr && active->BusBusy)
+		DrawFlowEffect(mem, layout, *active, dpi);
+
 	mem.SelectObject(oldFont);
 	dc.BitBlt(area.left, area.top + ContentTop(), area.Width(), area.Height(), &mem, 0, 0, SRCCOPY);
 	mem.SelectObject(oldBmp);
+}
+
+void CMFCApplication1Dlg::DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayout& layout,
+	const CanSim::ActiveFrames& active, int dpi)
+{
+	const CanSim::FlowEffect effect =
+		CanSim::ComputeFlowEffect(layout, active, CanSim::FlowPhase(m_flowElapsedUs));
+	const COLORREF kFlowColor = RGB(255, 235, 90);
+	CGdiObject* oldBrush = mem.SelectStockObject(NULL_BRUSH);
+	for (const CanSim::FlowGlow& glow : effect.Glows)
+	{
+		const CanSim::EcuPlacement* ecu = nullptr;
+		for (const CanSim::EcuPlacement& e : layout.Ecus)
+			if (e.Number == glow.Ecu)
+				ecu = &e;
+		if (ecu == nullptr)
+			continue;
+		// Yellow towards white as the glow gets stronger.
+		const double s = glow.Strength;
+		const COLORREF color = RGB(255, 235 + static_cast<int>(20 * s), 90 + static_cast<int>(165 * s));
+		CPen pen(PS_SOLID, (std::max)(1, static_cast<int>(ScalePx(1, dpi) + 3.0 * s * dpi / 96.0 + 0.5)), color);
+		CPen* oldPen = mem.SelectObject(&pen);
+		CRect r = ScaleRect(ecu->Box, dpi);
+		r.InflateRect(ScalePx(CanSim::kFlowGlowInset, dpi), ScalePx(CanSim::kFlowGlowInset, dpi));
+		const int corner = ScalePx(kEcuCornerPx + 3, dpi);
+		mem.RoundRect(r, CPoint(corner, corner));
+		mem.SelectObject(oldPen);
+	}
+
+	CPen edge(PS_SOLID, (std::max)(1, ScalePx(1, dpi)), RGB(255, 255, 255));
+	CBrush fill(kFlowColor);
+	CPen* oldPen = mem.SelectObject(&edge);
+	mem.SelectObject(&fill);
+	const int radius = ScalePx(CanSim::kFlowParticleRadius, dpi);
+	for (const CanSim::FlowPoint& p : effect.Particles)
+	{
+		const int x = static_cast<int>(p.X * dpi / 96.0 + 0.5);
+		const int y = static_cast<int>(p.Y * dpi / 96.0 + 0.5);
+		mem.Ellipse(x - radius, y - radius, x + radius + 1, y + radius + 1);
+	}
+	mem.SelectObject(oldPen);
+	mem.SelectObject(oldBrush);
 }
 
 // ---- feature 014: toolbar with Start / Pause / Stop ----
@@ -517,6 +564,56 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		mem.DrawText(name, label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 	}
 
+	// 017: frame display check box
+	{
+		const CRect box = ButtonRect(CanSim::FrameDisplayBoxRect(dpi));
+		mem.FillSolidRect(box, RGB(160, 160, 165)); // frame of the check box
+		CRect inner = box;
+		inner.DeflateRect(1, 1);
+		mem.FillSolidRect(inner, kButtonFace);
+		if (m_settings.FrameDisplay)
+		{
+			const int s = box.Width();
+			CPen checkPen(PS_SOLID, (std::max)(1, ScalePx(2, dpi)), kSpeedThumbFrame);
+			CPen* oldCheck = mem.SelectObject(&checkPen);
+			mem.MoveTo(box.left + s * 20 / 100, box.top + s * 50 / 100);
+			mem.LineTo(box.left + s * 42 / 100, box.top + s * 75 / 100);
+			mem.LineTo(box.left + s * 82 / 100, box.top + s * 25 / 100);
+			mem.SelectObject(oldCheck);
+		}
+		CString name;
+		name.LoadString(IDS_FRAME_DISPLAY_LABEL);
+		CRect label = ButtonRect(CanSim::FrameDisplayLabelRect(dpi));
+		mem.SelectObject(&font);
+		mem.SetTextColor(RGB(255, 255, 255));
+		mem.DrawText(name, label, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+	}
+
+	// 017: simulated time at the right end
+	{
+		const COLORREF dim = RGB(200, 200, 205);
+		CString caption, unit;
+		caption.LoadString(IDS_SIM_TIME_CAPTION);
+		unit.LoadString(IDS_SIM_TIME_UNIT);
+		mem.SelectObject(&font);
+		mem.SetTextColor(dim);
+		CRect r = ButtonRect(CanSim::SimTimeCaptionRect(dpi));
+		mem.DrawText(caption, r, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+		r = ButtonRect(CanSim::SimTimeUnitRect(dpi));
+		mem.DrawText(unit, r, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+		CFont valueFont;
+		valueFont.CreateFont(-ScalePx(16, dpi), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+			DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
+		mem.SelectObject(&valueFont);
+		mem.SetTextColor(RGB(255, 255, 255));
+		r = ButtonRect(CanSim::SimTimeValueRect(dpi));
+		const CString value(CanSim::FormatSimTimeUs(m_displaySimUs).c_str());
+		mem.DrawText(value, r, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+		mem.SelectObject(&font);
+	}
+
 	// 015: speed slider right of the buttons
 	{
 		const COLORREF track = RGB(160, 160, 165);
@@ -594,9 +691,18 @@ bool CMFCApplication1Dlg::PressToolbarButton(CPoint point)
 
 void CMFCApplication1Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
-	if (PressToolbarButton(point) || PressSpeedSlider(point))
+	if (PressToolbarButton(point) || PressFrameDisplayToggle(point) || PressSpeedSlider(point))
 		return;
 	CDialogEx::OnLButtonDown(nFlags, point);
+}
+
+bool CMFCApplication1Dlg::PressFrameDisplayToggle(CPoint point)
+{
+	CClientDC dc(this);
+	if (!CanSim::IsOnFrameDisplayToggle(point.x, point.y, dc.GetDeviceCaps(LOGPIXELSX)))
+		return false;
+	ToggleFrameDisplay();
+	return true;
 }
 
 // 015 FR-005: a press on the slider moves the thumb to the nearest tick and
@@ -811,8 +917,6 @@ void CMFCApplication1Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL b
 	pPopupMenu->EnableMenuItem(ID_SIM_START, MF_BYCOMMAND | (sim.Start ? MF_ENABLED : MF_GRAYED));
 	pPopupMenu->EnableMenuItem(ID_SIM_PAUSE, MF_BYCOMMAND | (sim.Pause ? MF_ENABLED : MF_GRAYED));
 	pPopupMenu->EnableMenuItem(ID_SIM_STOP, MF_BYCOMMAND | (sim.Stop ? MF_ENABLED : MF_GRAYED));
-	pPopupMenu->CheckMenuItem(ID_EDIT_FRAME_DISPLAY,
-		MF_BYCOMMAND | (m_settings.FrameDisplay ? MF_CHECKED : MF_UNCHECKED));
 }
 
 void CMFCApplication1Dlg::OnFileLoadProject()
@@ -1004,7 +1108,7 @@ void CMFCApplication1Dlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 	// 014: the second click of a quick double click on the toolbar is a press
 	if (point.y < ContentTop())
 	{
-		if (!PressToolbarButton(point))
+		if (!PressToolbarButton(point) && !PressFrameDisplayToggle(point))
 			PressSpeedSlider(point);
 		return;
 	}
@@ -1044,15 +1148,27 @@ void CMFCApplication1Dlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 	OpenFrameEditor(ecu); // FR-001, FR-002
 }
 
-void CMFCApplication1Dlg::OnEditFrameDisplay()
+// 017 FR-003/FR-004: the frame display check box. Any time, also while
+// running or paused: only the highlight follows it.
+void CMFCApplication1Dlg::ToggleFrameDisplay()
 {
-	// Only decides whether the traffic is drawn (005 FR-007, FR-010). It
-	// cannot be switched while a simulation runs: the Edit menu is locked and
-	// the highlight follows the setting chosen at Start (007 FR-004).
-	if (InRun())
-		return;
 	m_settings.FrameDisplay = !m_settings.FrameDisplay;
 	InvalidateRect(GetDiagramRect(), FALSE);
+	InvalidateToolbar();
+}
+
+// 017 FR-007: the simulated time shown at the right end of the toolbar.
+void CMFCApplication1Dlg::SetDisplaySimUs(long long us)
+{
+	if (us == m_displaySimUs)
+		return;
+	m_displaySimUs = us;
+	if (GetSafeHwnd() != nullptr)
+	{
+		CClientDC dc(this);
+		const CanSim::DiagramRect r = CanSim::SimTimeAreaRect(dc.GetDeviceCaps(LOGPIXELSX));
+		InvalidateRect(CRect(r.Left, r.Top, r.Right, r.Bottom), FALSE);
+	}
 }
 
 bool CMFCApplication1Dlg::WriteResults(const std::vector<CanSim::LogRow>& rows,
@@ -1146,6 +1262,8 @@ void CMFCApplication1Dlg::OnSimStart()
 	m_simBaseUs = 0;
 	QueryPerformanceFrequency(&m_qpcFrequency);
 	QueryPerformanceCounter(&m_replayStartQpc);
+	m_flowElapsedUs = 0; // 018: the flow animation starts a new round
+	m_flowLastQpc = m_replayStartQpc;
 	m_runPhase = CanSim::RunPhase::Running;
 	UpdateSimControls();
 	m_replayTimer = SetTimer(kReplayTimerId, kRefreshMs, nullptr);
@@ -1157,6 +1275,7 @@ void CMFCApplication1Dlg::OnSimStart()
 // the synchronous computation of the run.
 void CMFCApplication1Dlg::ResetDisplaysForRun()
 {
+	SetDisplaySimUs(0); // 017 FR-007: a new run starts at 0
 	ClearLog();
 	ClearGray();
 	m_active = CanSim::ActiveFrames();
@@ -1206,6 +1325,7 @@ void CMFCApplication1Dlg::EndRun()
 // Writes the full result of the current run and returns to Idle.
 void CMFCApplication1Dlg::FinishReplay()
 {
+	SetDisplaySimUs(m_settings.DurationSec * 1000000LL); // 017: the end of the run
 	EndRun();
 	SetLogShown(m_logLines.size()); // 009 FR-005: every row once the run is complete
 
@@ -1267,12 +1387,23 @@ void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 // time. Returns false when the end was reached and the run is finished.
 bool CMFCApplication1Dlg::AdvanceReplay()
 {
+	// 018 FR-006/FR-007: the flow animation clock runs in real time while the
+	// run is Running only (no refresh while paused), whatever the speed.
+	{
+		LARGE_INTEGER now;
+		QueryPerformanceCounter(&now);
+		if (m_qpcFrequency.QuadPart > 0)
+			m_flowElapsedUs += static_cast<long long>(static_cast<double>(now.QuadPart - m_flowLastQpc.QuadPart) *
+				1000000.0 / static_cast<double>(m_qpcFrequency.QuadPart));
+		m_flowLastQpc = now;
+	}
 	// Highlight every frame that was on the bus since the previous refresh
 	// (005 FR-009).
 	m_curSimUs = CurrentSimTimeUs();
 	m_active = m_cursor->Collect(m_prevSimUs, m_curSimUs);
 	m_prevSimUs = m_curSimUs;
 	ShowLogUpTo(m_curSimUs); // 009: rows appear on the same clock, display on or off
+	SetDisplaySimUs(m_curSimUs); // 017
 
 	if (m_curSimUs >= m_settings.DurationSec * 1000000LL)
 	{
@@ -1304,6 +1435,7 @@ void CMFCApplication1Dlg::ResumeReplay()
 	m_simBaseUs = m_curSimUs;
 	m_prevSimUs = m_curSimUs;
 	QueryPerformanceCounter(&m_replayStartQpc);
+	m_flowLastQpc = m_replayStartQpc; // 018: the pause does not count
 	m_runPhase = CanSim::RunPhase::Running;
 	m_replayTimer = SetTimer(kReplayTimerId, kRefreshMs, nullptr);
 	UpdateSimControls();
@@ -1318,7 +1450,9 @@ void CMFCApplication1Dlg::OnSimStop()
 		return;
 
 	const long long stopUs = CurrentSimTimeUs();
+	SetDisplaySimUs(stopUs); // 017: same value as the stop message
 	EndRun();
+	UpdateWindow();
 
 	CWaitCursor wait;
 	CanSim::SimulationEngine engine(m_runNetwork, stopUs);

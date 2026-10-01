@@ -87,6 +87,9 @@
     <ClInclude Include="CanSim\SimControls.h">
       <Filter>CanSim</Filter>
     </ClInclude>
+    <ClInclude Include="CanSim\FlowEffect.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
     <ClInclude Include="CanSim\FrameEditor.h">
       <Filter>CanSim</Filter>
     </ClInclude>
@@ -150,6 +153,9 @@
       <Filter>CanSim</Filter>
     </ClCompile>
     <ClCompile Include="CanSim\SimControls.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\FlowEffect.cpp">
       <Filter>CanSim</Filter>
     </ClCompile>
     <ClCompile Include="CanSim\FrameEditor.cpp">

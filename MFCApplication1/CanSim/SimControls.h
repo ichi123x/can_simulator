@@ -10,6 +10,8 @@
 #include "BusDiagramLayout.h"
 #include "CanTypes.h"
 
+#include <string>
+
 namespace CanSim
 {
     // Idle: no run. Running: the replay clock advances. Paused: a run is in
@@ -59,7 +61,7 @@ namespace CanSim
     // ---- feature 015: speed slider right of the buttons (96 DPI) ----
     // Ticks for kMinSpeed..kMaxSpeed, evenly spaced; the thumb is a vertical
     // bar on the tick of the current speed, the values are drawn under it.
-    const int kSpeedSliderLeft = 200;   // x of the -13 tick
+    const int kSpeedSliderLeft = 320;   // x of the -13 tick (017: moved right for the frame display check box)
     const int kSpeedTickPitch = 26;
     const int kSpeedTrackY = 20;
     const int kSpeedTrackThickness = 4;
@@ -96,4 +98,42 @@ namespace CanSim
         FinishNow,  // Running or Paused, kInstantSpeed: complete at once
     };
     SpeedChangeAction GetSpeedChangeAction(RunPhase phase, int newSpeed);
+
+    // ---- feature 017: frame display check box and the simulated time (96 DPI) ----
+    // Check box between the Stop button and the speed slider.
+    const int kFrameDisplayBoxLeft = 186;
+    const int kFrameDisplayBoxTop = 25;
+    const int kFrameDisplayBoxSize = 14;
+    const int kFrameDisplayLabelLeft = 206;
+    const int kFrameDisplayLabelRight = 290;
+    const int kFrameDisplayLabelTop = 22;
+    const int kFrameDisplayLabelBottom = 42;
+    const int kFrameDisplayHitLeft = 182;
+    const int kFrameDisplayHitRight = 294;
+    const int kFrameDisplayHitTop = 4;
+    const int kFrameDisplayHitBottom = 60;
+
+    // Simulated time at the right end: caption above, value and unit below.
+    const int kSimTimeLeft = 950;
+    const int kSimTimeRight = 1130;
+    const int kSimTimeCaptionTop = 8;
+    const int kSimTimeCaptionBottom = 28;
+    const int kSimTimeValueTop = 30;
+    const int kSimTimeValueBottom = 54;
+    const int kSimTimeValueRight = 1100;
+    const int kSimTimeUnitLeft = 1104;
+
+    DiagramRect FrameDisplayBoxRect(int dpi);
+    DiagramRect FrameDisplayLabelRect(int dpi);
+
+    // Area where a press toggles the frame display: box and label together.
+    bool IsOnFrameDisplayToggle(int x, int y, int dpi);
+
+    DiagramRect SimTimeCaptionRect(int dpi);
+    DiagramRect SimTimeValueRect(int dpi);
+    DiagramRect SimTimeUnitRect(int dpi);
+    DiagramRect SimTimeAreaRect(int dpi);   // caption, value and unit together
+
+    // "600,000,000" style: digits grouped by three; a negative value is "0".
+    std::string FormatSimTimeUs(long long us);
 }

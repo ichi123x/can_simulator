@@ -9,6 +9,7 @@
 #include "CanSim/ReplayClock.h"
 #include "CanSim/LogLines.h"
 #include "CanSim/SimControls.h"
+#include "CanSim/FlowEffect.h"
 
 #include <memory>
 #include <vector>
@@ -56,7 +57,6 @@ protected:
 	afx_msg void OnFileSaveProject();
 	afx_msg void OnEditSettings();
 	afx_msg void OnEditFrames();
-	afx_msg void OnEditFrameDisplay();
 	afx_msg void OnSimStart();
 	afx_msg void OnSimStop();
 	afx_msg void OnSimPause();      // feature 014
@@ -172,4 +172,17 @@ private:
 	void SetSpeed(int speed);   // the only place where m_settings.Speed changes at run time
 
 	bool m_draggingSpeed = false;
+
+	// ---- feature 017: frame display check box and simulated time ----
+	void ToggleFrameDisplay();
+	bool PressFrameDisplayToggle(CPoint point);
+	void SetDisplaySimUs(long long us);
+
+	long long m_displaySimUs = 0; // shown at the right end of the toolbar
+
+	// ---- feature 018: flow animation over the frame display ----
+	void DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayout& layout, const CanSim::ActiveFrames& active, int dpi);
+
+	long long m_flowElapsedUs = 0;   // animation clock: real time while Running only
+	LARGE_INTEGER m_flowLastQpc = {};
 };
