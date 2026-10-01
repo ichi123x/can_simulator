@@ -29,9 +29,12 @@ namespace CanSim
 
     namespace
     {
+        // index is a ToolbarButton; the Start button sits one slot further
+        // right, leaving a gap of one button after Save / Load (023 FR-001).
         DiagramRect ScaledButtonPart(int index, int top, int bottom, int dpi)
         {
-            const int left = kSimButtonLeft + kSimButtonPitch * index;
+            const int slot = index < kFileButtonCount ? index : index + 1;
+            const int left = kSimButtonLeft + kSimButtonPitch * slot;
             DiagramRect r;
             r.Left = ScaleToDpi(left, dpi);
             r.Top = ScaleToDpi(top, dpi);
@@ -41,30 +44,69 @@ namespace CanSim
         }
     }
 
-    DiagramRect SimButtonRect(int index, int dpi)
+    DiagramRect ToolbarButtonRect(int index, int dpi)
     {
         return ScaledButtonPart(index, kSimButtonTop, kSimButtonBottom, dpi);
     }
 
-    DiagramRect SimButtonBoxRect(int index, int dpi)
+    DiagramRect ToolbarButtonBoxRect(int index, int dpi)
     {
         return ScaledButtonPart(index, kSimButtonTop, kSimButtonTop + kSimButtonBoxHeight, dpi);
     }
 
-    DiagramRect SimButtonLabelRect(int index, int dpi)
+    DiagramRect ToolbarButtonLabelRect(int index, int dpi)
     {
         return ScaledButtonPart(index, kSimButtonLabelTop, kSimButtonBottom, dpi);
     }
 
-    int FindSimButtonAt(int x, int y, int dpi)
+    int FindToolbarButtonAt(int x, int y, int dpi)
     {
-        for (int i = 0; i < kSimButtonCount; ++i)
+        for (int i = 0; i < kToolbarButtonCount; ++i)
         {
-            const DiagramRect r = SimButtonRect(i, dpi);
+            const DiagramRect r = ToolbarButtonRect(i, dpi);
             if (x >= r.Left && x < r.Right && y >= r.Top && y < r.Bottom)
                 return i;
         }
         return -1;
+    }
+
+    bool IsToolbarButtonEnabled(int index, RunPhase phase, bool editingFrames)
+    {
+        const SimCommandStates s = GetSimCommandStates(phase, editingFrames);
+        switch (static_cast<ToolbarButton>(index))
+        {
+        case ToolbarButton::Save:
+        case ToolbarButton::Load:
+            return phase == RunPhase::Idle; // 023 FR-006: also while editing frames
+        case ToolbarButton::Start:
+            return s.Start;
+        case ToolbarButton::Pause:
+            return s.Pause;
+        case ToolbarButton::Stop:
+            return s.Stop;
+        }
+        return false;
+    }
+
+    DiagramRect SimButtonRect(int index, int dpi)
+    {
+        return ToolbarButtonRect(index + kFileButtonCount, dpi);
+    }
+
+    DiagramRect SimButtonBoxRect(int index, int dpi)
+    {
+        return ToolbarButtonBoxRect(index + kFileButtonCount, dpi);
+    }
+
+    DiagramRect SimButtonLabelRect(int index, int dpi)
+    {
+        return ToolbarButtonLabelRect(index + kFileButtonCount, dpi);
+    }
+
+    int FindSimButtonAt(int x, int y, int dpi)
+    {
+        const int i = FindToolbarButtonAt(x, y, dpi);
+        return i >= kFileButtonCount ? i - kFileButtonCount : -1;
     }
 
     long long ResumedSimTimeUs(long long baseUs, long long elapsedRealUs, int speed)

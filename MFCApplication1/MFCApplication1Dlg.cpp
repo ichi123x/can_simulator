@@ -86,6 +86,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_WM_MOUSEWHEEL()
 	ON_COMMAND(ID_FILE_LOAD_PROJECT, &CMFCApplication1Dlg::OnFileLoadProject)
 	ON_COMMAND(ID_FILE_SAVE_PROJECT, &CMFCApplication1Dlg::OnFileSaveProject)
+	ON_COMMAND(ID_FILE_SAVE_OVERWRITE, &CMFCApplication1Dlg::OnFileSaveOverwrite)
 	ON_COMMAND(ID_EDIT_SETTINGS, &CMFCApplication1Dlg::OnEditSettings)
 	ON_COMMAND(ID_EDIT_FRAMES, &CMFCApplication1Dlg::OnEditFrames)
 	ON_COMMAND(ID_SIM_START, &CMFCApplication1Dlg::OnSimStart)
@@ -489,13 +490,19 @@ namespace
 	const COLORREF kButtonPressed = RGB(200, 200, 200);
 	const COLORREF kButtonDisabled = RGB(95, 95, 98);
 	const COLORREF kGlyphDisabled = RGB(140, 140, 140);
-	const COLORREF kGlyphColors[CanSim::kSimButtonCount] = {
+	// Indexed by CanSim::ToolbarButton (023: Save and Load before Start)
+	const COLORREF kGlyphColors[CanSim::kToolbarButtonCount] = {
+		RGB(120, 70, 180),  // Save: purple floppy
+		RGB(210, 150, 30),  // Load: ochre folder
 		RGB(30, 160, 70),   // Start: green triangle
 		RGB(30, 110, 200),  // Pause: blue bars
 		RGB(210, 40, 40),   // Stop: red square
 	};
-	const UINT kButtonNames[CanSim::kSimButtonCount] = { IDS_SIM_BTN_START, IDS_SIM_BTN_PAUSE, IDS_SIM_BTN_STOP };
-	const UINT kButtonCommands[CanSim::kSimButtonCount] = { ID_SIM_START, ID_SIM_PAUSE, ID_SIM_STOP };
+	const UINT kButtonNames[CanSim::kToolbarButtonCount] = {
+		IDS_FILE_BTN_SAVE, IDS_FILE_BTN_LOAD, IDS_SIM_BTN_START, IDS_SIM_BTN_PAUSE, IDS_SIM_BTN_STOP };
+	// Save overwrites the project file (toolbar only); Load is the menu command
+	const UINT kButtonCommands[CanSim::kToolbarButtonCount] = {
+		ID_FILE_SAVE_OVERWRITE, ID_FILE_LOAD_PROJECT, ID_SIM_START, ID_SIM_PAUSE, ID_SIM_STOP };
 	const int kButtonLabelPx = 12;
 	const int kButtonNamePx = 10; // 019: names under the half size buttons
 	// 015: speed slider
@@ -508,11 +515,11 @@ namespace
 	{
 		return CRect(r.Left, r.Top, r.Right, r.Bottom);
 	}
+}
 
-	bool IsButtonEnabled(const CanSim::SimCommandStates& s, int index)
-	{
-		return index == 0 ? s.Start : (index == 1 ? s.Pause : s.Stop);
-	}
+bool CMFCApplication1Dlg::IsToolbarButtonEnabled(int index) const
+{
+	return CanSim::IsToolbarButtonEnabled(index, m_runPhase, IsEditingFrames());
 }
 
 CRect CMFCApplication1Dlg::GetToolbarRect() const
@@ -553,15 +560,14 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
 		DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
 
-	const CanSim::SimCommandStates states = SimStates();
-	for (int i = 0; i < CanSim::kSimButtonCount; ++i)
+	for (int i = 0; i < CanSim::kToolbarButtonCount; ++i)
 	{
-		const bool enabled = IsButtonEnabled(states, i);
+		const bool enabled = IsToolbarButtonEnabled(i);
 		const COLORREF face = !enabled ? kButtonDisabled : (m_pressedButton == i && m_pressedInside ? kButtonPressed : kButtonFace);
 		const COLORREF glyph = enabled ? kGlyphColors[i] : kGlyphDisabled;
 
 		// Box with rounded corners
-		const CRect box = ButtonRect(CanSim::SimButtonBoxRect(i, dpi));
+		const CRect box = ButtonRect(CanSim::ToolbarButtonBoxRect(i, dpi));
 		CBrush faceBrush(face);
 		CPen facePen(PS_SOLID, 1, face);
 		CBrush* oldBrush = mem.SelectObject(&faceBrush);
@@ -577,7 +583,23 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		CPen glyphPen(PS_SOLID, 1, glyph);
 		mem.SelectObject(&glyphBrush);
 		mem.SelectObject(&glyphPen);
-		if (i == 0)
+		const CanSim::ToolbarButton kind = static_cast<CanSim::ToolbarButton>(i);
+		if (kind == CanSim::ToolbarButton::Save)
+		{
+			// Floppy: a square with a white window at the top
+			mem.FillSolidRect(glyphRect, glyph);
+			const int w = ScalePx(5, dpi);
+			const int h = ScalePx(3, dpi);
+			mem.FillSolidRect(c.x - w / 2, glyphRect.top + ScalePx(1, dpi), w, h, enabled ? RGB(255, 255, 255) : face);
+		}
+		else if (kind == CanSim::ToolbarButton::Load)
+		{
+			// Folder: the body at the bottom and a tab on its top left
+			const int bodyH = ScalePx(7, dpi);
+			mem.FillSolidRect(glyphRect.left, glyphRect.bottom - bodyH, g, bodyH, glyph);
+			mem.FillSolidRect(glyphRect.left, glyphRect.bottom - bodyH - ScalePx(2, dpi), ScalePx(4, dpi), ScalePx(2, dpi), glyph);
+		}
+		else if (kind == CanSim::ToolbarButton::Start)
 		{
 			const POINT tri[3] = {
 				{ glyphRect.left + g / 8, glyphRect.top },
@@ -586,7 +608,7 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 			};
 			mem.Polygon(tri, 3);
 		}
-		else if (i == 1)
+		else if (kind == CanSim::ToolbarButton::Pause)
 		{
 			const int bar = ScalePx(3, dpi); // 019: half size
 			const int gap = ScalePx(3, dpi);
@@ -603,12 +625,14 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		mem.SelectObject(oldPen);
 
 		// Name under the box
-		CRect label = ButtonRect(CanSim::SimButtonLabelRect(i, dpi));
+		CRect label = ButtonRect(CanSim::ToolbarButtonLabelRect(i, dpi));
 		mem.SetTextColor(enabled ? RGB(255, 255, 255) : kGlyphDisabled);
 		CString name;
 		name.LoadString(kButtonNames[i]);
 		mem.SelectObject(&nameFont);
-		mem.DrawText(name, label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+		// 023: not clipped, since "Load" has three characters, a little wider than
+		// the box; centered, it only reaches into the gap next to the button
+		mem.DrawText(name, label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_NOCLIP);
 		mem.SelectObject(&font);
 	}
 
@@ -732,7 +756,7 @@ void CMFCApplication1Dlg::UpdateSimControls()
 int CMFCApplication1Dlg::ToolbarButtonAt(CPoint point) const
 {
 	CClientDC dc(const_cast<CMFCApplication1Dlg*>(this));
-	return CanSim::FindSimButtonAt(point.x, point.y, dc.GetDeviceCaps(LOGPIXELSX));
+	return CanSim::FindToolbarButtonAt(point.x, point.y, dc.GetDeviceCaps(LOGPIXELSX));
 }
 
 // A press on an enabled button; the command is sent on release over the same
@@ -740,7 +764,7 @@ int CMFCApplication1Dlg::ToolbarButtonAt(CPoint point) const
 bool CMFCApplication1Dlg::PressToolbarButton(CPoint point)
 {
 	const int index = ToolbarButtonAt(point);
-	if (index < 0 || !IsButtonEnabled(SimStates(), index))
+	if (index < 0 || !IsToolbarButtonEnabled(index))
 		return false;
 	m_pressedButton = index;
 	m_pressedInside = true;
@@ -854,7 +878,7 @@ void CMFCApplication1Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 		const bool over = ToolbarButtonAt(point) == pressed;
 		ReleaseCapture(); // OnCaptureChanged clears the pressed button
 		ReleaseToolbarButton();
-		if (over && IsButtonEnabled(SimStates(), pressed))
+		if (over && IsToolbarButtonEnabled(pressed))
 			PostMessage(WM_COMMAND, MAKEWPARAM(kButtonCommands[pressed], 0), 0);
 		return;
 	}
@@ -1033,14 +1057,35 @@ void CMFCApplication1Dlg::OnFileSaveProject()
 	CString path;
 	if (!AskSavePath(path))
 		return;
+	SaveProjectTo(path);
+}
+
+// 023: the toolbar Save overwrites the project file without asking; only
+// when there is none yet it asks where to save (Q1). The menu item above
+// keeps asking every time.
+void CMFCApplication1Dlg::OnFileSaveOverwrite()
+{
+	if (InRun())
+		return; // 023 FR-006: the button is greyed; guard other routes too
+
+	CString path = m_projectPath;
+	if (path.IsEmpty() && !AskSavePath(path))
+		return;
+	SaveProjectTo(path);
+}
+
+// On failure the current project file stays as it was (023 FR-005).
+bool CMFCApplication1Dlg::SaveProjectTo(const CString& path)
+{
 	if (!CanSim::SaveProject(std::wstring((LPCTSTR)path), m_settings, m_definitions))
 	{
 		CString message;
 		message.Format(LoadRcString(IDS_SAVE_ERROR), (LPCTSTR)path);
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
-		return;
+		return false;
 	}
 	m_projectPath = path;
+	return true;
 }
 
 void CMFCApplication1Dlg::OnEditSettings()
@@ -1280,16 +1325,8 @@ void CMFCApplication1Dlg::OnSimStart()
 	if (m_projectPath.IsEmpty())
 	{
 		CString path;
-		if (!AskSavePath(path))
+		if (!AskSavePath(path) || !SaveProjectTo(path))
 			return;
-		if (!CanSim::SaveProject(std::wstring((LPCTSTR)path), m_settings, m_definitions))
-		{
-			CString message;
-			message.Format(LoadRcString(IDS_SAVE_ERROR), (LPCTSTR)path);
-			AfxMessageBox(message, MB_OK | MB_ICONWARNING);
-			return;
-		}
-		m_projectPath = path;
 	}
 
 	// 009 FR-010: a new run starts with an empty log view. Cleared before
