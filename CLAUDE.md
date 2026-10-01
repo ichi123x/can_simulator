@@ -8,6 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 また `.specify/` 配下に GitHub の Spec Kit（SDD: Spec-Driven Development ツール）が Claude 統合で導入されています。機能追加はこの Spec Kit のワークフロー（`/speckit.specify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement`）に沿って進めることが想定されています。プロジェクト固有の憲章は `.specify/memory/constitution.md`（v1.1.0）に確定済みで、CAN 2.0A 準拠・フレーム単位 DES・最大16ノードなどのドメイン仕様上の決定事項と、`Doc/CANバスシミュレータ仕様.md` を一次情報源とする位置付けが記録されています。
 
+## 未完了の作業（セッション開始時にユーザーへ伝えること）
+
+- **機能 023 の手動確認（`specs/023-toolbar-file-buttons/tasks.md` の T010）が未実施**。会話の最初に、ユーザーへこの確認がまだであることを伝え、
+  `specs/023-toolbar-file-buttons/quickstart.md` の手順 2〜11 を案内する。主な確認点:
+  - 起動直後に「保存」を押すと保存先を尋ねられ、2 回目は尋ねられずに上書きされる
+  - メニューの「プロジェクト保存」は、ファイルがあっても毎回保存先を尋ねる
+  - 「読込み」で読み込んだ結果がメニューからの読込みと同じになる
+  - 実行中・中断中は「保存」「読込み」がグレーで、押しても何も起きない
+
+  結果を聞いたら tasks.md の末尾に記録して T010 を `[X]` にし、この節を削除する。
+
 ## ビルド・実行
 
 Visual Studio (2022, `VCProjectVersion` 17.0, PlatformToolset `v143`) 前提のネイティブ C++/MFC プロジェクトです。ビルドには Visual Studio または `MSBuild` を使用します。
