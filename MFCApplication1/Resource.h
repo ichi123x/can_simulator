@@ -86,6 +86,8 @@
 #define IDS_SIM_TIME_UNIT				247
 #define IDS_SPEED_CAPTION				248	// feature 019
 #define IDS_LOG_VIEW_LABEL				250	// feature 020
+#define IDS_FILE_BTN_SAVE				251	// feature 023
+#define IDS_FILE_BTN_LOAD				252
 
 #define ID_FILE_LOAD_PROJECT			32771
 #define ID_FILE_SAVE_PROJECT			32772
@@ -93,6 +95,7 @@
 #define ID_SIM_START					32775
 #define ID_SIM_STOP						32776
 #define ID_SIM_PAUSE					32778	// feature 014
+#define ID_FILE_SAVE_OVERWRITE			32779	// feature 023 (toolbar only)
 
 // 新しいオブジェクトの次の既定値
 //
@@ -101,7 +104,7 @@
 
 #define _APS_NEXT_RESOURCE_VALUE	133
 #define _APS_NEXT_CONTROL_VALUE		1027
-#define _APS_NEXT_SYMED_VALUE		251
-#define _APS_NEXT_COMMAND_VALUE		32779
+#define _APS_NEXT_SYMED_VALUE		253
+#define _APS_NEXT_COMMAND_VALUE		32780
 #endif
 #endif

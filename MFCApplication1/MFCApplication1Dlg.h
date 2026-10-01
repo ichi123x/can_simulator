@@ -55,6 +55,7 @@ protected:
 	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 	afx_msg void OnFileLoadProject();
 	afx_msg void OnFileSaveProject();
+	afx_msg void OnFileSaveOverwrite();   // 023: toolbar Save
 	afx_msg void OnEditSettings();
 	afx_msg void OnEditFrames();
 	afx_msg void OnSimStart();
@@ -80,6 +81,7 @@ private:
 	void DrawBusDiagram(CDC& dc);
 	CRect GetDiagramRect() const;
 	bool AskSavePath(CString& path);
+	bool SaveProjectTo(const CString& path); // 023: writes; on success it becomes the project file
 	bool WriteResults(const std::vector<CanSim::LogRow>& rows, const CanSim::Network& runNetwork,
 		const CanSim::Network& endState, CString& logPath, CString& summaryPath, CString& startupPath);
 	void FinishReplay();
@@ -158,14 +160,15 @@ private:
 	void DrawSimToolbar(CDC& dc);
 	void InvalidateToolbar();
 	void UpdateSimControls();                    // menu bar + toolbar after a change of phase or editing
-	int ToolbarButtonAt(CPoint point) const;     // 0..2 or -1
+	int ToolbarButtonAt(CPoint point) const;     // CanSim::ToolbarButton (0..4) or -1
+	bool IsToolbarButtonEnabled(int index) const;
 	bool PressToolbarButton(CPoint point);
 	void ReleaseToolbarButton();
 	bool AdvanceReplay();                        // one refresh; false when the run finished
 	void ResumeReplay();
 
 	long long m_simBaseUs = 0;   // simulated time at the last resume (0 for a new run)
-	int m_pressedButton = -1;    // toolbar button being pressed, -1 = none
+	int m_pressedButton = -1;    // toolbar button (CanSim::ToolbarButton) being pressed, -1 = none
 	bool m_pressedInside = false; // the pointer is still over the pressed button
 
 	// ---- feature 015: speed slider on the toolbar ----

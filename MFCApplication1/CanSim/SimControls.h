@@ -43,14 +43,36 @@ namespace CanSim
     const int kSimButtonBottom = 49;
     const int kSimButtonGlyph = 10;     // symbol drawn in the middle of the box
 
-    // Rectangles of button index at the given DPI (scaled with ScaleToDpi).
-    // SimButtonRect is the hit area: the box and the name together.
+    // ---- feature 023: Save / Load buttons left of Start ----
+    // All toolbar buttons numbered left to right. Button i is at slot i for
+    // Save / Load and slot i + 1 for Start..Stop (one free slot between), its
+    // left edge at kSimButtonLeft + kSimButtonPitch * slot; all have the same size.
+    enum class ToolbarButton { Save, Load, Start, Pause, Stop };
+    const int kToolbarButtonCount = 5;
+    const int kFileButtonCount = 2;     // Save and Load
+
+    // Rectangles of toolbar button index (ToolbarButton) at the given DPI
+    // (scaled with ScaleToDpi). ToolbarButtonRect is the hit area: the box
+    // and the name together.
+    DiagramRect ToolbarButtonRect(int index, int dpi);
+    DiagramRect ToolbarButtonBoxRect(int index, int dpi);
+    DiagramRect ToolbarButtonLabelRect(int index, int dpi);
+
+    // Toolbar button (0..4) whose hit area [Left, Right) x [Top, Bottom)
+    // contains the client point, or -1 (also on the free slot).
+    int FindToolbarButtonAt(int x, int y, int dpi);
+
+    // Save / Load only while Idle (also while editing frames, 023 FR-006);
+    // Start / Pause / Stop as GetSimCommandStates.
+    bool IsToolbarButtonEnabled(int index, RunPhase phase, bool editingFrames);
+
+    // Start / Pause / Stop as index 0..2 (feature 014): the same rectangles
+    // as ToolbarButton index + kFileButtonCount.
     DiagramRect SimButtonRect(int index, int dpi);
     DiagramRect SimButtonBoxRect(int index, int dpi);
     DiagramRect SimButtonLabelRect(int index, int dpi);
 
-    // Button (0..2) whose hit area [Left, Right) x [Top, Bottom) contains the
-    // client point, or -1.
+    // Start / Pause / Stop (0..2) under the client point, or -1.
     int FindSimButtonAt(int x, int y, int dpi);
 
     // Simulated time after a resume: baseUs (the time at which the run was
@@ -61,7 +83,7 @@ namespace CanSim
     // ---- feature 015: speed slider right of the buttons (96 DPI) ----
     // Ticks for kMinSpeed..kMaxSpeed, evenly spaced; the thumb is a vertical
     // bar on the tick of the current speed, the values are drawn under it.
-    const int kSpeedSliderLeft = 520;   // x of the -13 tick (019: right end, after the simulated time)
+    const int kSpeedSliderLeft = 604;   // x of the -13 tick (019: right end, after the simulated time; 023: +84)
     const int kSpeedTickPitch = 13;
     const int kSpeedTrackY = 20;
     const int kSpeedTrackThickness = 2;
@@ -78,8 +100,8 @@ namespace CanSim
     // one are shown, so they never overlap although the ticks are 13 apart.
     const int kSpeedLabelWidth = 26;
     // 019: "Speed:" caption left of the slider.
-    const int kSpeedCaptionLeft = 430;
-    const int kSpeedCaptionRight = 500;
+    const int kSpeedCaptionLeft = 514;
+    const int kSpeedCaptionRight = 584;
     const int kSpeedCaptionTop = 10;
     const int kSpeedCaptionBottom = 30;
 
@@ -115,27 +137,27 @@ namespace CanSim
 
     // ---- feature 017: frame display check box and the simulated time (96 DPI) ----
     // Check box between the Stop button and the speed slider.
-    const int kFrameDisplayBoxLeft = 104;
+    const int kFrameDisplayBoxLeft = 188;
     const int kFrameDisplayBoxTop = 25;
     const int kFrameDisplayBoxSize = 14;
-    const int kFrameDisplayLabelLeft = 124;
-    const int kFrameDisplayLabelRight = 208;
+    const int kFrameDisplayLabelLeft = 208;
+    const int kFrameDisplayLabelRight = 292;
     const int kFrameDisplayLabelTop = 22;
     const int kFrameDisplayLabelBottom = 42;
-    const int kFrameDisplayHitLeft = 100;
-    const int kFrameDisplayHitRight = 212;
+    const int kFrameDisplayHitLeft = 184;
+    const int kFrameDisplayHitRight = 296;
     const int kFrameDisplayHitTop = 4;
     const int kFrameDisplayHitBottom = 60;
 
-    // Simulated time at the right end: caption above, value and unit below.
-    const int kSimTimeLeft = 230;
-    const int kSimTimeRight = 410;
+    // Simulated time right of the check box: caption above, value and unit below.
+    const int kSimTimeLeft = 314;
+    const int kSimTimeRight = 494;
     const int kSimTimeCaptionTop = 8;
     const int kSimTimeCaptionBottom = 28;
     const int kSimTimeValueTop = 30;
     const int kSimTimeValueBottom = 54;
-    const int kSimTimeValueRight = 380;
-    const int kSimTimeUnitLeft = 384;
+    const int kSimTimeValueRight = 464;
+    const int kSimTimeUnitLeft = 468;
 
     DiagramRect FrameDisplayBoxRect(int dpi);
     DiagramRect FrameDisplayLabelRect(int dpi);
