@@ -8,6 +8,8 @@
 #include "CanSim/FrameEvents.h"
 #include "CanSim/ReplayClock.h"
 #include "CanSim/LogLines.h"
+#include "CanSim/SimControls.h"
+#include "CanSim/FlowEffect.h"
 
 #include <memory>
 #include <vector>
@@ -55,12 +57,17 @@ protected:
 	afx_msg void OnFileSaveProject();
 	afx_msg void OnEditSettings();
 	afx_msg void OnEditFrames();
-	afx_msg void OnEditFrameDisplay();
 	afx_msg void OnSimStart();
 	afx_msg void OnSimStop();
+	afx_msg void OnSimPause();      // feature 014
+	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	afx_msg void OnCaptureChanged(CWnd* pWnd);
 	// ---- feature 010: double-click an ECU to edit its frames ----
 	afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
 	afx_msg LRESULT OnFrameEditorClosed(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnEcuLabelChanged(WPARAM wParam, LPARAM lParam); // feature 022
 	afx_msg void OnDestroy();
 
 public:
@@ -88,9 +95,10 @@ private:
 	CanSim::Network m_definitions;
 	CString m_projectPath; // empty until the project is loaded or saved
 
-	// Run state (004 FR-019). Running only lasts while a frame replay is shown.
-	enum class RunState { Idle, Running };
-	RunState m_runState = RunState::Idle;
+	// Run state (004 FR-019). Running only lasts while a frame replay is shown;
+	// Paused keeps the run with its clock stopped (feature 014).
+	CanSim::RunPhase m_runPhase = CanSim::RunPhase::Idle;
+	bool InRun() const { return m_runPhase != CanSim::RunPhase::Idle; } // Running or Paused
 	CanSim::Network m_runNetwork;             // network of the current run
 	std::vector<CanSim::LogRow> m_runRows;    // full result of the current run
 	CanSim::Network m_runEndState;            // engine state after the full run
@@ -136,6 +144,49 @@ private:
 	void StartGray(int ecu);
 	void ClearGray();
 	void DrawLogFrame(CDC& dc);
+	void DrawAreaLabel(CDC& dc, const CRect& rect, UINT textId, int dpi); // feature 020
 
 	int m_grayEcu = 0; // ECU drawn grey for a moment after a double-click, 0 = none
+
+	// ---- feature 012 ----
+	void ResetDisplaysForRun(); // empty log view and diagram, painted at once
+
+	// ---- feature 014: pause / resume and the toolbar ----
+	int ContentTop() const;                      // toolbar height; the diagram and the log view start here
+	CRect GetToolbarRect() const;
+	CanSim::SimCommandStates SimStates() const;  // Start / Pause / Stop for the menu and the toolbar
+	void DrawSimToolbar(CDC& dc);
+	void InvalidateToolbar();
+	void UpdateSimControls();                    // menu bar + toolbar after a change of phase or editing
+	int ToolbarButtonAt(CPoint point) const;     // 0..2 or -1
+	bool PressToolbarButton(CPoint point);
+	void ReleaseToolbarButton();
+	bool AdvanceReplay();                        // one refresh; false when the run finished
+	void ResumeReplay();
+
+	long long m_simBaseUs = 0;   // simulated time at the last resume (0 for a new run)
+	int m_pressedButton = -1;    // toolbar button being pressed, -1 = none
+	bool m_pressedInside = false; // the pointer is still over the pressed button
+
+	// ---- feature 015: speed slider on the toolbar ----
+	bool PressSpeedSlider(CPoint point);
+	void EndSpeedDrag();
+	void SetSpeed(int speed);   // the only place where m_settings.Speed changes at run time
+
+	bool m_draggingSpeed = false;
+
+	// ---- feature 017: frame display check box and simulated time ----
+	void ToggleFrameDisplay();
+	bool PressFrameDisplayToggle(CPoint point);
+	void SetDisplaySimUs(long long us);
+
+	long long m_displaySimUs = 0; // shown at the right end of the toolbar
+
+	// ---- feature 018: flow animation over the frame display ----
+	void DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayout& layout,
+		const std::vector<std::pair<int, int>>& flows, int dpi);
+
+	long long m_flowElapsedUs = 0;   // animation clock: real time while Running only
+	LARGE_INTEGER m_flowLastQpc = {};
+	CanSim::FlowPathHold m_flowHold;  // paths kept 0.3 s after they were last seen (revision 1)
 };

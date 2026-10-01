@@ -37,6 +37,8 @@ namespace CanSim
             os << "\r\n[Node" << node.NodeId << "]\r\n";
             os << "NodeId=" << node.NodeId << "\r\n";
             os << "Name=" << node.Name << "\r\n";
+            if (!node.Label.empty())
+                os << "Label=" << node.Label << "\r\n"; // 022: only when set
             if (!node.RxFilterAll)
             {
                 os << "RxFilter=";

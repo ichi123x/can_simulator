@@ -30,7 +30,7 @@ namespace CanSim
 
     // ECU boxes.
     const int kEcuBoxWidth = 96;
-    const int kEcuBoxHeight = 34;
+    const int kEcuBoxHeight = 48;   // 022: room for the ECU label under "ECU nn" (was 34)
     const int kEcuStubLength = 40;      // gap between box edge and bus line
     const int kFirstEcuCenterX = 150;   // 140 px margin from the bus left end
     const int kEcuPitch = 56;           // center-to-center distance of neighbours
@@ -93,4 +93,14 @@ namespace CanSim
     // has always placed them.
     DiagramRect ScaleLogViewRect(int dpi);
     DiagramRect ScaleLogFrameRect(int dpi);
+
+    // Feature 020: label "Event & log view" just above the log view border,
+    // at its left edge, 96 DPI content coordinates.
+    const int kLogLabelTop = 236;
+    const int kLogLabelRight = 300;
+    const int kLogLabelBottom = 254;
+
+    // At the given DPI, left edge taken from ScaleLogFrameRect so that the
+    // label and the border always line up.
+    DiagramRect ScaleLogLabelRect(int dpi);
 }

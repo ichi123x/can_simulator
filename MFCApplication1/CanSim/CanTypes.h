@@ -63,6 +63,8 @@ namespace CanSim
     // Feature 006: transmit frame list limits (domain spec FR-091, FR-081).
     const int kMaxFramesPerNode = 100;
     const int kMaxFrameNameChars = 32;
+    const int kMaxEcuLabelChars = 32;   // 022: ECU label length
+    const int kEcuLabelShownChars = 10; // 022: characters shown in the diagram, then "..."
     const long long kMaxPeriodMs = 3600000; // 1 hour; only enforced by the editor
 
     // data-model.md: PendingFrame
@@ -85,6 +87,7 @@ namespace CanSim
     {
         int NodeId = 0;                 // 1..16, unique within Network
         std::string Name;
+        std::string Label;              // 022: ECU label shown in the diagram, UTF-8, 0..32 characters, empty by default
         std::vector<FrameDefinition> Frames;
         bool RxFilterAll = true;        // FR-005: no filter configured -> receive all IDs
         std::set<unsigned> RxFilter;    // used only when RxFilterAll == false
@@ -122,7 +125,7 @@ namespace CanSim
     {
         int EcuCount = 2;           // 0..16
         int DurationSec = 10;       // 1..600
-        bool FrameDisplay = false;
+        bool FrameDisplay = true;   // feature 021: on by default (startup and a file without FrameDisplay=)
         int Speed = 0;              // -13..10 (feature 005); 0 = real time
     };
 

@@ -89,4 +89,17 @@ namespace CanSim
         r.Bottom += gap;
         return r;
     }
+
+    DiagramRect ScaleLogLabelRect(int dpi)
+    {
+        const DiagramRect frame = ScaleLogFrameRect(dpi);
+        DiagramRect r;
+        r.Left = frame.Left;
+        r.Top = ScaleToDpi(kLogLabelTop, dpi);
+        r.Right = ScaleToDpi(kLogLabelRight, dpi);
+        r.Bottom = ScaleToDpi(kLogLabelBottom, dpi);
+        if (r.Bottom > frame.Top)
+            r.Bottom = frame.Top;
+        return r;
+    }
 }

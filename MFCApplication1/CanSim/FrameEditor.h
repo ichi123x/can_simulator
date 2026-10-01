@@ -58,6 +58,17 @@ namespace CanSim
     // one named "ECU<n>" (kept in NodeId order) if it does not exist yet.
     Node& EnsureNode(Network& definitions, int nodeId);
 
+    // ---- feature 022: ECU label ----
+    // Characters (code points) of a UTF-8 string; full and half width count 1.
+    int CountUtf8Chars(const std::string& utf8);
+    // First kMaxEcuLabelChars characters.
+    std::string LimitEcuLabel(const std::string& utf8);
+    // Without leading / trailing spaces, tabs and ideographic spaces (U+3000).
+    std::string TrimEcuLabel(const std::string& utf8);
+    // As shown in the diagram: up to kEcuLabelShownChars characters, longer
+    // labels are cut there and "..." is added.
+    std::string EcuLabelForDiagram(const std::string& utf8);
+
     // nullptr when the node has no definition.
     const Node* FindNodeDefinition(const Network& definitions, int nodeId);
 

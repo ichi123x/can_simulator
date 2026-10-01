@@ -1,6 +1,7 @@
 // SettingsDlg.h
 // "Edit > Settings" dialog (feature 004 US1): ECU count, bit rate and
-// simulation duration. UI strings live in MFCApplication1.rc.
+// simulation duration. UI strings live in MFCApplication1.rc. The speed is not
+// here any more: it is set with the toolbar slider (feature 015).
 
 #pragma once
 

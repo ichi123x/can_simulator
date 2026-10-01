@@ -205,6 +205,8 @@
     <ClInclude Include="CanSim\ProjectFile.h" />
     <ClInclude Include="CanSim\FrameEvents.h" />
     <ClInclude Include="CanSim\ReplayClock.h" />
+    <ClInclude Include="CanSim\SimControls.h" />
+    <ClInclude Include="CanSim\FlowEffect.h" />
     <ClInclude Include="CanSim\FrameEditor.h" />
     <ClInclude Include="CanSim\LogLines.h" />
   </ItemGroup>
@@ -232,6 +234,8 @@
     <ClCompile Include="CanSim\ProjectFile.cpp" />
     <ClCompile Include="CanSim\FrameEvents.cpp" />
     <ClCompile Include="CanSim\ReplayClock.cpp" />
+    <ClCompile Include="CanSim\SimControls.cpp" />
+    <ClCompile Include="CanSim\FlowEffect.cpp" />
     <ClCompile Include="CanSim\FrameEditor.cpp" />
     <ClCompile Include="CanSim\LogLines.cpp" />
   </ItemGroup>
