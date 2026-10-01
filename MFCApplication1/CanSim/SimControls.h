@@ -8,6 +8,7 @@
 #pragma once
 
 #include "BusDiagramLayout.h"
+#include "CanTypes.h"
 
 namespace CanSim
 {
@@ -54,4 +55,45 @@ namespace CanSim
     // paused, 0 for a new run) plus SimTimeAtUs(elapsedRealUs, speed).
     // Saturates instead of overflowing.
     long long ResumedSimTimeUs(long long baseUs, long long elapsedRealUs, int speed);
+
+    // ---- feature 015: speed slider right of the buttons (96 DPI) ----
+    // Ticks for kMinSpeed..kMaxSpeed, evenly spaced; the thumb is a vertical
+    // bar on the tick of the current speed, the values are drawn under it.
+    const int kSpeedSliderLeft = 200;   // x of the -13 tick
+    const int kSpeedTickPitch = 26;
+    const int kSpeedTrackY = 20;
+    const int kSpeedTrackThickness = 4;
+    const int kSpeedThumbWidth = 10;
+    const int kSpeedThumbTop = 7;
+    const int kSpeedThumbBottom = 33;
+    const int kSpeedTickTop = 28;
+    const int kSpeedTickBottom = 33;
+    const int kSpeedLabelTop = 38;
+    const int kSpeedLabelBottom = 56;
+    const int kSpeedHitTop = 4;
+    const int kSpeedHitBottom = 60;
+
+    // x of the tick of speed (clamped to kMinSpeed..kMaxSpeed) at the DPI.
+    int SpeedTickX(int speed, int dpi);
+
+    // Speed whose tick is nearest to x (the smaller one on a tie); outside
+    // the slider the end value.
+    int SpeedAtX(int x, int dpi);
+
+    // Area where a press starts moving the slider: half a pitch beyond the
+    // end ticks, from kSpeedHitTop to kSpeedHitBottom.
+    bool IsOnSpeedSlider(int x, int y, int dpi);
+
+    DiagramRect SpeedTrackRect(int dpi);
+    DiagramRect SpeedThumbRect(int speed, int dpi);
+    DiagramRect SpeedLabelRect(int speed, int dpi);
+
+    // What a change of speed does to the current run (015 FR-007..FR-009).
+    enum class SpeedChangeAction
+    {
+        None,       // only the value changes (Idle; Paused below kInstantSpeed)
+        Rebase,     // Running: continue from the current simulated time
+        FinishNow,  // Running or Paused, kInstantSpeed: complete at once
+    };
+    SpeedChangeAction GetSpeedChangeAction(RunPhase phase, int newSpeed);
 }

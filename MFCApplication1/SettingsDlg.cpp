@@ -60,16 +60,6 @@ BOOL CSettingsDlg::OnInitDialog()
 	duration.Format(_T("%d"), Settings.DurationSec);
 	SetDlgItemText(IDC_EDIT_DURATION_SEC, duration);
 
-	// Speed: +10 (instant) down to -13 (1/8192 of real time), 005 FR-001
-	CComboBox* speed = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_SPEED));
-	for (int s = CanSim::kMaxSpeed; s >= CanSim::kMinSpeed; --s)
-	{
-		CString text;
-		text.Format(s > 0 ? _T("+%d") : _T("%d"), s);
-		speed->AddString(text);
-	}
-	speed->SetCurSel(CanSim::kMaxSpeed - Settings.Speed);
-
 	return TRUE;
 }
 
@@ -96,9 +86,8 @@ void CSettingsDlg::OnOK()
 	Settings.DurationSec = duration;
 	if (rateIndex >= 0 && rateIndex < _countof(kBitRates))
 		BitRateBps = kBitRates[rateIndex].Bps;
-	const int speedIndex = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_SPEED))->GetCurSel();
-	if (speedIndex >= 0)
-		Settings.Speed = CanSim::kMaxSpeed - speedIndex;
+	// Settings.Speed is returned unchanged: the speed is set with the toolbar
+	// slider (feature 015).
 
 	CDialogEx::OnOK();
 }

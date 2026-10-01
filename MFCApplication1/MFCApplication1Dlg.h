@@ -165,4 +165,11 @@ private:
 	long long m_simBaseUs = 0;   // simulated time at the last resume (0 for a new run)
 	int m_pressedButton = -1;    // toolbar button being pressed, -1 = none
 	bool m_pressedInside = false; // the pointer is still over the pressed button
+
+	// ---- feature 015: speed slider on the toolbar ----
+	bool PressSpeedSlider(CPoint point);
+	void EndSpeedDrag();
+	void SetSpeed(int speed);   // the only place where m_settings.Speed changes at run time
+
+	bool m_draggingSpeed = false;
 };

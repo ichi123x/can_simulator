@@ -24,7 +24,6 @@
 #define IDC_COMBO_ECU_COUNT				1010
 #define IDC_COMBO_BITRATE				1011
 #define IDC_EDIT_DURATION_SEC			1012
-#define IDC_COMBO_SPEED					1013	// feature 005
 
 // feature 006: data frame editor
 #define IDD_FRAME_EDIT					131

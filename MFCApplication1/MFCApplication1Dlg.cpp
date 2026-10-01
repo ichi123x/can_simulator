@@ -408,6 +408,10 @@ namespace
 	const UINT kButtonNames[CanSim::kSimButtonCount] = { IDS_SIM_BTN_START, IDS_SIM_BTN_PAUSE, IDS_SIM_BTN_STOP };
 	const UINT kButtonCommands[CanSim::kSimButtonCount] = { ID_SIM_START, ID_SIM_PAUSE, ID_SIM_STOP };
 	const int kButtonLabelPx = 12;
+	// 015: speed slider
+	const int kSpeedLabelPx = 11;
+	const COLORREF kSpeedCurrentText = RGB(255, 210, 60);
+	const COLORREF kSpeedThumbFrame = RGB(30, 110, 200);
 
 	// The rectangles from SimControls are already scaled to the DPI.
 	CRect ButtonRect(const CanSim::DiagramRect& r)
@@ -511,6 +515,42 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		mem.DrawText(name, label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 	}
 
+	// 015: speed slider right of the buttons
+	{
+		const COLORREF track = RGB(160, 160, 165);
+		mem.FillSolidRect(ButtonRect(CanSim::SpeedTrackRect(dpi)), track);
+		const int tickTop = ScalePx(CanSim::kSpeedTickTop, dpi);
+		const int tickBottom = ScalePx(CanSim::kSpeedTickBottom, dpi);
+		CFont boldFont;
+		boldFont.CreateFont(-ScalePx(kSpeedLabelPx, dpi), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+			DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
+		CFont labelFont;
+		labelFont.CreateFont(-ScalePx(kSpeedLabelPx, dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+			DEFAULT_PITCH | FF_SWISS, _T("Meiryo UI"));
+		for (int s = CanSim::kMinSpeed; s <= CanSim::kMaxSpeed; ++s)
+		{
+			const int x = CanSim::SpeedTickX(s, dpi);
+			mem.FillSolidRect(x, tickTop, (std::max)(1, ScalePx(1, dpi)), tickBottom - tickTop, track);
+			const bool current = s == m_settings.Speed;
+			mem.SelectObject(current ? &boldFont : &labelFont);
+			mem.SetTextColor(current ? kSpeedCurrentText : RGB(255, 255, 255));
+			CString text;
+			text.Format(s > 0 ? _T("+%d") : _T("%d"), s);
+			CRect label = ButtonRect(CanSim::SpeedLabelRect(s, dpi));
+			mem.DrawText(text, label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+		}
+		mem.SelectObject(&font);
+
+		const CRect thumb = ButtonRect(CanSim::SpeedThumbRect(m_settings.Speed, dpi));
+		const int border = (std::max)(1, ScalePx(2, dpi));
+		mem.FillSolidRect(thumb, kSpeedThumbFrame);
+		CRect inner = thumb;
+		inner.DeflateRect(border, border);
+		mem.FillSolidRect(inner, m_draggingSpeed ? kButtonPressed : kButtonFace);
+	}
+
 	mem.SelectObject(oldFont);
 	dc.BitBlt(area.left, area.top, area.Width(), area.Height(), &mem, 0, 0, SRCCOPY);
 	mem.SelectObject(oldBmp);
@@ -552,13 +592,75 @@ bool CMFCApplication1Dlg::PressToolbarButton(CPoint point)
 
 void CMFCApplication1Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
-	if (PressToolbarButton(point))
+	if (PressToolbarButton(point) || PressSpeedSlider(point))
 		return;
 	CDialogEx::OnLButtonDown(nFlags, point);
 }
 
+// 015 FR-005: a press on the slider moves the thumb to the nearest tick and
+// starts a drag that follows the pointer horizontally.
+bool CMFCApplication1Dlg::PressSpeedSlider(CPoint point)
+{
+	CClientDC dc(this);
+	const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
+	if (!CanSim::IsOnSpeedSlider(point.x, point.y, dpi))
+		return false;
+	m_draggingSpeed = true;
+	SetCapture();
+	InvalidateToolbar();
+	SetSpeed(CanSim::SpeedAtX(point.x, dpi));
+	return true;
+}
+
+void CMFCApplication1Dlg::EndSpeedDrag()
+{
+	if (!m_draggingSpeed)
+		return;
+	m_draggingSpeed = false;
+	if (GetCapture() == this)
+		ReleaseCapture();
+	InvalidateToolbar();
+}
+
+// 015: the single place where the speed changes. While running, the time of
+// the change becomes the new base so that the clock neither jumps nor goes
+// back (FR-007); while paused it applies from the resume (FR-008); +10
+// completes the run at once (FR-009, Q1: A).
+void CMFCApplication1Dlg::SetSpeed(int speed)
+{
+	speed = (std::max)(CanSim::kMinSpeed, (std::min)(speed, CanSim::kMaxSpeed));
+	if (speed == m_settings.Speed)
+		return;
+	switch (CanSim::GetSpeedChangeAction(m_runPhase, speed))
+	{
+	case CanSim::SpeedChangeAction::Rebase:
+	{
+		const long long t = CurrentSimTimeUs(); // at the old speed
+		m_simBaseUs = t;
+		QueryPerformanceCounter(&m_replayStartQpc);
+		m_settings.Speed = speed;
+		break;
+	}
+	case CanSim::SpeedChangeAction::FinishNow:
+		m_settings.Speed = speed;
+		EndSpeedDrag(); // no capture is left during the completion message
+		InvalidateToolbar();
+		FinishReplay();
+		return;
+	default:
+		m_settings.Speed = speed;
+		break;
+	}
+	InvalidateToolbar();
+}
+
 void CMFCApplication1Dlg::OnMouseMove(UINT nFlags, CPoint point)
 {
+	if (m_draggingSpeed)
+	{
+		CClientDC dc(this);
+		SetSpeed(CanSim::SpeedAtX(point.x, dc.GetDeviceCaps(LOGPIXELSX)));
+	}
 	if (m_pressedButton >= 0)
 	{
 		const bool inside = ToolbarButtonAt(point) == m_pressedButton;
@@ -573,6 +675,11 @@ void CMFCApplication1Dlg::OnMouseMove(UINT nFlags, CPoint point)
 
 void CMFCApplication1Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
+	if (m_draggingSpeed)
+	{
+		EndSpeedDrag();
+		return;
+	}
 	if (m_pressedButton >= 0)
 	{
 		const int pressed = m_pressedButton;
@@ -589,6 +696,11 @@ void CMFCApplication1Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 void CMFCApplication1Dlg::OnCaptureChanged(CWnd* pWnd)
 {
 	ReleaseToolbarButton();
+	if (m_draggingSpeed)
+	{
+		m_draggingSpeed = false;
+		InvalidateToolbar();
+	}
 	CDialogEx::OnCaptureChanged(pWnd);
 }
 
@@ -731,6 +843,7 @@ void CMFCApplication1Dlg::OnFileLoadProject()
 	}
 
 	m_settings = loaded.Project;
+	InvalidateToolbar(); // 015 FR-010: the thumb shows the loaded speed
 	m_definitions = loaded.Config;
 	m_projectPath = path;
 	SetEcuCount(m_settings.EcuCount);
@@ -889,7 +1002,8 @@ void CMFCApplication1Dlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 	// 014: the second click of a quick double click on the toolbar is a press
 	if (point.y < ContentTop())
 	{
-		PressToolbarButton(point);
+		if (!PressToolbarButton(point))
+			PressSpeedSlider(point);
 		return;
 	}
 	CDialogEx::OnLButtonDblClk(nFlags, point);
@@ -1079,6 +1193,7 @@ void CMFCApplication1Dlg::EndRun()
 	m_runPhase = CanSim::RunPhase::Idle;
 	m_simBaseUs = 0;
 	ReleaseToolbarButton();
+	EndSpeedDrag();
 	UpdateSimControls();
 	m_cursor.reset();
 	m_events.clear();

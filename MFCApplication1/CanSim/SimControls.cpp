@@ -76,4 +76,84 @@ namespace CanSim
             return LLONG_MAX;
         return baseUs + advance;
     }
+
+    namespace
+    {
+        int ClampSpeed(int speed)
+        {
+            return speed < kMinSpeed ? kMinSpeed : (speed > kMaxSpeed ? kMaxSpeed : speed);
+        }
+    }
+
+    int SpeedTickX(int speed, int dpi)
+    {
+        return ScaleToDpi(kSpeedSliderLeft + (ClampSpeed(speed) - kMinSpeed) * kSpeedTickPitch, dpi);
+    }
+
+    int SpeedAtX(int x, int dpi)
+    {
+        int best = kMinSpeed;
+        int bestDistance = -1;
+        for (int s = kMinSpeed; s <= kMaxSpeed; ++s)
+        {
+            const int d = x > SpeedTickX(s, dpi) ? x - SpeedTickX(s, dpi) : SpeedTickX(s, dpi) - x;
+            if (bestDistance < 0 || d < bestDistance) // ties keep the smaller value
+            {
+                best = s;
+                bestDistance = d;
+            }
+        }
+        return best;
+    }
+
+    bool IsOnSpeedSlider(int x, int y, int dpi)
+    {
+        const int half = kSpeedTickPitch / 2;
+        const int left = ScaleToDpi(kSpeedSliderLeft - half, dpi);
+        const int right = ScaleToDpi(kSpeedSliderLeft + (kMaxSpeed - kMinSpeed) * kSpeedTickPitch + half, dpi);
+        return x >= left && x < right && y >= ScaleToDpi(kSpeedHitTop, dpi) && y < ScaleToDpi(kSpeedHitBottom, dpi);
+    }
+
+    DiagramRect SpeedTrackRect(int dpi)
+    {
+        DiagramRect r;
+        r.Left = SpeedTickX(kMinSpeed, dpi);
+        r.Right = SpeedTickX(kMaxSpeed, dpi);
+        r.Top = ScaleToDpi(kSpeedTrackY - kSpeedTrackThickness / 2, dpi);
+        r.Bottom = ScaleToDpi(kSpeedTrackY + kSpeedTrackThickness / 2, dpi);
+        return r;
+    }
+
+    DiagramRect SpeedThumbRect(int speed, int dpi)
+    {
+        const int x = SpeedTickX(speed, dpi);
+        const int half = ScaleToDpi(kSpeedThumbWidth, dpi) / 2;
+        DiagramRect r;
+        r.Left = x - half;
+        r.Right = x + half;
+        r.Top = ScaleToDpi(kSpeedThumbTop, dpi);
+        r.Bottom = ScaleToDpi(kSpeedThumbBottom, dpi);
+        return r;
+    }
+
+    DiagramRect SpeedLabelRect(int speed, int dpi)
+    {
+        const int x = SpeedTickX(speed, dpi);
+        const int half = ScaleToDpi(kSpeedTickPitch, dpi) / 2;
+        DiagramRect r;
+        r.Left = x - half;
+        r.Right = x + half;
+        r.Top = ScaleToDpi(kSpeedLabelTop, dpi);
+        r.Bottom = ScaleToDpi(kSpeedLabelBottom, dpi);
+        return r;
+    }
+
+    SpeedChangeAction GetSpeedChangeAction(RunPhase phase, int newSpeed)
+    {
+        if (phase == RunPhase::Idle)
+            return SpeedChangeAction::None;
+        if (newSpeed >= kInstantSpeed)
+            return SpeedChangeAction::FinishNow;
+        return phase == RunPhase::Running ? SpeedChangeAction::Rebase : SpeedChangeAction::None;
+    }
 }
