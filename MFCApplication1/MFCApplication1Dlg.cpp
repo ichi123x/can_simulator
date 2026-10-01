@@ -219,8 +219,9 @@ namespace
 	// Frame replay highlight (004 contracts/ui-menu-dialogs.md)
 	const COLORREF kSenderFill = RGB(240, 110, 110);
 	const COLORREF kSenderFrame = RGB(170, 0, 0);
-	const COLORREF kReceiverFill = RGB(170, 225, 170);
-	const COLORREF kReceiverFrame = RGB(40, 140, 40);
+	// 016: receivers are blue, the frame and the stub line in the bus colour
+	const COLORREF kReceiverFill = RGB(160, 195, 245);
+	const COLORREF kReceiverFrame = RGB(30, 90, 220);
 	const COLORREF kActiveBusColor = RGB(30, 90, 220);
 	const int kActiveBusExtraPx = 2;
 	const int kCaptionHeightPx = 26;
@@ -342,7 +343,7 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 		const bool isReceiver = active != nullptr &&
 			std::find(active->Receivers.begin(), active->Receivers.end(), ecu.Number) != active->Receivers.end();
 
-		CPen* oldPen = mem.SelectObject(isSender ? &activeLinePen : &linePen);
+		CPen* oldPen = mem.SelectObject(isSender || isReceiver ? &activeLinePen : &linePen); // 016 FR-002
 		const int x = ScalePx(ecu.LineX, dpi);
 		mem.MoveTo(x, ScalePx(ecu.LineY1, dpi));
 		mem.LineTo(x, ScalePx(ecu.LineY2, dpi));
@@ -360,6 +361,7 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 		{
 			frameColor = kReceiverFrame;
 			fillColor = kReceiverFill;
+			frameWidth = 2;
 		}
 		const bool isGray = ecu.Number == m_grayEcu; // 011 FR-003
 		if (isGray)
