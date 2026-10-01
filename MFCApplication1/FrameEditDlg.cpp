@@ -57,6 +57,23 @@ namespace
 	};
 }
 
+BEGIN_MESSAGE_MAP(CFrameListHeader, CHeaderCtrl)
+	ON_WM_LBUTTONDBLCLK()
+END_MESSAGE_MAP()
+
+// Feature 013: the header notices (HDN_ITEMDBLCLICK / HDN_DIVIDERDBLCLICK) go to
+// the list, not to the editor window, and none is sent right of the last
+// column, so the double-click itself is taken here. The default handling is
+// skipped (no column auto-size). The request is posted so that the modal entry
+// dialog is not opened inside the header's own message handling.
+void CFrameListHeader::OnLButtonDblClk(UINT /*nFlags*/, CPoint /*point*/)
+{
+	CWnd* list = GetParent();
+	CWnd* editor = list != nullptr ? list->GetParent() : nullptr;
+	if (editor != nullptr && ::IsWindow(editor->GetSafeHwnd()))
+		::PostMessage(editor->GetSafeHwnd(), WM_APP_FRAME_LIST_ADD, 0, 0);
+}
+
 CFrameEditDlg::CFrameEditDlg(CanSim::Network& definitions, int ecuCount, int initialEcu, CWnd* pParent)
 	: CDialogEx(IDD_FRAME_EDIT, pParent)
 	, m_definitions(definitions)
@@ -79,6 +96,7 @@ BEGIN_MESSAGE_MAP(CFrameEditDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_FRAME_DELETE, &CFrameEditDlg::OnDelete)
 	ON_NOTIFY(NM_DBLCLK, IDC_LIST_FRAMES, &CFrameEditDlg::OnListDoubleClick)
 	ON_NOTIFY(LVN_ITEMCHANGED, IDC_LIST_FRAMES, &CFrameEditDlg::OnListItemChanged)
+	ON_MESSAGE(WM_APP_FRAME_LIST_ADD, &CFrameEditDlg::OnListAddRequest)
 END_MESSAGE_MAP()
 
 BOOL CFrameEditDlg::OnInitDialog()
@@ -110,6 +128,7 @@ BOOL CFrameEditDlg::OnInitDialog()
 	const int dpi = dc.GetDeviceCaps(LOGPIXELSX);
 	for (int i = 0; i < _countof(columns); ++i)
 		m_list.InsertColumn(i, LoadRc(columns[i].Title), columns[i].Format, MulDiv(columns[i].Width, dpi, 96));
+	m_header.SubclassWindow(m_list.GetHeaderCtrl()->GetSafeHwnd()); // 013 FR-001
 
 	RefreshList(-1);
 	return TRUE;
@@ -187,9 +206,23 @@ void CFrameEditDlg::UpdateButtons()
 {
 	const bool hasNode = SelectedNodeId() > 0;
 	const bool selected = SelectedIndex() >= 0;
-	GetDlgItem(IDC_BUTTON_FRAME_ADD)->EnableWindow(hasNode && m_list.GetItemCount() < CanSim::kMaxFramesPerNode);
+	GetDlgItem(IDC_BUTTON_FRAME_ADD)->EnableWindow(CanAdd());
 	GetDlgItem(IDC_BUTTON_FRAME_EDIT)->EnableWindow(hasNode && selected);
 	GetDlgItem(IDC_BUTTON_FRAME_DELETE)->EnableWindow(hasNode && selected);
+}
+
+bool CFrameEditDlg::CanAdd() const
+{
+	return SelectedNodeId() > 0 && m_list.GetItemCount() < CanSim::kMaxFramesPerNode;
+}
+
+// Feature 013: double-click in the frame list = Add (FR-001), only when the
+// Add button would be enabled; otherwise nothing, without a message (FR-002).
+void CFrameEditDlg::AddFromList()
+{
+	if (!CanAdd())
+		return;
+	OnAdd();
 }
 
 void CFrameEditDlg::OnNodeChanged()
@@ -251,10 +284,19 @@ void CFrameEditDlg::OnDelete()
 	RefreshList(-1);
 }
 
+// Feature 013: on a row or on the empty part alike, a double-click adds a frame
+// (replaces "double-click = Edit" of feature 006; Edit is the button only).
+// The scroll bars are non-client, so they do not send NM_DBLCLK (FR-004).
 void CFrameEditDlg::OnListDoubleClick(NMHDR* /*pNMHDR*/, LRESULT* pResult)
 {
-	OnEdit();
+	AddFromList();
 	*pResult = 0;
+}
+
+LRESULT CFrameEditDlg::OnListAddRequest(WPARAM /*wParam*/, LPARAM /*lParam*/)
+{
+	AddFromList();
+	return 0;
 }
 
 void CFrameEditDlg::OnListItemChanged(NMHDR* /*pNMHDR*/, LRESULT* pResult)
