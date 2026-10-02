@@ -99,6 +99,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_WM_CAPTURECHANGED()
 	ON_MESSAGE(WM_APP_FRAME_EDITOR_CLOSED, &CMFCApplication1Dlg::OnFrameEditorClosed)
 	ON_MESSAGE(WM_APP_ECU_LABEL_CHANGED, &CMFCApplication1Dlg::OnEcuLabelChanged)
+	ON_MESSAGE(WM_APP_LOAD_STARTUP_PROJECT, &CMFCApplication1Dlg::OnLoadStartupProject)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
@@ -134,6 +135,10 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	SetIcon(m_hIcon, TRUE);			// 大きいアイコンの設定
 	SetIcon(m_hIcon, FALSE);		// 小さいアイコンの設定
 
+	// 024: "CAN Bus Simulator" from the .rc caption, followed by the project file label
+	GetWindowText(m_baseTitle);
+	SetProjectPath(CString());
+
 	// 014 FR-009: the toolbar takes the top of the client area; the window
 	// grows by its height so that the diagram and the log view keep their size.
 	{
@@ -157,6 +162,10 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	const CRect textRect = GetLogTextRect();
 	GetDlgItem(IDC_SCROLL_LOG)->MoveWindow(textRect.right, logRect.top, logRect.right - textRect.right, logRect.Height());
 	UpdateLogScroll();
+
+	// 024: a project given on the command line is loaded after the window is shown
+	if (!m_startupProject.IsEmpty())
+		PostMessage(WM_APP_LOAD_STARTUP_PROJECT);
 
 	return TRUE;  // フォーカスをコントロールに設定した場合を除き、TRUE を返します。
 }
@@ -943,12 +952,6 @@ namespace
 	{
 		return CString(ascii.c_str());
 	}
-
-	bool HasProjectExtension(const CString& path)
-	{
-		const int dot = path.ReverseFind(_T('.'));
-		return dot >= 0 && path.Mid(dot).CompareNoCase(_T(".canprj")) == 0;
-	}
 }
 
 // Enter and Esc must not close the dialog; only the close box does (004 FR-020).
@@ -1013,14 +1016,19 @@ void CMFCApplication1Dlg::OnFileLoadProject()
 		LoadRcString(IDS_PROJECT_FILTER), this);
 	if (dlg.DoModal() != IDOK)
 		return;
+	LoadProjectFrom(dlg.GetPathName());
+}
 
-	const CString path = dlg.GetPathName();
+// 024: shared by the menu, the toolbar and the project given at startup.
+// On any error the current project (and the title) is left untouched.
+bool CMFCApplication1Dlg::LoadProjectFrom(const CString& path)
+{
 	CString message;
-	if (!HasProjectExtension(path))
+	if (!CanSim::HasProjectExtension(std::wstring((LPCTSTR)path)))
 	{
 		message.Format(LoadRcString(IDS_BAD_EXTENSION), (LPCTSTR)path);
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
-		return;
+		return false;
 	}
 
 	const CanSim::ConfigLoadResult loaded = CanSim::LoadConfig(std::wstring((LPCTSTR)path));
@@ -1029,14 +1037,55 @@ void CMFCApplication1Dlg::OnFileLoadProject()
 		// The current project is left untouched (004 FR-010).
 		message.Format(LoadRcString(IDS_LOAD_ERROR), (LPCTSTR)ToCString(loaded.ErrorMessage));
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
-		return;
+		return false;
 	}
 
 	m_settings = loaded.Project;
 	InvalidateToolbar(); // 015 FR-010: the thumb shows the loaded speed
 	m_definitions = loaded.Config;
-	m_projectPath = path;
+	SetProjectPath(path);
 	SetEcuCount(m_settings.EcuCount);
+	return true;
+}
+
+// 024: the only place where the current project file changes; the title bar
+// always shows it (empty path = no project file yet).
+void CMFCApplication1Dlg::SetProjectPath(const CString& path)
+{
+	m_projectPath = path;
+	const std::wstring title = CanSim::ComposeWindowTitle(std::wstring((LPCTSTR)m_baseTitle),
+		std::wstring((LPCTSTR)LoadRcString(IDS_PROJECT_PATH_LABEL)), std::wstring((LPCTSTR)path));
+	SetWindowText(title.c_str());
+}
+
+// 024: loads the project given on the command line once the window is shown,
+// so that an error message appears over the main window (research decision 6).
+LRESULT CMFCApplication1Dlg::OnLoadStartupProject(WPARAM, LPARAM)
+{
+	CString arg = m_startupProject;
+	m_startupProject.Empty();
+	if (arg.IsEmpty())
+		return 0;
+
+	// Relative and 8.3 paths become the absolute long path (spec FR-007).
+	CString path = arg;
+	const DWORD fullLength = ::GetFullPathNameW(arg, 0, nullptr, nullptr);
+	if (fullLength > 0)
+	{
+		std::vector<wchar_t> full(fullLength);
+		if (::GetFullPathNameW(arg, fullLength, full.data(), nullptr) > 0)
+			path = full.data();
+	}
+	const DWORD longLength = ::GetLongPathNameW(path, nullptr, 0);
+	if (longLength > 0)
+	{
+		std::vector<wchar_t> longPath(longLength);
+		if (::GetLongPathNameW(path, longPath.data(), longLength) > 0)
+			path = longPath.data();
+	}
+
+	LoadProjectFrom(path); // a failure keeps the default project (FR-006)
+	return 0;
 }
 
 bool CMFCApplication1Dlg::AskSavePath(CString& path)
@@ -1093,7 +1142,7 @@ bool CMFCApplication1Dlg::SaveProjectTo(const CString& path)
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
 		return false;
 	}
-	m_projectPath = path;
+	SetProjectPath(path); // 024: the title shows the file just written
 	return true;
 }
 

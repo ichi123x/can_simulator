@@ -2033,6 +2033,27 @@ namespace
         }
         Check(aligned, "023 revision 1 A: check box and label centred on the Stop box within 1 px, inside the hit area (DPI 96/120/144)");
     }
+
+    void CheckFeature024()
+    {
+        std::cout << "\n== feature 024: project file name in the title, project given at startup ==\n";
+        // The real label is Japanese text in the .rc; an ASCII stand-in checks the layout.
+        Check(ComposeWindowTitle(L"CAN Bus Simulator", L"LABEL:", L"") == L"CAN Bus Simulator    LABEL:" &&
+            ComposeWindowTitle(L"CAN Bus Simulator", L"LABEL:", L"C:\\work\\a.canprj") ==
+                L"CAN Bus Simulator    LABEL:C:\\work\\a.canprj",
+            "024 FR-001/FR-002: title = app title + 4 spaces + label + full path; the label ends it without a project");
+
+        const std::wstring exe = L"MFCApplication1.exe";
+        Check(FindStartupProjectArg({}).empty() && FindStartupProjectArg({ exe }).empty() &&
+            FindStartupProjectArg({ exe, L"a.canprj" }) == L"a.canprj" &&
+            FindStartupProjectArg({ exe, L"", L"a.canprj", L"b.canprj" }) == L"a.canprj",
+            "024 FR-005: the first non-empty argument after the program is the startup project; later ones are ignored");
+
+        Check(HasProjectExtension(L"a.canprj") && HasProjectExtension(L"A.CANPRJ") &&
+            HasProjectExtension(L"C:\\x\\b.CanPrj") && !HasProjectExtension(L"a.canprj.txt") &&
+            !HasProjectExtension(L"README.md") && !HasProjectExtension(L"canprj") && !HasProjectExtension(L""),
+            "024 FR-005: HasProjectExtension accepts .canprj in any case and rejects other extensions");
+    }
 }
 
 int main(int argc, char** argv)
@@ -2066,6 +2087,7 @@ int main(int argc, char** argv)
     CheckFeature020();
     CheckFeature022();
     CheckFeature023();
+    CheckFeature024();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

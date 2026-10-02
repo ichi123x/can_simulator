@@ -104,4 +104,37 @@ namespace CanSim
         }
         return run;
     }
+
+    std::wstring ComposeWindowTitle(const std::wstring& appTitle, const std::wstring& label,
+        const std::wstring& projectPath)
+    {
+        return appTitle + L"    " + label + projectPath;
+    }
+
+    std::wstring FindStartupProjectArg(const std::vector<std::wstring>& args)
+    {
+        for (std::size_t i = 1; i < args.size(); ++i)
+        {
+            if (!args[i].empty())
+                return args[i];
+        }
+        return std::wstring();
+    }
+
+    bool HasProjectExtension(const std::wstring& path)
+    {
+        const std::wstring ext = L".canprj";
+        if (path.size() < ext.size())
+            return false;
+        const std::size_t start = path.size() - ext.size();
+        for (std::size_t i = 0; i < ext.size(); ++i)
+        {
+            wchar_t c = path[start + i];
+            if (c >= L'A' && c <= L'Z')
+                c = static_cast<wchar_t>(c - L'A' + L'a');
+            if (c != ext[i])
+                return false;
+        }
+        return true;
+    }
 }

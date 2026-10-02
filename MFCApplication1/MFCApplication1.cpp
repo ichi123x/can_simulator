@@ -6,6 +6,11 @@
 #include "framework.h"
 #include "MFCApplication1.h"
 #include "MFCApplication1Dlg.h"
+#include "CanSim/ProjectFile.h"
+
+#include <cstdlib>
+#include <string>
+#include <vector>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -73,6 +78,18 @@ BOOL CMFCApplication1App::InitInstance()
 
 	CMFCApplication1Dlg dlg;
 	m_pMainWnd = &dlg;
+
+	// 024: a .canprj opened from Explorer (or given on the command line) is the
+	// first argument. The file association itself is not registered here.
+	{
+		std::vector<std::wstring> args;
+		for (int i = 0; i < __argc; ++i)
+			args.push_back(__wargv[i] != nullptr ? __wargv[i] : L"");
+		const std::wstring project = CanSim::FindStartupProjectArg(args);
+		if (!project.empty())
+			dlg.SetStartupProject(project.c_str());
+	}
+
 	INT_PTR nResponse = dlg.DoModal();
 	if (nResponse == IDOK)
 	{
