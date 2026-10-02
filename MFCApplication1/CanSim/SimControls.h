@@ -83,7 +83,7 @@ namespace CanSim
     // ---- feature 015: speed slider right of the buttons (96 DPI) ----
     // Ticks for kMinSpeed..kMaxSpeed, evenly spaced; the thumb is a vertical
     // bar on the tick of the current speed, the values are drawn under it.
-    const int kSpeedSliderLeft = 604;   // x of the -13 tick (019: right end, after the simulated time; 023: +84)
+    const int kSpeedSliderLeft = 604;   // x of the kMinSpeed tick (019: right end, after the simulated time; 023: +84; 026: -10 is here, was -13)
     const int kSpeedTickPitch = 13;
     const int kSpeedTrackY = 20;
     const int kSpeedTrackThickness = 2;
@@ -122,7 +122,7 @@ namespace CanSim
     DiagramRect SpeedCaptionRect(int dpi);
 
     // 019 FR-004: value label shown for speed when the current speed is
-    // currentSpeed: the current value, and -13 / -10 / -5 / 0 / +5 / +10 unless
+    // currentSpeed: the current value, and -10 / -5 / 0 / +5 / +10 unless
     // they are within 2 ticks of the current value.
     bool IsSpeedLabelShown(int speed, int currentSpeed);
 
@@ -136,14 +136,15 @@ namespace CanSim
     SpeedChangeAction GetSpeedChangeAction(RunPhase phase, int newSpeed);
 
     // ---- feature 017: frame display check box and the simulated time (96 DPI) ----
-    // Check box between the Stop button and the speed slider.
+    // Check box between the Stop button and the speed slider. The box and the
+    // label are centred on the button boxes (y 23, 023 revision 1).
     const int kFrameDisplayBoxLeft = 188;
-    const int kFrameDisplayBoxTop = 25;
+    const int kFrameDisplayBoxTop = 16;
     const int kFrameDisplayBoxSize = 14;
     const int kFrameDisplayLabelLeft = 208;
     const int kFrameDisplayLabelRight = 292;
-    const int kFrameDisplayLabelTop = 22;
-    const int kFrameDisplayLabelBottom = 42;
+    const int kFrameDisplayLabelTop = 13;
+    const int kFrameDisplayLabelBottom = 33;
     const int kFrameDisplayHitLeft = 184;
     const int kFrameDisplayHitRight = 296;
     const int kFrameDisplayHitTop = 4;

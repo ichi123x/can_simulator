@@ -19,6 +19,8 @@
 #include "CanSim/FrameEvents.h"
 #include "SettingsDlg.h"
 #include "FrameEditDlg.h"
+#include "LogViewDlg.h"
+#include "CanSim/LogFileIndex.h"
 
 #include <algorithm>
 
@@ -99,6 +101,9 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_WM_CAPTURECHANGED()
 	ON_MESSAGE(WM_APP_FRAME_EDITOR_CLOSED, &CMFCApplication1Dlg::OnFrameEditorClosed)
 	ON_MESSAGE(WM_APP_ECU_LABEL_CHANGED, &CMFCApplication1Dlg::OnEcuLabelChanged)
+	ON_MESSAGE(WM_APP_LOAD_STARTUP_PROJECT, &CMFCApplication1Dlg::OnLoadStartupProject)
+	ON_COMMAND(ID_LOG_VIEW_SIMLOG, &CMFCApplication1Dlg::OnLogViewSimLog)
+	ON_MESSAGE(WM_APP_LOG_VIEWER_CLOSED, &CMFCApplication1Dlg::OnLogViewerClosed)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
@@ -134,6 +139,10 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	SetIcon(m_hIcon, TRUE);			// 大きいアイコンの設定
 	SetIcon(m_hIcon, FALSE);		// 小さいアイコンの設定
 
+	// 024: "CAN Bus Simulator" from the .rc caption, followed by the project file label
+	GetWindowText(m_baseTitle);
+	SetProjectPath(CString());
+
 	// 014 FR-009: the toolbar takes the top of the client area; the window
 	// grows by its height so that the diagram and the log view keep their size.
 	{
@@ -157,6 +166,10 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	const CRect textRect = GetLogTextRect();
 	GetDlgItem(IDC_SCROLL_LOG)->MoveWindow(textRect.right, logRect.top, logRect.right - textRect.right, logRect.Height());
 	UpdateLogScroll();
+
+	// 024: a project given on the command line is loaded after the window is shown
+	if (!m_startupProject.IsEmpty())
+		PostMessage(WM_APP_LOAD_STARTUP_PROJECT);
 
 	return TRUE;  // フォーカスをコントロールに設定した場合を除き、TRUE を返します。
 }
@@ -943,12 +956,6 @@ namespace
 	{
 		return CString(ascii.c_str());
 	}
-
-	bool HasProjectExtension(const CString& path)
-	{
-		const int dot = path.ReverseFind(_T('.'));
-		return dot >= 0 && path.Mid(dot).CompareNoCase(_T(".canprj")) == 0;
-	}
 }
 
 // Enter and Esc must not close the dialog; only the close box does (004 FR-020).
@@ -995,6 +1002,8 @@ void CMFCApplication1Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL b
 	pPopupMenu->EnableMenuItem(ID_FILE_LOAD_PROJECT, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_SETTINGS, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_FRAMES, idleOnly);
+	pPopupMenu->EnableMenuItem(ID_LOG_VIEW_SIMLOG, idleOnly);                   // 025 FR-008
+	pPopupMenu->EnableMenuItem(ID_ANALYSIS_PLACEHOLDER, MF_BYCOMMAND | MF_GRAYED); // 025 FR-002
 	// 014 FR-004: same states as the toolbar buttons (Start is also greyed
 	// while the frame editor is open, 010 FR-013)
 	const CanSim::SimCommandStates sim = SimStates();
@@ -1008,19 +1017,25 @@ void CMFCApplication1Dlg::OnFileLoadProject()
 	if (InRun())
 		return;
 	CloseFrameEditor(); // 010 FR-014: the editor refers to the current project
+	CloseLogViewer();   // 025 FR-009: the log belongs to the current project
 
 	CFileDialog dlg(TRUE, _T("canprj"), nullptr, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
 		LoadRcString(IDS_PROJECT_FILTER), this);
 	if (dlg.DoModal() != IDOK)
 		return;
+	LoadProjectFrom(dlg.GetPathName());
+}
 
-	const CString path = dlg.GetPathName();
+// 024: shared by the menu, the toolbar and the project given at startup.
+// On any error the current project (and the title) is left untouched.
+bool CMFCApplication1Dlg::LoadProjectFrom(const CString& path)
+{
 	CString message;
-	if (!HasProjectExtension(path))
+	if (!CanSim::HasProjectExtension(std::wstring((LPCTSTR)path)))
 	{
 		message.Format(LoadRcString(IDS_BAD_EXTENSION), (LPCTSTR)path);
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
-		return;
+		return false;
 	}
 
 	const CanSim::ConfigLoadResult loaded = CanSim::LoadConfig(std::wstring((LPCTSTR)path));
@@ -1029,14 +1044,109 @@ void CMFCApplication1Dlg::OnFileLoadProject()
 		// The current project is left untouched (004 FR-010).
 		message.Format(LoadRcString(IDS_LOAD_ERROR), (LPCTSTR)ToCString(loaded.ErrorMessage));
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
-		return;
+		return false;
 	}
 
 	m_settings = loaded.Project;
 	InvalidateToolbar(); // 015 FR-010: the thumb shows the loaded speed
 	m_definitions = loaded.Config;
-	m_projectPath = path;
+	SetProjectPath(path);
 	SetEcuCount(m_settings.EcuCount);
+	return true;
+}
+
+// 024: the only place where the current project file changes; the title bar
+// always shows it (empty path = no project file yet).
+void CMFCApplication1Dlg::SetProjectPath(const CString& path)
+{
+	if (path.CompareNoCase(m_projectPath) != 0)
+		CloseLogViewer(); // 025 FR-009: the log shown belongs to the previous file
+	m_projectPath = path;
+	const std::wstring title = CanSim::ComposeWindowTitle(std::wstring((LPCTSTR)m_baseTitle),
+		std::wstring((LPCTSTR)LoadRcString(IDS_PROJECT_PATH_LABEL)), std::wstring((LPCTSTR)path));
+	SetWindowText(title.c_str());
+}
+
+// 024: loads the project given on the command line once the window is shown,
+// so that an error message appears over the main window (research decision 6).
+LRESULT CMFCApplication1Dlg::OnLoadStartupProject(WPARAM, LPARAM)
+{
+	CString arg = m_startupProject;
+	m_startupProject.Empty();
+	if (arg.IsEmpty())
+		return 0;
+
+	// Relative and 8.3 paths become the absolute long path (spec FR-007).
+	CString path = arg;
+	const DWORD fullLength = ::GetFullPathNameW(arg, 0, nullptr, nullptr);
+	if (fullLength > 0)
+	{
+		std::vector<wchar_t> full(fullLength);
+		if (::GetFullPathNameW(arg, fullLength, full.data(), nullptr) > 0)
+			path = full.data();
+	}
+	const DWORD longLength = ::GetLongPathNameW(path, nullptr, 0);
+	if (longLength > 0)
+	{
+		std::vector<wchar_t> longPath(longLength);
+		if (::GetLongPathNameW(path, longPath.data(), longLength) > 0)
+			path = longPath.data();
+	}
+
+	LoadProjectFrom(path); // a failure keeps the default project (FR-006)
+	return 0;
+}
+
+// 025: "Log > Simulation log" shows "<project file>.log.csv" read-only, or
+// says why there is nothing to show (spec FR-004..FR-006).
+void CMFCApplication1Dlg::OnLogViewSimLog()
+{
+	if (InRun())
+		return; // FR-008: the menu is greyed; guard other routes too
+	if (m_logViewer != nullptr)
+	{
+		m_logViewer->SetForegroundWindow(); // same file: only bring it to the front
+		return;
+	}
+	if (m_projectPath.IsEmpty())
+	{
+		AfxMessageBox(LoadRcString(IDS_LOG_NONE_NOPROJECT), MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+
+	const CString logPath = CanSim::LogPathFor(std::wstring((LPCTSTR)m_projectPath)).c_str();
+	const DWORD attributes = ::GetFileAttributes(logPath);
+	if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+	{
+		const int slash = (std::max)(m_projectPath.ReverseFind(_T('\\')), m_projectPath.ReverseFind(_T('/')));
+		CString message;
+		message.Format(LoadRcString(IDS_LOG_NONE), (LPCTSTR)m_projectPath.Mid(slash + 1));
+		AfxMessageBox(message, MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+
+	CLogViewDlg* viewer = new CLogViewDlg(this, logPath);
+	if (!viewer->Open())
+	{
+		delete viewer; // no window was created
+		CString message;
+		message.Format(LoadRcString(IDS_LOG_READ_ERROR), (LPCTSTR)logPath);
+		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
+		return;
+	}
+	m_logViewer = viewer;
+}
+
+LRESULT CMFCApplication1Dlg::OnLogViewerClosed(WPARAM, LPARAM)
+{
+	m_logViewer = nullptr;
+	return 0;
+}
+
+void CMFCApplication1Dlg::CloseLogViewer()
+{
+	if (m_logViewer != nullptr)
+		m_logViewer->DestroyWindow(); // the closed notice clears m_logViewer
 }
 
 bool CMFCApplication1Dlg::AskSavePath(CString& path)
@@ -1080,11 +1190,20 @@ bool CMFCApplication1Dlg::SaveProjectTo(const CString& path)
 	if (!CanSim::SaveProject(std::wstring((LPCTSTR)path), m_settings, m_definitions))
 	{
 		CString message;
-		message.Format(LoadRcString(IDS_SAVE_ERROR), (LPCTSTR)path);
+		const DWORD attributes = ::GetFileAttributes(path);
+		if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY) != 0)
+		{
+			// 023 revision 1 B: name the file and say why it could not be written
+			const int slash = (std::max)(path.ReverseFind(_T('\\')), path.ReverseFind(_T('/')));
+			const CString name = path.Mid(slash + 1);
+			message.Format(LoadRcString(IDS_SAVE_READONLY), (LPCTSTR)name, (LPCTSTR)path);
+		}
+		else
+			message.Format(LoadRcString(IDS_SAVE_ERROR), (LPCTSTR)path);
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
 		return false;
 	}
-	m_projectPath = path;
+	SetProjectPath(path); // 024: the title shows the file just written
 	return true;
 }
 
@@ -1093,6 +1212,7 @@ void CMFCApplication1Dlg::OnEditSettings()
 	if (InRun())
 		return;
 	CloseFrameEditor(); // 010 FR-014: ECU count and bit rate may change
+	CloseLogViewer();   // 025 FR-009
 
 	CSettingsDlg dlg(m_settings, m_definitions.BitRateBps, this);
 	if (dlg.DoModal() != IDOK)
@@ -1189,6 +1309,7 @@ void CMFCApplication1Dlg::OnDestroy()
 	// Closing the main window while a switch is pending must not open a new
 	// editor (spec Edge Cases).
 	CloseFrameEditor();
+	CloseLogViewer(); // 025
 	KillTimer(kGrayTimerId); // 011
 	CDialogEx::OnDestroy();
 }
@@ -1288,7 +1409,7 @@ bool CMFCApplication1Dlg::WriteResults(const std::vector<CanSim::LogRow>& rows,
 	CString& logPath, CString& summaryPath, CString& startupPath)
 {
 	// Same file names as before feature 004: <project path>.log.csv etc.
-	logPath = m_projectPath + _T(".log.csv");
+	logPath = CanSim::LogPathFor(std::wstring((LPCTSTR)m_projectPath)).c_str(); // 025: same name the log viewer looks for
 	summaryPath = m_projectPath + _T(".summary.csv");
 	startupPath = m_projectPath + _T(".startup.csv");
 
@@ -1319,6 +1440,9 @@ void CMFCApplication1Dlg::OnSimStart()
 	}
 	if (IsEditingFrames())
 		return; // 010 FR-013: the menu item is greyed; guard other routes too
+
+	// 025 FR-009: the log shown would be replaced by this run.
+	CloseLogViewer();
 
 	// The results are written next to the project file, so it needs a place
 	// first (004 FR-017).
@@ -1389,9 +1513,9 @@ void CMFCApplication1Dlg::ResetDisplaysForRun()
 	UpdateWindow();
 }
 
-// 007 FR-001/FR-002: while running, the File (position 0) and Edit
-// (position 1) menus are greyed as a whole so that they cannot be opened by
-// mouse or keyboard. The Simulation menu (position 2) stays available.
+// 007 FR-001/FR-002, 025 FR-008: while running, File (0), Edit (1),
+// Analysis (3) and Log (4) are greyed as a whole so that they cannot be
+// opened by mouse or keyboard. Simulation (2) stays available.
 void CMFCApplication1Dlg::UpdateTopMenus()
 {
 	CMenu* menu = GetMenu();
@@ -1400,6 +1524,8 @@ void CMFCApplication1Dlg::UpdateTopMenus()
 	const UINT state = MF_BYPOSITION | (InRun() ? MF_GRAYED : MF_ENABLED);
 	menu->EnableMenuItem(0, state);
 	menu->EnableMenuItem(1, state);
+	menu->EnableMenuItem(3, state);
+	menu->EnableMenuItem(4, state);
 	DrawMenuBar();
 }
 

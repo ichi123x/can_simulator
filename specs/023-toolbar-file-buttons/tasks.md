@@ -127,7 +127,7 @@ description: "Task list for feature 023-toolbar-file-buttons"
 - [X] T009 Debug/Release × x64/x86 の 4 構成をビルドし、次を確かめる（依存: T001〜T008）。
   - 4 構成とも、警告・エラーなしでビルドできる。
   - checks.exe の全項目が PASS し、サンプルの CSV が基準と一致する（spec SC-005）。
-- [ ] T010 quickstart.md の手動確認 1〜11 を行い、結果を tasks.md の末尾に記録する（依存: T009）。
+- [X] T010 quickstart.md の手動確認 1〜11 を行い、結果を tasks.md の末尾に記録する（依存: T009）。
   - ユーザーが起動しているアプリのプロセスは終了させない。exe が使用中でビルドできないときは、ユーザーに閉じてもらうよう頼む（019 の作業での反省）。
 
 ## Dependencies & Execution Order
@@ -183,3 +183,48 @@ T003 → T004 → T005 → T006 (MFCApplication1Dlg.cpp)  |  T007 checks.cpp  | 
   - quickstart 手順 1（並び）: 画面写しで確認した。保存・読込み・空き・開始・中断・終了 → フレーム表示 → シミュレーション時間 → スピード：→ スライダーの順で、重なりは無い。
     起動直後は 保存・読込み・開始が有効、中断・終了がグレー。
   - 手順 2〜11（保存・読込みのダイアログ操作、実行中のグレー、押し方など）は未実施。ユーザーの手動確認を待つ。
+
+## T010 の手動確認の結果（2026-10-02、ユーザー）
+
+| 手順 | 結果 |
+|------|------|
+| 1. 並び | 基本的に問題なし。終了ボタンの箱とフレーム表示のチェックボックスの高さを揃えると見栄えがよくなる（→ 改訂 1 の A） |
+| 2. 保存（ファイルなし） | 正常 |
+| 3. 保存（ファイルあり） | 正常 |
+| 4. 保存の失敗 | 動作は正常。メッセージが不親切なので、プロジェクトファイル名を示し、読み取り専用のため保存できなかったと伝える（→ 改訂 1 の B） |
+| 5. メニューの保存は変わらない | 正常 |
+| 6. 読込み | 正常 |
+| 7. 読込みのキャンセル・エラー | 3 点とも正常 |
+| 8. 編集中 | 2 点とも正常 |
+| 9. 実行中・中断中 | 2 点とも正常 |
+| 10. 押し方 | 正常 |
+| 11. 既存の動作 | 正常 |
+
+## Phase 7: 改訂 1（ユーザーの確認を受けて）
+
+spec.md の「改訂 1」の A（チェックボックスの高さ）・B（読み取り専用のメッセージ）を行う。
+
+- [X] T011 [P] `MFCApplication1/CanSim/SimControls.h` のフレーム表示のチェックボックスの y を、終了ボタンの箱の中心（96 dpi で y 23）に揃える。
+  - `kFrameDisplayBoxTop` 25 → 16（箱 16〜30）、`kFrameDisplayLabelTop` 22 → 13、`kFrameDisplayLabelBottom` 42 → 33。x・当たり判定（y 4〜60）は変えない。
+- [X] T012 [P] 保存の失敗が読み取り専用のファイルによるときのメッセージを足す。
+  - `Resource.h`: `#define IDS_SAVE_READONLY 253	// feature 023 revision 1`、`_APS_NEXT_SYMED_VALUE` を 254 にする。
+  - `.rc`（UTF-16LE・BOM 付き・CRLF を保つ）: `IDS_SAVE_READONLY "プロジェクトファイル「%s」は読み取り専用のため、保存できませんでした。\n読み取り専用を外してから、もう一度保存してください。\n\n%s"`
+    （1 つ目の `%s` はファイル名、2 つ目はフルパス）。
+  - `MFCApplication1Dlg.cpp` の `SaveProjectTo`: 失敗したとき、`GetFileAttributes(path)` が `INVALID_FILE_ATTRIBUTES` でなく `FILE_ATTRIBUTE_READONLY` を含めば `IDS_SAVE_READONLY`、
+    それ以外は今の `IDS_SAVE_ERROR`。`m_projectPath` を変えないことは同じ。
+- [X] T013 `tools/cansim_runner/checks.cpp` に、チェックボックスの箱の縦の中心が終了ボタンの箱の縦の中心と ±1 px 以内で一致すること（DPI 96/120/144）、
+  チェックボックスの箱・文字が当たり判定と帯の中に収まることを足す（依存: T011）。
+- [X] T014 `CLAUDE.md` の 023 の段落に改訂 1 を足し、4 構成のビルドと checks.exe（全項目 PASS・CSV 一致）を確かめる（依存: T011〜T013）。
+- [X] T015 手動確認: quickstart.md の手順 1（高さ）と 4（メッセージ）をもう一度確かめる（依存: T014）。
+
+## 改訂 1 の実装結果（2026-10-02）
+
+- 変更:
+  - `CanSim/SimControls.h`: `kFrameDisplayBoxTop` 16、`kFrameDisplayLabelTop` 13、`kFrameDisplayLabelBottom` 33（箱・文字の縦の中心が終了ボタンの箱と同じ y 23）
+  - `Resource.h`（UTF-8 BOM のまま）・`.rc`（UTF-16LE のまま。読み直して確認済み）: `IDS_SAVE_READONLY`（253）
+  - `MFCApplication1Dlg.cpp` の `SaveProjectTo`: 失敗時に `GetFileAttributes` で読み取り専用なら `IDS_SAVE_READONLY`（ファイル名とフルパス）、それ以外は `IDS_SAVE_ERROR`
+  - `checks.cpp`: 023 改訂 1 A の項目を追加、`CLAUDE.md`: 023 の段落に改訂 1、「未完了の作業」の節を削除
+- 手動確認の手順 6 でサンプル `sample_16ecu.canprj` が上書き保存され、説明のコメントが消えていた（中身は既定値の書き出しのみ）。`git restore` でコミット済みの内容に戻した。
+- T014（ビルド）: Release x64・Debug x86・Release x86 は警告・エラーなし。Debug x64 は初めユーザーが起動中だった（プロセスは終了させていない）。ユーザーが閉じた後にビルドし、警告・エラーなしで通った。
+- checks.exe: 全 181 項目 PASS。HEAD のソースの runner で作った基準 CSV（各サンプル 10 秒）とも一致した。
+- T015（2026-10-02、ユーザー）: 手順 1（チェックボックスの高さ）・手順 4（読み取り専用のメッセージと、外した後の保存）とも問題なし。

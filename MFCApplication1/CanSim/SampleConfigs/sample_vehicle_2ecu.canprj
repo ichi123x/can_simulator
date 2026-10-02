@@ -1,0 +1,55 @@
+; Vehicle-like sample project: 2 ECU: engine ECU and instrument cluster (minimum powertrain-to-meter link).
+; 500 kbps high-speed CAN. Lower CAN IDs have higher priority: airbag, chassis and
+; powertrain (10-20 ms) before body and comfort (100-1000 ms). RxFilter lists the frames
+; each ECU really uses, so the frame display shows realistic receivers.
+; Start offsets are staggered as on a real bus; some frames still
+; meet and show arbitration. Speed -3 (1/8 of real time) makes the traffic easy to follow.
+
+[Project]
+EcuCount=2
+DurationSec=5
+FrameDisplay=1
+Speed=-3
+
+[Network]
+BitRateBps=500000
+
+[Node1]
+NodeId=1
+Name=ECM Engine Control Module
+Label=エンジン
+RxFilter=0x3E8
+
+[Node1.Frame1]
+Name=EngineRPM_ThrottlePos
+CanId=0x0C0
+Dlc=8
+PeriodUs=10000
+InitialOffsetUs=5000
+
+[Node1.Frame2]
+Name=Coolant_OilTemp
+CanId=0x1A0
+Dlc=8
+PeriodUs=100000
+InitialOffsetUs=7000
+
+[Node1.Frame3]
+Name=FuelLevel_Consumption
+CanId=0x1A8
+Dlc=4
+PeriodUs=200000
+InitialOffsetUs=9000
+
+[Node2]
+NodeId=2
+Name=IPC Instrument Cluster
+Label=メーター
+RxFilter=0x0C0,0x1A0,0x1A8
+
+[Node2.Frame1]
+Name=Meter_DriveModeSwitch
+CanId=0x3E8
+Dlc=2
+PeriodUs=200000
+InitialOffsetUs=8000

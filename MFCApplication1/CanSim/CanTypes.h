@@ -126,7 +126,7 @@ namespace CanSim
         int EcuCount = 2;           // 0..16
         int DurationSec = 10;       // 1..600
         bool FrameDisplay = true;   // feature 021: on by default (startup and a file without FrameDisplay=)
-        int Speed = 0;              // -13..10 (feature 005); 0 = real time
+        int Speed = 0;              // -10..10 (feature 026; was -13..10); 0 = real time
     };
 
     const int kMinDurationSec = 1;
@@ -134,7 +134,8 @@ namespace CanSim
 
     // Feature 005: the simulation time runs at 2^Speed times the real time.
     // kInstantSpeed does not wait at all.
-    const int kMinSpeed = -13;
+    const int kMinSpeed = -10;        // feature 026 (was -13)
+    const int kLegacyMinSpeed = -13;  // feature 026: older project files may say -13..-11; read as kMinSpeed
     const int kMaxSpeed = 10;
     const int kInstantSpeed = 10;
 

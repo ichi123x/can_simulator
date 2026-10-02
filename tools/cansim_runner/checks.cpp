@@ -22,12 +22,14 @@
 #include "FrameEditor.h"
 #include "SimControls.h"
 #include "FlowEffect.h"
+#include "LogFileIndex.h"
 
 #include <climits>
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -748,14 +750,14 @@ namespace
             Check(def.Success && def.Project.Speed == 0, "005 FR-002: Speed defaults to 0 when absent");
 
             struct Case { const char* Text; int Expected; };
-            const Case ok[] = { { "+3", 3 }, { "-3", -3 }, { "10", 10 }, { "-13", -13 }, { "0", 0 } };
+            const Case ok[] = { { "+3", 3 }, { "-3", -3 }, { "10", 10 }, { "-10", -10 }, { "0", 0 } };
             bool accepted = true;
             for (const Case& c : ok)
             {
                 ConfigLoadResult r = LoadText("s_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n");
                 accepted = accepted && r.Success && r.Project.Speed == c.Expected;
             }
-            Check(accepted, "005 FR-002: Speed +3 / -3 / 10 / -13 / 0 are accepted");
+            Check(accepted, "005 FR-002: Speed +3 / -3 / 10 / -10 / 0 are accepted (026: range -10..10)");
 
             const char* bad[] = { "11", "-14", "1.5", "abc", "", "+", "--1" };
             bool rejected = true;
@@ -767,19 +769,19 @@ namespace
             Check(rejected, "005 FR-002: Speed 11 / -14 / 1.5 / abc / empty are rejected with a reason");
 
             ProjectSettings s;
-            s.Speed = -13;
+            s.Speed = -10;
             const std::string path = Join(g_tempDir, "s_roundtrip.canprj");
             ConfigLoadResult back;
             const bool saved = SaveProject(Widen(path), s, Network());
             back = LoadConfig(Widen(path));
-            Check(saved && back.Success && back.Project.Speed == -13, "005 FR-002: Speed survives save then reload");
+            Check(saved && back.Success && back.Project.Speed == -10, "005 FR-002: Speed survives save then reload");
         }
 
         // SimTimeAtUs (FR-003)
         {
             const long long e = 1000000; // 1 s of real time
             Check(SimTimeAtUs(e, 0) == e && SimTimeAtUs(e, 1) == 2 * e && SimTimeAtUs(e, -1) == e / 2 &&
-                      SimTimeAtUs(e, -10) == e / 1024 && SimTimeAtUs(e, -13) == e / 8192 &&
+                      SimTimeAtUs(e, -10) == e / 1024 && SimTimeAtUs(e, -13) == e / 8192 && // the formula itself also holds below kMinSpeed
                       SimTimeAtUs(e, 9) == 512 * e && SimTimeAtUs(0, 5) == 0,
                 "005 FR-003: simulated time = real time x 2^speed (0, +1, -1, -10, -13, +9)");
             Check(SimTimeAtUs(LLONG_MAX / 2, 9) == LLONG_MAX, "005: SimTimeAtUs saturates instead of overflowing");
@@ -1551,7 +1553,7 @@ namespace
         // FR-006: resumed time
         bool same = true;
         const long long elapsed[] = { 0, 1, 999, 1000000, 37000001 };
-        const int speeds[] = { -13, 0, 5 };
+        const int speeds[] = { kMinSpeed, 0, 5 };
         for (long long e : elapsed)
             for (int s : speeds)
                 same = same && ResumedSimTimeUs(0, e, s) == SimTimeAtUs(e, s);
@@ -1612,7 +1614,7 @@ namespace
                 !IsOnSpeedSlider(ScaleToDpi(kSpeedSliderLeft - kSpeedTickPitch / 2, dpi) - 1, ScaleToDpi(20, dpi), dpi) &&
                 IsOnSpeedSlider(ScaleToDpi(kSpeedSliderLeft - kSpeedTickPitch / 2, dpi), ScaleToDpi(20, dpi), dpi);
         }
-        Check(even, "015 FR-002: 24 ticks from -13 to +10, evenly spaced (DPI 96/120/144)");
+        Check(even, "015 FR-002 / 026: 21 ticks from -10 to +10, evenly spaced (DPI 96/120/144)");
         Check(placed, "015 FR-002/FR-012: the slider is right of the Stop button and inside the toolbar band and the window width");
         Check(labels, "015 FR-004 / 019 FR-004: the shown tick values do not overlap for any current value");
         Check(thumbs, "015 FR-003: the thumb is drawn on the tick of the speed");
@@ -1621,11 +1623,11 @@ namespace
 
         struct Row { RunPhase Phase; int Speed; SpeedChangeAction Action; };
         const Row rows[] = {
-            { RunPhase::Idle, -13, SpeedChangeAction::None }, { RunPhase::Idle, 0, SpeedChangeAction::None },
+            { RunPhase::Idle, kMinSpeed, SpeedChangeAction::None }, { RunPhase::Idle, 0, SpeedChangeAction::None },
             { RunPhase::Idle, 9, SpeedChangeAction::None }, { RunPhase::Idle, 10, SpeedChangeAction::None },
-            { RunPhase::Running, -13, SpeedChangeAction::Rebase }, { RunPhase::Running, 0, SpeedChangeAction::Rebase },
+            { RunPhase::Running, kMinSpeed, SpeedChangeAction::Rebase }, { RunPhase::Running, 0, SpeedChangeAction::Rebase },
             { RunPhase::Running, 9, SpeedChangeAction::Rebase }, { RunPhase::Running, 10, SpeedChangeAction::FinishNow },
-            { RunPhase::Paused, -13, SpeedChangeAction::None }, { RunPhase::Paused, 0, SpeedChangeAction::None },
+            { RunPhase::Paused, kMinSpeed, SpeedChangeAction::None }, { RunPhase::Paused, 0, SpeedChangeAction::None },
             { RunPhase::Paused, 9, SpeedChangeAction::None }, { RunPhase::Paused, 10, SpeedChangeAction::FinishNow },
         };
         bool actions = true;
@@ -1836,10 +1838,10 @@ namespace
                     v.push_back(s);
             return v;
         };
-        Check(shown(0) == std::vector<int>{ -13, -10, -5, 0, 5, 10 } &&
-            shown(-12) == std::vector<int>{ -12, -5, 0, 5, 10 } &&
-            shown(9) == std::vector<int>{ -13, -10, -5, 0, 5, 9 } &&
-            shown(3) == std::vector<int>{ -13, -10, -5, 0, 3, 10 },
+        Check(shown(0) == std::vector<int>{ -10, -5, 0, 5, 10 } &&
+            shown(-9) == std::vector<int>{ -9, -5, 0, 5, 10 } &&
+            shown(9) == std::vector<int>{ -10, -5, 0, 5, 9 } &&
+            shown(3) == std::vector<int>{ -10, -5, 0, 3, 10 },
             "019 FR-004: every 5th value and the current one; 5th values within 2 ticks of it are hidden");
 
         bool caption = true;
@@ -2015,6 +2017,205 @@ namespace
                     IsToolbarButtonEnabled(static_cast<int>(ToolbarButton::Stop), phase, editing != 0) == s.Stop;
             }
         Check(states, "023 FR-006: Save / Load only while Idle (also while editing); Start / Pause / Stop as GetSimCommandStates");
+
+        // Revision 1 A: the check box and its label share the vertical centre of the button boxes.
+        bool aligned = true;
+        for (int dpi : dpis)
+        {
+            const DiagramRect stop = ToolbarButtonBoxRect(static_cast<int>(ToolbarButton::Stop), dpi);
+            const DiagramRect box = FrameDisplayBoxRect(dpi);
+            const DiagramRect label = FrameDisplayLabelRect(dpi);
+            const int stopMid = stop.Top + stop.Bottom;   // doubled centres keep the half pixel
+            const int boxMid = box.Top + box.Bottom;
+            const int labelMid = label.Top + label.Bottom;
+            aligned = aligned && std::abs(boxMid - stopMid) <= 2 && std::abs(labelMid - stopMid) <= 2 &&
+                box.Top >= ScaleToDpi(kFrameDisplayHitTop, dpi) && label.Top >= ScaleToDpi(kFrameDisplayHitTop, dpi) &&
+                box.Bottom <= ScaleToDpi(kToolbarHeight, dpi);
+        }
+        Check(aligned, "023 revision 1 A: check box and label centred on the Stop box within 1 px, inside the hit area (DPI 96/120/144)");
+    }
+
+    void CheckFeature024()
+    {
+        std::cout << "\n== feature 024: project file name in the title, project given at startup ==\n";
+        // The real label is Japanese text in the .rc; an ASCII stand-in checks the layout.
+        Check(ComposeWindowTitle(L"CAN Bus Simulator", L"LABEL:", L"") == L"CAN Bus Simulator    LABEL:" &&
+            ComposeWindowTitle(L"CAN Bus Simulator", L"LABEL:", L"C:\\work\\a.canprj") ==
+                L"CAN Bus Simulator    LABEL:C:\\work\\a.canprj",
+            "024 FR-001/FR-002: title = app title + 4 spaces + label + full path; the label ends it without a project");
+
+        const std::wstring exe = L"MFCApplication1.exe";
+        Check(FindStartupProjectArg({}).empty() && FindStartupProjectArg({ exe }).empty() &&
+            FindStartupProjectArg({ exe, L"a.canprj" }) == L"a.canprj" &&
+            FindStartupProjectArg({ exe, L"", L"a.canprj", L"b.canprj" }) == L"a.canprj",
+            "024 FR-005: the first non-empty argument after the program is the startup project; later ones are ignored");
+
+        Check(HasProjectExtension(L"a.canprj") && HasProjectExtension(L"A.CANPRJ") &&
+            HasProjectExtension(L"C:\\x\\b.CanPrj") && !HasProjectExtension(L"a.canprj.txt") &&
+            !HasProjectExtension(L"README.md") && !HasProjectExtension(L"canprj") && !HasProjectExtension(L""),
+            "024 FR-005: HasProjectExtension accepts .canprj in any case and rejects other extensions");
+    }
+    // Writes text as is (binary) for the log index checks.
+    void WriteRaw(const std::string& path, const std::string& text)
+    {
+        std::ofstream out(path.c_str(), std::ios::binary);
+        out << text;
+    }
+
+    void CheckFeature025()
+    {
+        std::cout << "\n== feature 025: simulation log viewer (line index) ==\n";
+        {
+            const std::string empty = Join(g_tempDir, "log025_empty.csv");
+            WriteRaw(empty, "");
+            LogFileIndex index;
+            const bool built = index.Build(Widen(empty));
+            LogFileIndex missing;
+            Check(built && index.LineCount() == 0 && index.ReadLines(0, 10).empty() &&
+                !missing.Build(Widen(Join(g_tempDir, "log025_no_such_file.csv"))),
+                "025: an empty log is 0 lines; a missing file cannot be built");
+        }
+
+        // 1000 lines of different lengths, LF / CRLF / no final newline
+        std::vector<std::string> lines;
+        std::size_t longest = 0;
+        for (int i = 0; i < 1000; ++i)
+        {
+            std::string s = "line," + std::to_string(i) + "," + std::string(static_cast<std::size_t>(i % 37), 'x');
+            longest = (std::max)(longest, s.size());
+            lines.push_back(s);
+        }
+        std::string lf, crlf;
+        for (const std::string& s : lines)
+        {
+            lf += s + "\n";
+            crlf += s + "\r\n";
+        }
+        const std::string noFinal = lf.substr(0, lf.size() - 1);
+        bool same = true;
+        bool clipped = true;
+        const std::string names[] = { "log025_lf.csv", "log025_crlf.csv", "log025_nofinal.csv" };
+        const std::string* texts[] = { &lf, &crlf, &noFinal };
+        for (int k = 0; k < 3; ++k)
+        {
+            const std::string path = Join(g_tempDir, names[k]);
+            WriteRaw(path, *texts[k]);
+            LogFileIndex index;
+            same = same && index.Build(Widen(path)) && index.LineCount() == 1000 &&
+                index.MaxLineLength() == static_cast<int>(longest);
+            const std::vector<std::string> all = index.ReadLines(0, 1000);
+            same = same && all == lines;
+            const std::vector<std::string> a = index.ReadLines(255, 3);
+            const std::vector<std::string> b = index.ReadLines(256, 1);
+            const std::vector<std::string> c = index.ReadLines(998, 10);
+            const std::vector<std::string> d = index.ReadLines(-5, 7);
+            clipped = clipped && a.size() == 3 && a[0] == lines[255] && a[2] == lines[257] &&
+                b.size() == 1 && b[0] == lines[256] &&
+                c.size() == 2 && c[1] == lines[999] &&
+                d.size() == 2 && d[0] == lines[0] && d[1] == lines[1] &&
+                index.ReadLines(1000, 5).empty() && index.ReadLines(10, 0).empty();
+        }
+        Check(same, "025: LF, CRLF and a missing final newline give the same 1000 lines (no CR) and the same longest line");
+        Check(clipped, "025: ReadLines across the 256-line checkpoints and at both ends is clipped to the file");
+
+        {
+            // exactly 512 lines: no checkpoint may point past the end
+            std::string text;
+            for (int i = 0; i < 512; ++i)
+                text += "r" + std::to_string(i) + "\n";
+            const std::string path = Join(g_tempDir, "log025_512.csv");
+            WriteRaw(path, text);
+            LogFileIndex index;
+            const std::vector<std::string> tail = index.Build(Widen(path)) ? index.ReadLines(510, 5) : std::vector<std::string>();
+            Check(index.LineCount() == 512 && tail.size() == 2 && tail[1] == "r511",
+                "025: a file ending exactly on a checkpoint boundary reads its last lines");
+        }
+
+        {
+            // a real frame log (sample_16ecu, 10 s)
+            const std::string prefix = Join(g_tempDir, "log025_16ecu");
+            bool ok = RunProjectToCsv(Join(g_sampleDir, "sample_16ecu.canprj"), prefix, 10000000LL);
+            const std::string path = prefix + ".log.csv";
+            std::ifstream in(path.c_str());
+            std::string line, firstLine, lastLine;
+            long long count = 0;
+            while (std::getline(in, line))
+            {
+                if (!line.empty() && line.back() == '\r')
+                    line.pop_back();
+                if (count == 0)
+                    firstLine = line;
+                lastLine = line;
+                ++count;
+            }
+            LogFileIndex index;
+            ok = ok && index.Build(Widen(path)) && index.LineCount() == count && count > 1000;
+            const std::vector<std::string> head = index.ReadLines(0, 1);
+            const std::vector<std::string> tail = index.ReadLines(count - 1, 1);
+            ok = ok && head.size() == 1 && head[0] == firstLine && tail.size() == 1 && tail[0] == lastLine;
+            std::cout << "  sample_16ecu 10 s log: " << count << " lines\n";
+            Check(ok, "025 SC-001: the index of a real frame log has the same line count, first and last line as the file");
+        }
+
+        {
+            // 1,000,000 lines of about 90 characters: time to build (reported only)
+            const std::string path = Join(g_tempDir, "log025_big.csv");
+            {
+                std::ofstream out(path.c_str(), std::ios::binary);
+                const std::string pad(80, 'y');
+                for (int i = 0; i < 1000000; ++i)
+                    out << i << ',' << pad << "\r\n";
+            }
+            LogFileIndex index;
+            const auto t0 = std::chrono::steady_clock::now();
+            const bool built = index.Build(Widen(path));
+            const auto t1 = std::chrono::steady_clock::now();
+            const std::vector<std::string> tail = index.ReadLines(999990, 20);
+            std::cout << "  build of 1,000,000 lines: "
+                      << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << " ms\n";
+            Check(built && index.LineCount() == 1000000 && tail.size() == 10 &&
+                tail[9] == "999999," + std::string(80, 'y'),
+                "025 SC-003: a 1,000,000-line log is indexed and its last lines are read");
+            std::remove(path.c_str());
+        }
+    }
+    void CheckFeature026()
+    {
+        std::cout << "\n== feature 026: speed range -10..+10 ==\n";
+        const int dpis[] = { 96, 120, 144 };
+        bool ticks = kMinSpeed == -10 && kMaxSpeed == 10 && SpeedTickX(-10, 96) == 604 && SpeedTickX(10, 96) == 864 &&
+            kMaxSpeed - kMinSpeed + 1 == 21;
+        bool fits = true;
+        for (int dpi : dpis)
+        {
+            ticks = ticks && SpeedAtX(0, dpi) == -10 && SpeedAtX(ScaleToDpi(2000, dpi), dpi) == 10 &&
+                SpeedTickX(-13, dpi) == SpeedTickX(-10, dpi); // values below the range are drawn at -10
+            const int band = ScaleToDpi(kToolbarHeight, dpi);
+            fits = fits && SpeedLabelRect(10, dpi).Right <= ScaleToDpi(kDiagramWidth, dpi) &&
+                SpeedLabelRect(10, dpi).Bottom <= band &&
+                SpeedCaptionRect(dpi).Right <= SpeedTickX(-10, dpi) - ScaleToDpi(kSpeedTickPitch / 2, dpi);
+        }
+        Check(ticks, "026 FR-004: 21 ticks, -10 at x 604 and +10 at x 864 (96 DPI); SpeedAtX stops at -10 / +10");
+        Check(fits, "026 SC-003: the +10 label and the Speed: caption stay inside the band (DPI 96/120/144)");
+
+        struct Case { const char* Text; int Expected; };
+        const Case legacy[] = { { "-13", -10 }, { "-12", -10 }, { "-11", -10 }, { "-10", -10 }, { "10", 10 } };
+        bool read = true;
+        for (const Case& c : legacy)
+        {
+            ConfigLoadResult r = LoadText("s026_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n");
+            read = read && r.Success && r.Project.Speed == c.Expected;
+        }
+        Check(read, "026 FR-005/SC-004: Speed -13 / -12 / -11 of older files load as -10; -10 and 10 as they are");
+
+        bool rejected = true;
+        const char* bad[] = { "-14", "11" };
+        for (const char* text : bad)
+        {
+            ConfigLoadResult r = LoadText("s026_bad.canprj", std::string("[Project]\r\nSpeed=") + text + "\r\n");
+            rejected = rejected && !r.Success && r.ErrorMessage.find("-10 and 10") != std::string::npos;
+        }
+        Check(rejected, "026 FR-005: Speed -14 and 11 are rejected and the message names -10 and 10");
     }
 }
 
@@ -2049,6 +2250,9 @@ int main(int argc, char** argv)
     CheckFeature020();
     CheckFeature022();
     CheckFeature023();
+    CheckFeature024();
+    CheckFeature025();
+    CheckFeature026();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

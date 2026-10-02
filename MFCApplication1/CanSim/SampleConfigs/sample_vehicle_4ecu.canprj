@@ -1,0 +1,102 @@
+; Vehicle-like sample project: 4 ECU: engine, brake/ESC, body control and instrument cluster.
+; 500 kbps high-speed CAN. Lower CAN IDs have higher priority: airbag, chassis and
+; powertrain (10-20 ms) before body and comfort (100-1000 ms). RxFilter lists the frames
+; each ECU really uses, so the frame display shows realistic receivers.
+; Start offsets are staggered as on a real bus; some frames still
+; meet and show arbitration. Speed -3 (1/8 of real time) makes the traffic easy to follow.
+
+[Project]
+EcuCount=4
+DurationSec=5
+FrameDisplay=1
+Speed=-3
+
+[Network]
+BitRateBps=500000
+
+[Node1]
+NodeId=1
+Name=ECM Engine Control Module
+Label=エンジン
+RxFilter=0x0A8,0x3E8
+
+[Node1.Frame1]
+Name=EngineRPM_ThrottlePos
+CanId=0x0C0
+Dlc=8
+PeriodUs=10000
+InitialOffsetUs=5000
+
+[Node1.Frame2]
+Name=EngineTorque_Actual
+CanId=0x0C8
+Dlc=8
+PeriodUs=20000
+InitialOffsetUs=7000
+
+[Node1.Frame3]
+Name=Coolant_OilTemp
+CanId=0x1A0
+Dlc=8
+PeriodUs=100000
+InitialOffsetUs=9000
+
+[Node1.Frame4]
+Name=FuelLevel_Consumption
+CanId=0x1A8
+Dlc=4
+PeriodUs=200000
+InitialOffsetUs=11000
+
+[Node2]
+NodeId=2
+Name=ESC Brake and Stability Control
+Label=ブレーキ/ESC
+RxFilter=0x0C0,0x0C8
+
+[Node2.Frame1]
+Name=WheelSpeed_FL_FR_RL_RR
+CanId=0x0A0
+Dlc=8
+PeriodUs=10000
+InitialOffsetUs=8000
+
+[Node2.Frame2]
+Name=BrakePressure_TCS_Req
+CanId=0x0A8
+Dlc=8
+PeriodUs=20000
+InitialOffsetUs=10000
+
+[Node3]
+NodeId=3
+Name=BCM Body Control Module
+Label=ボデー
+RxFilter=0x0A0
+
+[Node3.Frame1]
+Name=DoorLock_Command
+CanId=0x300
+Dlc=4
+PeriodUs=100000
+InitialOffsetUs=11000
+
+[Node3.Frame2]
+Name=Lighting_TurnSignal
+CanId=0x308
+Dlc=4
+PeriodUs=100000
+InitialOffsetUs=13000
+
+[Node4]
+NodeId=4
+Name=IPC Instrument Cluster
+Label=メーター
+RxFilter=0x0A0,0x0C0,0x1A0,0x1A8,0x300,0x308
+
+[Node4.Frame1]
+Name=Meter_DriveModeSwitch
+CanId=0x3E8
+Dlc=2
+PeriodUs=200000
+InitialOffsetUs=14000
