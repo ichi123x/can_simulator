@@ -1080,7 +1080,16 @@ bool CMFCApplication1Dlg::SaveProjectTo(const CString& path)
 	if (!CanSim::SaveProject(std::wstring((LPCTSTR)path), m_settings, m_definitions))
 	{
 		CString message;
-		message.Format(LoadRcString(IDS_SAVE_ERROR), (LPCTSTR)path);
+		const DWORD attributes = ::GetFileAttributes(path);
+		if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY) != 0)
+		{
+			// 023 revision 1 B: name the file and say why it could not be written
+			const int slash = (std::max)(path.ReverseFind(_T('\\')), path.ReverseFind(_T('/')));
+			const CString name = path.Mid(slash + 1);
+			message.Format(LoadRcString(IDS_SAVE_READONLY), (LPCTSTR)name, (LPCTSTR)path);
+		}
+		else
+			message.Format(LoadRcString(IDS_SAVE_ERROR), (LPCTSTR)path);
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
 		return false;
 	}

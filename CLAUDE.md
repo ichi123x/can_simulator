@@ -1,4 +1,4 @@
-﻿# CLAUDE.md
+# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -7,17 +7,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 このリポジトリは Visual Studio の MFC ダイアログベースアプリケーション ウィザードで生成されたプロジェクト（`MFCApplication1`）をベースに、CAN バスシミュレータの最初の機能（`specs/001-can-simulation-core/`: ネットワーク構成・シミュレーション実行・調停/自動再送信・性能指標評価）を実装したものです。シミュレーションのコアロジックは `MFCApplication1/CanSim/` 配下に、UI から独立したプレーン C++ として実装されています（詳細は後述のアーキテクチャ節）。
 
 また `.specify/` 配下に GitHub の Spec Kit（SDD: Spec-Driven Development ツール）が Claude 統合で導入されています。機能追加はこの Spec Kit のワークフロー（`/speckit.specify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement`）に沿って進めることが想定されています。プロジェクト固有の憲章は `.specify/memory/constitution.md`（v1.1.0）に確定済みで、CAN 2.0A 準拠・フレーム単位 DES・最大16ノードなどのドメイン仕様上の決定事項と、`Doc/CANバスシミュレータ仕様.md` を一次情報源とする位置付けが記録されています。
-
-## 未完了の作業（セッション開始時にユーザーへ伝えること）
-
-- **機能 023 の手動確認（`specs/023-toolbar-file-buttons/tasks.md` の T010）が未実施**。会話の最初に、ユーザーへこの確認がまだであることを伝え、
-  `specs/023-toolbar-file-buttons/quickstart.md` の手順 2〜11 を案内する。主な確認点:
-  - 起動直後に「保存」を押すと保存先を尋ねられ、2 回目は尋ねられずに上書きされる
-  - メニューの「プロジェクト保存」は、ファイルがあっても毎回保存先を尋ねる
-  - 「読込み」で読み込んだ結果がメニューからの読込みと同じになる
-  - 実行中・中断中は「保存」「読込み」がグレーで、押しても何も起きない
-
-  結果を聞いたら tasks.md の末尾に記録して T010 を `[X]` にし、この節を削除する。
 
 ## ビルド・実行
 
@@ -125,7 +114,7 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
 
 **ツールバーの並びと大きさ（機能 019）**: ツールバーは左から 開始・中断・終了のボタン（箱 24×18、96 dpi。名前は下に 10 px の文字）→ フレーム表示のチェックボックス → シミュレーション時間 → 「スピード：」（`IDS_SPEED_CAPTION`）→ スピードスライダー（目盛り 13 px 間隔、-13 の目盛りは x 520。機能 023 で x 604。つまみ幅 5）。スライダーの数字は 5 刻み（-13・-10・-5・0・+5・+10）と今の値だけを表示し、今の値から 2 目盛り以内の 5 刻みは隠す（`IsSpeedLabelShown`）。座標はすべて `SimControls.h` の定数で、checks の 014・015・017・019 の項目が並び・重なりを検証する
 
-**保存・読込みボタン（機能 023）**: ツールバーの左端に「保存」「読込み」のボタン（開始などと同じ大きさ。記号は紫のフロッピー・黄土色のフォルダー、名前は `IDS_FILE_BTN_SAVE` / `IDS_FILE_BTN_LOAD`）を置き、ボタン 1 つ分の空きを挟んで開始・中断・終了が続く（96 dpi で箱の左端 8・36・92・120・148）。チェックボックス・シミュレーション時間・「スピード：」・スライダーは 019 の位置から 84 px 右。ダイアログはボタンを `CanSim::ToolbarButton` の通し番号（`m_pressedButton` も同じ）で描き・押し、有効／無効は `IsToolbarButtonEnabled`（保存・読込みは実行中・中断中はグレー）。読込みはメニューと同じ `ID_FILE_LOAD_PROJECT` を Post する（編集ウィンドウは先に閉じる）。保存はツールバー専用の `ID_FILE_SAVE_OVERWRITE`（`OnFileSaveOverwrite`）で、プロジェクトファイル（`m_projectPath`）があれば尋ねずに上書きし、無ければ保存先を尋ねる。メニューの「プロジェクト保存」は従来どおり毎回保存先を尋ねる。書き込みと失敗時のメッセージ・成功時の `m_projectPath` の更新は `SaveProjectTo` に共通化（メニューの保存・ツールバーの保存・「開始」の保存先確認が使う。失敗なら `m_projectPath` は変えない）
+**保存・読込みボタン（機能 023）**: ツールバーの左端に「保存」「読込み」のボタン（開始などと同じ大きさ。記号は紫のフロッピー・黄土色のフォルダー、名前は `IDS_FILE_BTN_SAVE` / `IDS_FILE_BTN_LOAD`）を置き、ボタン 1 つ分の空きを挟んで開始・中断・終了が続く（96 dpi で箱の左端 8・36・92・120・148）。チェックボックス・シミュレーション時間・「スピード：」・スライダーは 019 の位置から 84 px 右。ダイアログはボタンを `CanSim::ToolbarButton` の通し番号（`m_pressedButton` も同じ）で描き・押し、有効／無効は `IsToolbarButtonEnabled`（保存・読込みは実行中・中断中はグレー）。読込みはメニューと同じ `ID_FILE_LOAD_PROJECT` を Post する（編集ウィンドウは先に閉じる）。保存はツールバー専用の `ID_FILE_SAVE_OVERWRITE`（`OnFileSaveOverwrite`）で、プロジェクトファイル（`m_projectPath`）があれば尋ねずに上書きし、無ければ保存先を尋ねる。メニューの「プロジェクト保存」は従来どおり毎回保存先を尋ねる。書き込みと失敗時のメッセージ・成功時の `m_projectPath` の更新は `SaveProjectTo` に共通化（メニューの保存・ツールバーの保存・「開始」の保存先確認が使う。失敗なら `m_projectPath` は変えない）。改訂 1: 保存先が読み取り専用で失敗したときは、ファイル名と「読み取り専用のため保存できなかった」ことを示す `IDS_SAVE_READONLY`（`GetFileAttributes` で判定。それ以外の失敗は `IDS_SAVE_ERROR`）。フレーム表示のチェックボックスの箱と文字は、ボタンの箱の縦の中心（96 dpi で y 23）に揃える（箱 y 16〜30、文字 13〜33）
 
 **領域のラベル（機能 020）**: ログ表示エリアの枠のすぐ上の左端に「イベント＆ログ表示」（`ScaleLogLabelRect`、左端は枠と同じ換算、`DrawLogFrame` → `DrawAreaLabel`、文字列は `IDS_LOG_VIEW_LABEL`）を 12 px の濃い灰色で描く。構成図の左上にはラベルを置かない（ユーザーの指示で「イベント表示」を外した）。checks 020 がログの枠・構成図と重ならないことを検証する
 

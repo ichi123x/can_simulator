@@ -136,14 +136,15 @@ namespace CanSim
     SpeedChangeAction GetSpeedChangeAction(RunPhase phase, int newSpeed);
 
     // ---- feature 017: frame display check box and the simulated time (96 DPI) ----
-    // Check box between the Stop button and the speed slider.
+    // Check box between the Stop button and the speed slider. The box and the
+    // label are centred on the button boxes (y 23, 023 revision 1).
     const int kFrameDisplayBoxLeft = 188;
-    const int kFrameDisplayBoxTop = 25;
+    const int kFrameDisplayBoxTop = 16;
     const int kFrameDisplayBoxSize = 14;
     const int kFrameDisplayLabelLeft = 208;
     const int kFrameDisplayLabelRight = 292;
-    const int kFrameDisplayLabelTop = 22;
-    const int kFrameDisplayLabelBottom = 42;
+    const int kFrameDisplayLabelTop = 13;
+    const int kFrameDisplayLabelBottom = 33;
     const int kFrameDisplayHitLeft = 184;
     const int kFrameDisplayHitRight = 296;
     const int kFrameDisplayHitTop = 4;

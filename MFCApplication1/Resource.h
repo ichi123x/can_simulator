@@ -88,6 +88,7 @@
 #define IDS_LOG_VIEW_LABEL				250	// feature 020
 #define IDS_FILE_BTN_SAVE				251	// feature 023
 #define IDS_FILE_BTN_LOAD				252
+#define IDS_SAVE_READONLY				253	// feature 023 revision 1
 
 #define ID_FILE_LOAD_PROJECT			32771
 #define ID_FILE_SAVE_PROJECT			32772
@@ -104,7 +105,7 @@
 
 #define _APS_NEXT_RESOURCE_VALUE	133
 #define _APS_NEXT_CONTROL_VALUE		1027
-#define _APS_NEXT_SYMED_VALUE		253
+#define _APS_NEXT_SYMED_VALUE		254
 #define _APS_NEXT_COMMAND_VALUE		32780
 #endif
 #endif

@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -2015,6 +2016,22 @@ namespace
                     IsToolbarButtonEnabled(static_cast<int>(ToolbarButton::Stop), phase, editing != 0) == s.Stop;
             }
         Check(states, "023 FR-006: Save / Load only while Idle (also while editing); Start / Pause / Stop as GetSimCommandStates");
+
+        // Revision 1 A: the check box and its label share the vertical centre of the button boxes.
+        bool aligned = true;
+        for (int dpi : dpis)
+        {
+            const DiagramRect stop = ToolbarButtonBoxRect(static_cast<int>(ToolbarButton::Stop), dpi);
+            const DiagramRect box = FrameDisplayBoxRect(dpi);
+            const DiagramRect label = FrameDisplayLabelRect(dpi);
+            const int stopMid = stop.Top + stop.Bottom;   // doubled centres keep the half pixel
+            const int boxMid = box.Top + box.Bottom;
+            const int labelMid = label.Top + label.Bottom;
+            aligned = aligned && std::abs(boxMid - stopMid) <= 2 && std::abs(labelMid - stopMid) <= 2 &&
+                box.Top >= ScaleToDpi(kFrameDisplayHitTop, dpi) && label.Top >= ScaleToDpi(kFrameDisplayHitTop, dpi) &&
+                box.Bottom <= ScaleToDpi(kToolbarHeight, dpi);
+        }
+        Check(aligned, "023 revision 1 A: check box and label centred on the Stop box within 1 px, inside the hit area (DPI 96/120/144)");
     }
 }
 
