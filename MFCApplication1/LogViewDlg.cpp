@@ -309,7 +309,9 @@ CLogTextView::TextPos CLogTextView::HitTest(CPoint point)
 		return pos;
 	long long row = point.y >= 0 ? point.y / m_lineHeight : -((m_lineHeight - 1 - point.y) / m_lineHeight);
 	pos.Line = (std::max)(0LL, (std::min)(m_top + row, lines - 1));
-	const int col = m_left + (point.x >= 0 ? (point.x + m_charWidth / 2) / m_charWidth : 0);
+	// Left of the view the column goes below m_left, so a drag there scrolls left too.
+	const int col = m_left + (point.x >= 0 ? (point.x + m_charWidth / 2) / m_charWidth
+	                                       : (point.x - (m_charWidth - 1)) / m_charWidth);
 	pos.Col = (std::max)(0, (std::min)(col, LineLength(pos.Line)));
 	return pos;
 }
