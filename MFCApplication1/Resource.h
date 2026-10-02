@@ -28,6 +28,7 @@
 // feature 006: data frame editor
 #define IDD_FRAME_EDIT					131
 #define IDD_FRAME_ENTRY					132
+#define IDD_LOG_VIEW					133	// feature 025
 #define ID_EDIT_FRAMES					32777
 #define IDC_COMBO_FRAME_NODE			1014
 #define IDC_LIST_FRAMES					1015
@@ -90,6 +91,13 @@
 #define IDS_FILE_BTN_LOAD				252
 #define IDS_SAVE_READONLY				253	// feature 023 revision 1
 #define IDS_PROJECT_PATH_LABEL			254	// feature 024
+#define IDS_LOG_NONE_NOPROJECT			255	// feature 025
+#define IDS_LOG_NONE					256
+#define IDS_LOG_READ_ERROR				257
+#define IDS_LOG_VIEW_TITLE				258
+#define IDS_LOG_COPY_TOO_LARGE			259
+#define IDS_LOG_MENU_COPY				260
+#define IDS_LOG_MENU_SELECT_ALL			261
 
 #define ID_FILE_LOAD_PROJECT			32771
 #define ID_FILE_SAVE_PROJECT			32772
@@ -98,15 +106,19 @@
 #define ID_SIM_STOP						32776
 #define ID_SIM_PAUSE					32778	// feature 014
 #define ID_FILE_SAVE_OVERWRITE			32779	// feature 023 (toolbar only)
+#define ID_LOG_VIEW_SIMLOG				32780	// feature 025
+#define ID_ANALYSIS_PLACEHOLDER			32781
+#define ID_LOG_COPY						32782
+#define ID_LOG_SELECT_ALL				32783
 
 // 新しいオブジェクトの次の既定値
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 
-#define _APS_NEXT_RESOURCE_VALUE	133
+#define _APS_NEXT_RESOURCE_VALUE	134
 #define _APS_NEXT_CONTROL_VALUE		1027
-#define _APS_NEXT_SYMED_VALUE		255
-#define _APS_NEXT_COMMAND_VALUE		32780
+#define _APS_NEXT_SYMED_VALUE		262
+#define _APS_NEXT_COMMAND_VALUE		32784
 #endif
 #endif

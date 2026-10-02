@@ -22,6 +22,7 @@
 #include "FrameEditor.h"
 #include "SimControls.h"
 #include "FlowEffect.h"
+#include "LogFileIndex.h"
 
 #include <climits>
 
@@ -2054,6 +2055,130 @@ namespace
             !HasProjectExtension(L"README.md") && !HasProjectExtension(L"canprj") && !HasProjectExtension(L""),
             "024 FR-005: HasProjectExtension accepts .canprj in any case and rejects other extensions");
     }
+    // Writes text as is (binary) for the log index checks.
+    void WriteRaw(const std::string& path, const std::string& text)
+    {
+        std::ofstream out(path.c_str(), std::ios::binary);
+        out << text;
+    }
+
+    void CheckFeature025()
+    {
+        std::cout << "\n== feature 025: simulation log viewer (line index) ==\n";
+        {
+            const std::string empty = Join(g_tempDir, "log025_empty.csv");
+            WriteRaw(empty, "");
+            LogFileIndex index;
+            const bool built = index.Build(Widen(empty));
+            LogFileIndex missing;
+            Check(built && index.LineCount() == 0 && index.ReadLines(0, 10).empty() &&
+                !missing.Build(Widen(Join(g_tempDir, "log025_no_such_file.csv"))),
+                "025: an empty log is 0 lines; a missing file cannot be built");
+        }
+
+        // 1000 lines of different lengths, LF / CRLF / no final newline
+        std::vector<std::string> lines;
+        std::size_t longest = 0;
+        for (int i = 0; i < 1000; ++i)
+        {
+            std::string s = "line," + std::to_string(i) + "," + std::string(static_cast<std::size_t>(i % 37), 'x');
+            longest = (std::max)(longest, s.size());
+            lines.push_back(s);
+        }
+        std::string lf, crlf;
+        for (const std::string& s : lines)
+        {
+            lf += s + "\n";
+            crlf += s + "\r\n";
+        }
+        const std::string noFinal = lf.substr(0, lf.size() - 1);
+        bool same = true;
+        bool clipped = true;
+        const std::string names[] = { "log025_lf.csv", "log025_crlf.csv", "log025_nofinal.csv" };
+        const std::string* texts[] = { &lf, &crlf, &noFinal };
+        for (int k = 0; k < 3; ++k)
+        {
+            const std::string path = Join(g_tempDir, names[k]);
+            WriteRaw(path, *texts[k]);
+            LogFileIndex index;
+            same = same && index.Build(Widen(path)) && index.LineCount() == 1000 &&
+                index.MaxLineLength() == static_cast<int>(longest);
+            const std::vector<std::string> all = index.ReadLines(0, 1000);
+            same = same && all == lines;
+            const std::vector<std::string> a = index.ReadLines(255, 3);
+            const std::vector<std::string> b = index.ReadLines(256, 1);
+            const std::vector<std::string> c = index.ReadLines(998, 10);
+            const std::vector<std::string> d = index.ReadLines(-5, 7);
+            clipped = clipped && a.size() == 3 && a[0] == lines[255] && a[2] == lines[257] &&
+                b.size() == 1 && b[0] == lines[256] &&
+                c.size() == 2 && c[1] == lines[999] &&
+                d.size() == 2 && d[0] == lines[0] && d[1] == lines[1] &&
+                index.ReadLines(1000, 5).empty() && index.ReadLines(10, 0).empty();
+        }
+        Check(same, "025: LF, CRLF and a missing final newline give the same 1000 lines (no CR) and the same longest line");
+        Check(clipped, "025: ReadLines across the 256-line checkpoints and at both ends is clipped to the file");
+
+        {
+            // exactly 512 lines: no checkpoint may point past the end
+            std::string text;
+            for (int i = 0; i < 512; ++i)
+                text += "r" + std::to_string(i) + "\n";
+            const std::string path = Join(g_tempDir, "log025_512.csv");
+            WriteRaw(path, text);
+            LogFileIndex index;
+            const std::vector<std::string> tail = index.Build(Widen(path)) ? index.ReadLines(510, 5) : std::vector<std::string>();
+            Check(index.LineCount() == 512 && tail.size() == 2 && tail[1] == "r511",
+                "025: a file ending exactly on a checkpoint boundary reads its last lines");
+        }
+
+        {
+            // a real frame log (sample_16ecu, 10 s)
+            const std::string prefix = Join(g_tempDir, "log025_16ecu");
+            bool ok = RunProjectToCsv(Join(g_sampleDir, "sample_16ecu.canprj"), prefix, 10000000LL);
+            const std::string path = prefix + ".log.csv";
+            std::ifstream in(path.c_str());
+            std::string line, firstLine, lastLine;
+            long long count = 0;
+            while (std::getline(in, line))
+            {
+                if (!line.empty() && line.back() == '\r')
+                    line.pop_back();
+                if (count == 0)
+                    firstLine = line;
+                lastLine = line;
+                ++count;
+            }
+            LogFileIndex index;
+            ok = ok && index.Build(Widen(path)) && index.LineCount() == count && count > 1000;
+            const std::vector<std::string> head = index.ReadLines(0, 1);
+            const std::vector<std::string> tail = index.ReadLines(count - 1, 1);
+            ok = ok && head.size() == 1 && head[0] == firstLine && tail.size() == 1 && tail[0] == lastLine;
+            std::cout << "  sample_16ecu 10 s log: " << count << " lines\n";
+            Check(ok, "025 SC-001: the index of a real frame log has the same line count, first and last line as the file");
+        }
+
+        {
+            // 1,000,000 lines of about 90 characters: time to build (reported only)
+            const std::string path = Join(g_tempDir, "log025_big.csv");
+            {
+                std::ofstream out(path.c_str(), std::ios::binary);
+                const std::string pad(80, 'y');
+                for (int i = 0; i < 1000000; ++i)
+                    out << i << ',' << pad << "\r\n";
+            }
+            LogFileIndex index;
+            const auto t0 = std::chrono::steady_clock::now();
+            const bool built = index.Build(Widen(path));
+            const auto t1 = std::chrono::steady_clock::now();
+            const std::vector<std::string> tail = index.ReadLines(999990, 20);
+            std::cout << "  build of 1,000,000 lines: "
+                      << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << " ms\n";
+            Check(built && index.LineCount() == 1000000 && tail.size() == 10 &&
+                tail[9] == "999999," + std::string(80, 'y'),
+                "025 SC-003: a 1,000,000-line log is indexed and its last lines are read");
+            std::remove(path.c_str());
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -2088,6 +2213,7 @@ int main(int argc, char** argv)
     CheckFeature022();
     CheckFeature023();
     CheckFeature024();
+    CheckFeature025();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

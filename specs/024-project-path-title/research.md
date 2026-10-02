@@ -2,7 +2,7 @@
 
 ## 決定1: 表示する場所はタイトルバー（`SetWindowText`）
 
-- **Decision**: ダイアログのキャプション（`.rc` の `CAPTION "CAN Bus Simulator"`）を基にして、`SetWindowText` で「CAN Bus Simulator␣␣␣␣プロジェクトファイル名：<パス>」に書き換える。
+- **Decision**: ダイアログのキャプション（`.rc` の `CAPTION "CAN Bus Simulator"`）を基にして、`SetWindowText` で「CAN Bus Simulator␣␣␣␣プロジェクト名：<パス>」に書き換える。
   基のタイトルは `OnInitDialog` で `GetWindowText` して保持する（文字列を二重に持たない）。
 - **Rationale**: 要望の「アプリのタイトルである CAN Bus Simulator と同じライン」はタイトルバーそのもの。タスクバー・Alt+Tab にも同じ文字列が出て、どのファイルかがわかる。
   クライアント領域に描くと、ツールバー・構成図の配置（機能 014・019・023 の座標）を動かす必要がある。
@@ -10,7 +10,7 @@
 
 ## 決定2: 区切りとラベル
 
-- **Decision**: 基のタイトルとラベルの間は半角空白 4 つ、ラベルとパスの間は区切りなし（ラベルが全角の「：」で終わる）。ラベルは `IDS_PROJECT_PATH_LABEL "プロジェクトファイル名："`。
+- **Decision**: 基のタイトルとラベルの間は半角空白 4 つ、ラベルとパスの間は区切りなし（ラベルが全角の「：」で終わる）。ラベルは `IDS_PROJECT_PATH_LABEL "プロジェクト名："`。
   組み立ては `CanSim::ComposeWindowTitle(appTitle, label, path)`（`appTitle + L"    " + label + path`）。パスが空ならラベルで終わる。
 - **Rationale**: 全角空白は CanSim（ASCII のみ）に書けない。半角 4 つで全角 2 つ分の見た目になる。
 - **Alternatives considered**: 「 - 」で区切る（Windows の慣例「ファイル名 - アプリ名」とは順序が逆で、ラベル付きの要望に合わない）。

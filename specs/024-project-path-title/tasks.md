@@ -145,3 +145,16 @@ T003 → T004 → T005 → T006 → T007 (MFCApplication1Dlg.cpp, MFCApplication
   - 引数なし: タイトル「CAN Bus Simulator    プロジェクトファイル名：」
   - 絶対パスの引数・相対パスの引数: どちらもタイトルが一時フォルダーの `sample_16ecu.canprj` の絶対パスになった
 - T011（2026-10-02、ユーザー）: quickstart の手順 1〜11 すべて正常に動作した。
+
+## Phase 6: 改訂 1（ユーザーの指示: ラベルを短くする）
+
+- [X] T012 `MFCApplication1/MFCApplication1.rc` の `IDS_PROJECT_PATH_LABEL` を「プロジェクト名：」に変える（UTF-16LE・BOM 付き・CRLF のまま）。
+  CLAUDE.md・plan.md・research.md・data-model.md・contracts・quickstart.md・spec.md（Input を除く）の記述も合わせる。上の T001・T004 と実装結果の記録は当時の文字列のまま残す。
+- [X] T013 4 構成のビルドと起動の確認（依存: T012）。
+
+### 改訂 1 の結果（2026-10-02）
+
+- Release x64・Debug x86・Release x86: 警告・エラーなし。Debug x64: 初めはユーザーが Debug 版を起動中で LNK1168（プロセスは終了させていない）。閉じてもらった後にビルドし、警告・エラーなしで通った。
+- CanSim は変えていないので checks の結果（184 項目 PASS）は変わらない。
+- Release x64 を自分で起動して確認: 引数なし「CAN Bus Simulator    プロジェクト名：」、引数あり「CAN Bus Simulator    プロジェクト名：C:\Users\user\AppData\Local\Temp\cansim024\sample_16ecu.canprj」。
+- 手動確認（2026-10-02、ユーザー）: Debug 版のタイトルが「プロジェクト名：」に変わっていることを確認した。

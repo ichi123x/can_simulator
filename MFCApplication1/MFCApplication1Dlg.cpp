@@ -19,6 +19,8 @@
 #include "CanSim/FrameEvents.h"
 #include "SettingsDlg.h"
 #include "FrameEditDlg.h"
+#include "LogViewDlg.h"
+#include "CanSim/LogFileIndex.h"
 
 #include <algorithm>
 
@@ -100,6 +102,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_MESSAGE(WM_APP_FRAME_EDITOR_CLOSED, &CMFCApplication1Dlg::OnFrameEditorClosed)
 	ON_MESSAGE(WM_APP_ECU_LABEL_CHANGED, &CMFCApplication1Dlg::OnEcuLabelChanged)
 	ON_MESSAGE(WM_APP_LOAD_STARTUP_PROJECT, &CMFCApplication1Dlg::OnLoadStartupProject)
+	ON_COMMAND(ID_LOG_VIEW_SIMLOG, &CMFCApplication1Dlg::OnLogViewSimLog)
+	ON_MESSAGE(WM_APP_LOG_VIEWER_CLOSED, &CMFCApplication1Dlg::OnLogViewerClosed)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
@@ -998,6 +1002,8 @@ void CMFCApplication1Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL b
 	pPopupMenu->EnableMenuItem(ID_FILE_LOAD_PROJECT, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_SETTINGS, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_FRAMES, idleOnly);
+	pPopupMenu->EnableMenuItem(ID_LOG_VIEW_SIMLOG, idleOnly);                   // 025 FR-008
+	pPopupMenu->EnableMenuItem(ID_ANALYSIS_PLACEHOLDER, MF_BYCOMMAND | MF_GRAYED); // 025 FR-002
 	// 014 FR-004: same states as the toolbar buttons (Start is also greyed
 	// while the frame editor is open, 010 FR-013)
 	const CanSim::SimCommandStates sim = SimStates();
@@ -1011,6 +1017,7 @@ void CMFCApplication1Dlg::OnFileLoadProject()
 	if (InRun())
 		return;
 	CloseFrameEditor(); // 010 FR-014: the editor refers to the current project
+	CloseLogViewer();   // 025 FR-009: the log belongs to the current project
 
 	CFileDialog dlg(TRUE, _T("canprj"), nullptr, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
 		LoadRcString(IDS_PROJECT_FILTER), this);
@@ -1052,6 +1059,8 @@ bool CMFCApplication1Dlg::LoadProjectFrom(const CString& path)
 // always shows it (empty path = no project file yet).
 void CMFCApplication1Dlg::SetProjectPath(const CString& path)
 {
+	if (path.CompareNoCase(m_projectPath) != 0)
+		CloseLogViewer(); // 025 FR-009: the log shown belongs to the previous file
 	m_projectPath = path;
 	const std::wstring title = CanSim::ComposeWindowTitle(std::wstring((LPCTSTR)m_baseTitle),
 		std::wstring((LPCTSTR)LoadRcString(IDS_PROJECT_PATH_LABEL)), std::wstring((LPCTSTR)path));
@@ -1086,6 +1095,58 @@ LRESULT CMFCApplication1Dlg::OnLoadStartupProject(WPARAM, LPARAM)
 
 	LoadProjectFrom(path); // a failure keeps the default project (FR-006)
 	return 0;
+}
+
+// 025: "Log > Simulation log" shows "<project file>.log.csv" read-only, or
+// says why there is nothing to show (spec FR-004..FR-006).
+void CMFCApplication1Dlg::OnLogViewSimLog()
+{
+	if (InRun())
+		return; // FR-008: the menu is greyed; guard other routes too
+	if (m_logViewer != nullptr)
+	{
+		m_logViewer->SetForegroundWindow(); // same file: only bring it to the front
+		return;
+	}
+	if (m_projectPath.IsEmpty())
+	{
+		AfxMessageBox(LoadRcString(IDS_LOG_NONE_NOPROJECT), MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+
+	const CString logPath = CanSim::LogPathFor(std::wstring((LPCTSTR)m_projectPath)).c_str();
+	const DWORD attributes = ::GetFileAttributes(logPath);
+	if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+	{
+		const int slash = (std::max)(m_projectPath.ReverseFind(_T('\\')), m_projectPath.ReverseFind(_T('/')));
+		CString message;
+		message.Format(LoadRcString(IDS_LOG_NONE), (LPCTSTR)m_projectPath.Mid(slash + 1));
+		AfxMessageBox(message, MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+
+	CLogViewDlg* viewer = new CLogViewDlg(this, logPath);
+	if (!viewer->Open())
+	{
+		delete viewer; // no window was created
+		CString message;
+		message.Format(LoadRcString(IDS_LOG_READ_ERROR), (LPCTSTR)logPath);
+		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
+		return;
+	}
+	m_logViewer = viewer;
+}
+
+LRESULT CMFCApplication1Dlg::OnLogViewerClosed(WPARAM, LPARAM)
+{
+	m_logViewer = nullptr;
+	return 0;
+}
+
+void CMFCApplication1Dlg::CloseLogViewer()
+{
+	if (m_logViewer != nullptr)
+		m_logViewer->DestroyWindow(); // the closed notice clears m_logViewer
 }
 
 bool CMFCApplication1Dlg::AskSavePath(CString& path)
@@ -1151,6 +1212,7 @@ void CMFCApplication1Dlg::OnEditSettings()
 	if (InRun())
 		return;
 	CloseFrameEditor(); // 010 FR-014: ECU count and bit rate may change
+	CloseLogViewer();   // 025 FR-009
 
 	CSettingsDlg dlg(m_settings, m_definitions.BitRateBps, this);
 	if (dlg.DoModal() != IDOK)
@@ -1247,6 +1309,7 @@ void CMFCApplication1Dlg::OnDestroy()
 	// Closing the main window while a switch is pending must not open a new
 	// editor (spec Edge Cases).
 	CloseFrameEditor();
+	CloseLogViewer(); // 025
 	KillTimer(kGrayTimerId); // 011
 	CDialogEx::OnDestroy();
 }
@@ -1346,7 +1409,7 @@ bool CMFCApplication1Dlg::WriteResults(const std::vector<CanSim::LogRow>& rows,
 	CString& logPath, CString& summaryPath, CString& startupPath)
 {
 	// Same file names as before feature 004: <project path>.log.csv etc.
-	logPath = m_projectPath + _T(".log.csv");
+	logPath = CanSim::LogPathFor(std::wstring((LPCTSTR)m_projectPath)).c_str(); // 025: same name the log viewer looks for
 	summaryPath = m_projectPath + _T(".summary.csv");
 	startupPath = m_projectPath + _T(".startup.csv");
 
@@ -1377,6 +1440,9 @@ void CMFCApplication1Dlg::OnSimStart()
 	}
 	if (IsEditingFrames())
 		return; // 010 FR-013: the menu item is greyed; guard other routes too
+
+	// 025 FR-009: the log shown would be replaced by this run.
+	CloseLogViewer();
 
 	// The results are written next to the project file, so it needs a place
 	// first (004 FR-017).
@@ -1447,9 +1513,9 @@ void CMFCApplication1Dlg::ResetDisplaysForRun()
 	UpdateWindow();
 }
 
-// 007 FR-001/FR-002: while running, the File (position 0) and Edit
-// (position 1) menus are greyed as a whole so that they cannot be opened by
-// mouse or keyboard. The Simulation menu (position 2) stays available.
+// 007 FR-001/FR-002, 025 FR-008: while running, File (0), Edit (1),
+// Analysis (3) and Log (4) are greyed as a whole so that they cannot be
+// opened by mouse or keyboard. Simulation (2) stays available.
 void CMFCApplication1Dlg::UpdateTopMenus()
 {
 	CMenu* menu = GetMenu();
@@ -1458,6 +1524,8 @@ void CMFCApplication1Dlg::UpdateTopMenus()
 	const UINT state = MF_BYPOSITION | (InRun() ? MF_GRAYED : MF_ENABLED);
 	menu->EnableMenuItem(0, state);
 	menu->EnableMenuItem(1, state);
+	menu->EnableMenuItem(3, state);
+	menu->EnableMenuItem(4, state);
 	DrawMenuBar();
 }
 

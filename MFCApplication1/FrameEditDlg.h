@@ -25,6 +25,9 @@ const UINT WM_APP_ECU_LABEL_CHANGED = WM_APP + 3;
 // on the command line (numbered here with the other WM_APP messages).
 const UINT WM_APP_LOAD_STARTUP_PROJECT = WM_APP + 4;
 
+// Feature 025: sent to the owner when the log viewer has been destroyed.
+const UINT WM_APP_LOG_VIEWER_CLOSED = WM_APP + 5;
+
 // Feature 013: header of the frame list. A double-click anywhere on it asks
 // the editor window to add a frame instead of the default handling (which
 // would auto-size a column on a divider).

@@ -4,7 +4,7 @@
 
 ## Summary
 
-ウィンドウのタイトルバーを「CAN Bus Simulator␣␣␣␣プロジェクトファイル名：<フルパス>」にする。
+ウィンドウのタイトルバーを「CAN Bus Simulator␣␣␣␣プロジェクト名：<フルパス>」にする。
 現在のプロジェクトファイル `m_projectPath` を変える箇所を 1 つの関数 `SetProjectPath` にまとめ、そこでタイトルを書き直す。
 起動時のコマンドライン引数に .canprj のパスがあれば、ダイアログの表示後にメニューの読込みと同じ処理（新しい共通関数 `LoadProjectFrom`）で読み込む。
 関連付けの登録はしない（spec FR-008、Q1 = A）。
@@ -16,7 +16,7 @@
 
 | 場面 | 変更前 | 変更後 |
 |---|---|---|
-| 起動（引数なし） | タイトル「CAN Bus Simulator」 | `OnInitDialog` で `SetProjectPath(L"")` → 「CAN Bus Simulator␣␣␣␣プロジェクトファイル名：」 |
+| 起動（引数なし） | タイトル「CAN Bus Simulator」 | `OnInitDialog` で `SetProjectPath(L"")` → 「CAN Bus Simulator␣␣␣␣プロジェクト名：」 |
 | 起動（引数あり） | 引数は無視 | `InitInstance` が `CanSim::FindStartupProjectArg(__wargv)` の結果をダイアログに渡す → `OnInitDialog` の最後に `WM_APP_LOAD_STARTUP_PROJECT` を Post → ハンドラで絶対パスに直して `LoadProjectFrom` |
 | 読込み（メニュー・ツールバー） | `OnFileLoadProject` が検査・読込み・反映 | ファイル選択の後は `LoadProjectFrom(path)` を呼ぶだけ（中身は今の処理をそのまま移す） |
 | 保存（メニュー・ツールバー・「開始」） | `SaveProjectTo` が成功時に `m_projectPath = path` | 成功時に `SetProjectPath(path)` |
@@ -33,7 +33,7 @@
 - **Testing**: `tools/cansim_runner/checks.cpp`（タイトルの組み立て・引数の取り出し・拡張子の判定）。GUI と起動は [quickstart.md](./quickstart.md)
 - **Target Platform**: Windows、Win32 / x64 × Debug / Release
 - **Project Type**: デスクトップアプリ（単一ダイアログ）
-- **Constraints**: `CanSim/` は ASCII のみ。ラベル「プロジェクトファイル名：」は `.rc` の文字列テーブル（UTF-16LE）に置き、CanSim には `std::wstring` で渡す
+- **Constraints**: `CanSim/` は ASCII のみ。ラベル「プロジェクト名：」は `.rc` の文字列テーブル（UTF-16LE）に置き、CanSim には `std::wstring` で渡す
 - **Scale/Scope**: タイトルの表示、起動時の引数の読込み、読込み・保存の処理の小さな整理
 
 ## Constitution Check

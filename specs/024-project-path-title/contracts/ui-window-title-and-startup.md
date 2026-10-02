@@ -3,8 +3,8 @@
 ## タイトルバー
 
 ```text
-CAN Bus Simulator    プロジェクトファイル名：C:\work\a.canprj
-CAN Bus Simulator    プロジェクトファイル名：          ← プロジェクトファイルが無いとき
+CAN Bus Simulator    プロジェクト名：C:\work\a.canprj
+CAN Bus Simulator    プロジェクト名：          ← プロジェクトファイルが無いとき
 ```
 
 - 更新するのは、読込み・保存の成功のときだけ（spec FR-003・FR-004）。
@@ -45,4 +45,4 @@ bool HasProjectExtension(const std::wstring& path);
 | `void SetProjectPath(const CString&)` | `m_projectPath` を変える唯一の箇所。タイトルも書き直す |
 | `bool LoadProjectFrom(const CString&)` | 拡張子の検査 → `LoadConfig` → エラー表示 or 反映。メニュー・ツールバー・起動時が使う |
 | `WM_APP_LOAD_STARTUP_PROJECT`（`WM_APP + 4`） | `OnInitDialog` が Post。ハンドラが絶対パスに変換して `LoadProjectFrom` |
-| `IDS_PROJECT_PATH_LABEL` | 「プロジェクトファイル名：」 |
+| `IDS_PROJECT_PATH_LABEL` | 「プロジェクト名：」 |

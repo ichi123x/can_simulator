@@ -31,5 +31,5 @@
 |---|---|
 | 基のタイトル | `.rc` の `CAPTION`（「CAN Bus Simulator」）。`OnInitDialog` で `GetWindowText` して `m_baseTitle` に保持 |
 | 区切り | 半角空白 4 つ |
-| ラベル | `IDS_PROJECT_PATH_LABEL`「プロジェクトファイル名：」 |
+| ラベル | `IDS_PROJECT_PATH_LABEL`「プロジェクト名：」 |
 | パス | `m_projectPath`（空ならここまで） |
