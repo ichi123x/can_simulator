@@ -750,14 +750,14 @@ namespace
             Check(def.Success && def.Project.Speed == 0, "005 FR-002: Speed defaults to 0 when absent");
 
             struct Case { const char* Text; int Expected; };
-            const Case ok[] = { { "+3", 3 }, { "-3", -3 }, { "10", 10 }, { "-13", -13 }, { "0", 0 } };
+            const Case ok[] = { { "+3", 3 }, { "-3", -3 }, { "10", 10 }, { "-10", -10 }, { "0", 0 } };
             bool accepted = true;
             for (const Case& c : ok)
             {
                 ConfigLoadResult r = LoadText("s_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n");
                 accepted = accepted && r.Success && r.Project.Speed == c.Expected;
             }
-            Check(accepted, "005 FR-002: Speed +3 / -3 / 10 / -13 / 0 are accepted");
+            Check(accepted, "005 FR-002: Speed +3 / -3 / 10 / -10 / 0 are accepted (026: range -10..10)");
 
             const char* bad[] = { "11", "-14", "1.5", "abc", "", "+", "--1" };
             bool rejected = true;
@@ -769,19 +769,19 @@ namespace
             Check(rejected, "005 FR-002: Speed 11 / -14 / 1.5 / abc / empty are rejected with a reason");
 
             ProjectSettings s;
-            s.Speed = -13;
+            s.Speed = -10;
             const std::string path = Join(g_tempDir, "s_roundtrip.canprj");
             ConfigLoadResult back;
             const bool saved = SaveProject(Widen(path), s, Network());
             back = LoadConfig(Widen(path));
-            Check(saved && back.Success && back.Project.Speed == -13, "005 FR-002: Speed survives save then reload");
+            Check(saved && back.Success && back.Project.Speed == -10, "005 FR-002: Speed survives save then reload");
         }
 
         // SimTimeAtUs (FR-003)
         {
             const long long e = 1000000; // 1 s of real time
             Check(SimTimeAtUs(e, 0) == e && SimTimeAtUs(e, 1) == 2 * e && SimTimeAtUs(e, -1) == e / 2 &&
-                      SimTimeAtUs(e, -10) == e / 1024 && SimTimeAtUs(e, -13) == e / 8192 &&
+                      SimTimeAtUs(e, -10) == e / 1024 && SimTimeAtUs(e, -13) == e / 8192 && // the formula itself also holds below kMinSpeed
                       SimTimeAtUs(e, 9) == 512 * e && SimTimeAtUs(0, 5) == 0,
                 "005 FR-003: simulated time = real time x 2^speed (0, +1, -1, -10, -13, +9)");
             Check(SimTimeAtUs(LLONG_MAX / 2, 9) == LLONG_MAX, "005: SimTimeAtUs saturates instead of overflowing");
@@ -1553,7 +1553,7 @@ namespace
         // FR-006: resumed time
         bool same = true;
         const long long elapsed[] = { 0, 1, 999, 1000000, 37000001 };
-        const int speeds[] = { -13, 0, 5 };
+        const int speeds[] = { kMinSpeed, 0, 5 };
         for (long long e : elapsed)
             for (int s : speeds)
                 same = same && ResumedSimTimeUs(0, e, s) == SimTimeAtUs(e, s);
@@ -1614,7 +1614,7 @@ namespace
                 !IsOnSpeedSlider(ScaleToDpi(kSpeedSliderLeft - kSpeedTickPitch / 2, dpi) - 1, ScaleToDpi(20, dpi), dpi) &&
                 IsOnSpeedSlider(ScaleToDpi(kSpeedSliderLeft - kSpeedTickPitch / 2, dpi), ScaleToDpi(20, dpi), dpi);
         }
-        Check(even, "015 FR-002: 24 ticks from -13 to +10, evenly spaced (DPI 96/120/144)");
+        Check(even, "015 FR-002 / 026: 21 ticks from -10 to +10, evenly spaced (DPI 96/120/144)");
         Check(placed, "015 FR-002/FR-012: the slider is right of the Stop button and inside the toolbar band and the window width");
         Check(labels, "015 FR-004 / 019 FR-004: the shown tick values do not overlap for any current value");
         Check(thumbs, "015 FR-003: the thumb is drawn on the tick of the speed");
@@ -1623,11 +1623,11 @@ namespace
 
         struct Row { RunPhase Phase; int Speed; SpeedChangeAction Action; };
         const Row rows[] = {
-            { RunPhase::Idle, -13, SpeedChangeAction::None }, { RunPhase::Idle, 0, SpeedChangeAction::None },
+            { RunPhase::Idle, kMinSpeed, SpeedChangeAction::None }, { RunPhase::Idle, 0, SpeedChangeAction::None },
             { RunPhase::Idle, 9, SpeedChangeAction::None }, { RunPhase::Idle, 10, SpeedChangeAction::None },
-            { RunPhase::Running, -13, SpeedChangeAction::Rebase }, { RunPhase::Running, 0, SpeedChangeAction::Rebase },
+            { RunPhase::Running, kMinSpeed, SpeedChangeAction::Rebase }, { RunPhase::Running, 0, SpeedChangeAction::Rebase },
             { RunPhase::Running, 9, SpeedChangeAction::Rebase }, { RunPhase::Running, 10, SpeedChangeAction::FinishNow },
-            { RunPhase::Paused, -13, SpeedChangeAction::None }, { RunPhase::Paused, 0, SpeedChangeAction::None },
+            { RunPhase::Paused, kMinSpeed, SpeedChangeAction::None }, { RunPhase::Paused, 0, SpeedChangeAction::None },
             { RunPhase::Paused, 9, SpeedChangeAction::None }, { RunPhase::Paused, 10, SpeedChangeAction::FinishNow },
         };
         bool actions = true;
@@ -1838,10 +1838,10 @@ namespace
                     v.push_back(s);
             return v;
         };
-        Check(shown(0) == std::vector<int>{ -13, -10, -5, 0, 5, 10 } &&
-            shown(-12) == std::vector<int>{ -12, -5, 0, 5, 10 } &&
-            shown(9) == std::vector<int>{ -13, -10, -5, 0, 5, 9 } &&
-            shown(3) == std::vector<int>{ -13, -10, -5, 0, 3, 10 },
+        Check(shown(0) == std::vector<int>{ -10, -5, 0, 5, 10 } &&
+            shown(-9) == std::vector<int>{ -9, -5, 0, 5, 10 } &&
+            shown(9) == std::vector<int>{ -10, -5, 0, 5, 9 } &&
+            shown(3) == std::vector<int>{ -10, -5, 0, 3, 10 },
             "019 FR-004: every 5th value and the current one; 5th values within 2 ticks of it are hidden");
 
         bool caption = true;
@@ -2179,6 +2179,44 @@ namespace
             std::remove(path.c_str());
         }
     }
+    void CheckFeature026()
+    {
+        std::cout << "\n== feature 026: speed range -10..+10 ==\n";
+        const int dpis[] = { 96, 120, 144 };
+        bool ticks = kMinSpeed == -10 && kMaxSpeed == 10 && SpeedTickX(-10, 96) == 604 && SpeedTickX(10, 96) == 864 &&
+            kMaxSpeed - kMinSpeed + 1 == 21;
+        bool fits = true;
+        for (int dpi : dpis)
+        {
+            ticks = ticks && SpeedAtX(0, dpi) == -10 && SpeedAtX(ScaleToDpi(2000, dpi), dpi) == 10 &&
+                SpeedTickX(-13, dpi) == SpeedTickX(-10, dpi); // values below the range are drawn at -10
+            const int band = ScaleToDpi(kToolbarHeight, dpi);
+            fits = fits && SpeedLabelRect(10, dpi).Right <= ScaleToDpi(kDiagramWidth, dpi) &&
+                SpeedLabelRect(10, dpi).Bottom <= band &&
+                SpeedCaptionRect(dpi).Right <= SpeedTickX(-10, dpi) - ScaleToDpi(kSpeedTickPitch / 2, dpi);
+        }
+        Check(ticks, "026 FR-004: 21 ticks, -10 at x 604 and +10 at x 864 (96 DPI); SpeedAtX stops at -10 / +10");
+        Check(fits, "026 SC-003: the +10 label and the Speed: caption stay inside the band (DPI 96/120/144)");
+
+        struct Case { const char* Text; int Expected; };
+        const Case legacy[] = { { "-13", -10 }, { "-12", -10 }, { "-11", -10 }, { "-10", -10 }, { "10", 10 } };
+        bool read = true;
+        for (const Case& c : legacy)
+        {
+            ConfigLoadResult r = LoadText("s026_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n");
+            read = read && r.Success && r.Project.Speed == c.Expected;
+        }
+        Check(read, "026 FR-005/SC-004: Speed -13 / -12 / -11 of older files load as -10; -10 and 10 as they are");
+
+        bool rejected = true;
+        const char* bad[] = { "-14", "11" };
+        for (const char* text : bad)
+        {
+            ConfigLoadResult r = LoadText("s026_bad.canprj", std::string("[Project]\r\nSpeed=") + text + "\r\n");
+            rejected = rejected && !r.Success && r.ErrorMessage.find("-10 and 10") != std::string::npos;
+        }
+        Check(rejected, "026 FR-005: Speed -14 and 11 are rejected and the message names -10 and 10");
+    }
 }
 
 int main(int argc, char** argv)
@@ -2214,6 +2252,7 @@ int main(int argc, char** argv)
     CheckFeature023();
     CheckFeature024();
     CheckFeature025();
+    CheckFeature026();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

@@ -251,7 +251,9 @@ namespace CanSim
         }
 
         // Speed is signed (feature 005 FR-002): an optional '+' or '-' sign
-        // followed by digits, kMinSpeed..kMaxSpeed.
+        // followed by digits, kMinSpeed..kMaxSpeed. Feature 026: files saved
+        // before the range became -10..10 may hold -13..-11; they read as
+        // kMinSpeed. The error still names the current range.
         auto speedIt = raw.project.find("Speed");
         if (speedIt != raw.project.end())
         {
@@ -262,13 +264,13 @@ namespace CanSim
             const bool isNumber = !digits.empty() && digits.find_first_not_of("0123456789") == std::string::npos &&
                                   TryParseULongBase(digits, 10, magnitude) && magnitude <= 100;
             const long value = negative ? -static_cast<long>(magnitude) : static_cast<long>(magnitude);
-            if (!isNumber || value < kMinSpeed || value > kMaxSpeed)
+            if (!isNumber || value < kLegacyMinSpeed || value > kMaxSpeed)
             {
                 result.ErrorMessage = "[Project] Speed: '" + text + "' must be an integer between " +
                     std::to_string(kMinSpeed) + " and " + std::to_string(kMaxSpeed) + ".";
                 return result;
             }
-            project.Speed = static_cast<int>(value);
+            project.Speed = value < kMinSpeed ? kMinSpeed : static_cast<int>(value);
         }
 
         // ---- Nodes (FR-001) ----
