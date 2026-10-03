@@ -28,6 +28,10 @@ const UINT WM_APP_LOAD_STARTUP_PROJECT = WM_APP + 4;
 // Feature 025: sent to the owner when the log viewer has been destroyed.
 const UINT WM_APP_LOG_VIEWER_CLOSED = WM_APP + 5;
 
+// Feature 028: sent to the owner when an analysis window has been destroyed.
+const UINT WM_APP_LATENCY_CLOSED = WM_APP + 6;
+const UINT WM_APP_BUSLOAD_CLOSED = WM_APP + 7;
+
 // Feature 013: header of the frame list. A double-click anywhere on it asks
 // the editor window to add a frame instead of the default handling (which
 // would auto-size a column on a divider).

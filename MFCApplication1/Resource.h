@@ -29,6 +29,8 @@
 #define IDD_FRAME_EDIT					131
 #define IDD_FRAME_ENTRY					132
 #define IDD_LOG_VIEW					133	// feature 025
+#define IDD_ANALYSIS_LATENCY			134	// feature 028
+#define IDD_ANALYSIS_BUSLOAD			135
 #define ID_EDIT_FRAMES					32777
 #define IDC_COMBO_FRAME_NODE			1014
 #define IDC_LIST_FRAMES					1015
@@ -70,6 +72,9 @@
 // feature 009: log view
 #define IDC_SCROLL_LOG					1025
 #define IDC_EDIT_ECU_LABEL				1026	// feature 022
+#define IDC_LIST_ANALYSIS				1027	// feature 028
+#define IDC_STATIC_ANALYSIS				1028
+#define IDC_GRAPH_ANALYSIS				1029
 #define IDS_LOG_STATE_INIT				233
 #define IDS_LOG_STATE_SYNC				234
 #define IDS_LOG_STATE_NORMAL			235
@@ -98,6 +103,22 @@
 #define IDS_LOG_COPY_TOO_LARGE			259
 #define IDS_LOG_MENU_COPY				260
 #define IDS_LOG_MENU_SELECT_ALL			261
+#define IDS_LOG_CLEAR_CONFIRM			262	// feature 027
+#define IDS_LOG_CLEAR_DONE				263
+#define IDS_LOG_CLEAR_FAILED			264
+#define IDS_LAT_TITLE					265	// feature 028
+#define IDS_LAT_COLUMNS					266
+#define IDS_LAT_ALL						267
+#define IDS_LAT_NOTE					268
+#define IDS_LAT_AXIS_X					269
+#define IDS_LAT_AXIS_Y					270
+#define IDS_BUS_TITLE					271
+#define IDS_BUS_SUMMARY					272
+#define IDS_BUS_COLUMNS					273
+#define IDS_BUS_AXIS_X					274
+#define IDS_BUS_AXIS_Y					275
+#define IDS_ANALYSIS_NO_DATA			276
+#define IDS_BUS_AVERAGE					277
 
 #define ID_FILE_LOAD_PROJECT			32771
 #define ID_FILE_SAVE_PROJECT			32772
@@ -107,18 +128,20 @@
 #define ID_SIM_PAUSE					32778	// feature 014
 #define ID_FILE_SAVE_OVERWRITE			32779	// feature 023 (toolbar only)
 #define ID_LOG_VIEW_SIMLOG				32780	// feature 025
-#define ID_ANALYSIS_PLACEHOLDER			32781
+#define ID_ANALYSIS_LATENCY				32785	// feature 028 (replaces the 025 placeholder 32781)
+#define ID_ANALYSIS_BUSLOAD				32786
 #define ID_LOG_COPY						32782
 #define ID_LOG_SELECT_ALL				32783
+#define ID_LOG_CLEAR					32784	// feature 027
 
 // 新しいオブジェクトの次の既定値
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 
-#define _APS_NEXT_RESOURCE_VALUE	134
-#define _APS_NEXT_CONTROL_VALUE		1027
-#define _APS_NEXT_SYMED_VALUE		262
-#define _APS_NEXT_COMMAND_VALUE		32784
+#define _APS_NEXT_RESOURCE_VALUE	136
+#define _APS_NEXT_CONTROL_VALUE		1030
+#define _APS_NEXT_SYMED_VALUE		278
+#define _APS_NEXT_COMMAND_VALUE		32787
 #endif
 #endif

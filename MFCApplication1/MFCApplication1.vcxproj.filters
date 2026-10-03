@@ -33,6 +33,9 @@
     <ClInclude Include="LogViewDlg.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="AnalysisDlg.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="FrameEntryDlg.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -96,6 +99,9 @@
     <ClInclude Include="CanSim\LogFileIndex.h">
       <Filter>CanSim</Filter>
     </ClInclude>
+    <ClInclude Include="CanSim\LogAnalysis.h">
+      <Filter>CanSim</Filter>
+    </ClInclude>
     <ClInclude Include="CanSim\FrameEditor.h">
       <Filter>CanSim</Filter>
     </ClInclude>
@@ -117,6 +123,9 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="LogViewDlg.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="AnalysisDlg.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="FrameEntryDlg.cpp">
@@ -168,6 +177,9 @@
       <Filter>CanSim</Filter>
     </ClCompile>
     <ClCompile Include="CanSim\LogFileIndex.cpp">
+      <Filter>CanSim</Filter>
+    </ClCompile>
+    <ClCompile Include="CanSim\LogAnalysis.cpp">
       <Filter>CanSim</Filter>
     </ClCompile>
     <ClCompile Include="CanSim\FrameEditor.cpp">

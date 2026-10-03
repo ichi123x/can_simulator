@@ -2,7 +2,10 @@
 #include "pch.h"
 #include "LogFileIndex.h"
 
+#include <cstdio>
 #include <fstream>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 namespace CanSim
 {
@@ -121,5 +124,37 @@ namespace CanSim
     std::wstring LogPathFor(const std::wstring& projectPath)
     {
         return projectPath + L".log.csv";
+    }
+
+    std::vector<std::wstring> ResultFilePaths(const std::wstring& projectPath)
+    {
+        return { LogPathFor(projectPath), projectPath + L".summary.csv", projectPath + L".startup.csv" };
+    }
+
+    std::vector<std::wstring> ExistingResultFiles(const std::wstring& projectPath)
+    {
+        std::vector<std::wstring> existing;
+        if (projectPath.empty())
+            return existing;
+        for (const std::wstring& path : ResultFilePaths(projectPath))
+        {
+            struct _stat64 st;
+            if (_wstat64(path.c_str(), &st) == 0 && (st.st_mode & _S_IFMT) == _S_IFREG)
+                existing.push_back(path);
+        }
+        return existing;
+    }
+
+    LogClearResult DeleteResultFiles(const std::vector<std::wstring>& paths)
+    {
+        LogClearResult result;
+        for (const std::wstring& path : paths)
+        {
+            if (_wremove(path.c_str()) == 0)
+                result.Deleted.push_back(path);
+            else
+                result.Failed.push_back(path);
+        }
+        return result;
     }
 }

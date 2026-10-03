@@ -10,12 +10,15 @@
 #include "CanSim/LogLines.h"
 #include "CanSim/SimControls.h"
 #include "CanSim/FlowEffect.h"
+#include "CanSim/LogAnalysis.h"
 
 #include <memory>
 #include <vector>
 
 class CFrameEditDlg;
 class CLogViewDlg;
+class CLatencyDlg;
+class CBusLoadDlg;
 
 
 // CMFCApplication1Dlg ダイアログ
@@ -72,7 +75,12 @@ protected:
 	afx_msg LRESULT OnEcuLabelChanged(WPARAM wParam, LPARAM lParam); // feature 022
 	afx_msg LRESULT OnLoadStartupProject(WPARAM wParam, LPARAM lParam); // feature 024
 	afx_msg void OnLogViewSimLog();                                     // feature 025
+	afx_msg void OnLogClear();                                          // feature 027
 	afx_msg LRESULT OnLogViewerClosed(WPARAM wParam, LPARAM lParam);    // feature 025
+	afx_msg void OnAnalysisLatency();                                   // feature 028
+	afx_msg void OnAnalysisBusLoad();
+	afx_msg LRESULT OnLatencyClosed(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnBusLoadClosed(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnDestroy();
 
 public:
@@ -156,6 +164,11 @@ private:
 	// ---- feature 025: modeless simulation log viewer ----
 	void CloseLogViewer();
 	CLogViewDlg* m_logViewer = nullptr;     // set back to nullptr by the closed notice
+	void CloseResultWindows();              // 028: the log window and both analysis windows
+	bool LoadAnalysisRecords(std::vector<CanSim::LogRecord>& records);
+	CString ProjectFileName() const;
+	CLatencyDlg* m_latencyDlg = nullptr;    // 028, cleared by the closed notices
+	CBusLoadDlg* m_busLoadDlg = nullptr;
 	int m_pendingEcu = 0;                   // ECU to open when the switch timer fires
 
 	// ---- feature 011: grey ECU after a double-click, borders ----

@@ -23,12 +23,17 @@
 #include "SimControls.h"
 #include "FlowEffect.h"
 #include "LogFileIndex.h"
+#include "LogAnalysis.h"
 
 #include <climits>
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <direct.h>
+#include <io.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -2217,6 +2222,189 @@ namespace
         }
         Check(rejected, "026 FR-005: Speed -14 and 11 are rejected and the message names -10 and 10");
     }
+
+    void CheckFeature027()
+    {
+        std::cout << "\n== feature 027: clear log ==\n";
+        const std::vector<std::wstring> names = ResultFilePaths(L"C:\\x\\a.canprj");
+        Check(names.size() == 3 && names[0] == L"C:\\x\\a.canprj.log.csv" && names[0] == LogPathFor(L"C:\\x\\a.canprj") &&
+            names[1] == L"C:\\x\\a.canprj.summary.csv" && names[2] == L"C:\\x\\a.canprj.startup.csv",
+            "027 FR-002: ResultFilePaths is the frame log, summary and startup record next to the project, in this order");
+        Check(ExistingResultFiles(L"").empty(), "027 FR-005: no result files without a project file");
+
+        const std::wstring project = Widen(Join(g_tempDir, "t027_clear.canprj"));
+        const std::vector<std::wstring> paths = ResultFilePaths(project);
+        auto touch = [](const std::wstring& path) { std::ofstream(path.c_str()) << "x\n"; };
+        auto exists = [](const std::wstring& path) { struct _stat64 st; return _wstat64(path.c_str(), &st) == 0; };
+        // leftovers of an earlier run
+        _wchmod(paths[2].c_str(), _S_IREAD | _S_IWRITE);
+        for (const std::wstring& p : paths) _wremove(p.c_str());
+        _wrmdir(paths[1].c_str());
+
+        touch(project);
+        touch(paths[0]);
+        _wmkdir(paths[1].c_str()); // a folder with the summary's name is not a result file
+        touch(paths[2]);
+        const std::vector<std::wstring> existing = ExistingResultFiles(project);
+        Check(existing.size() == 2 && existing[0] == paths[0] && existing[1] == paths[2],
+            "027 FR-002: ExistingResultFiles lists the regular files only, in order (a folder of the same name is left out)");
+
+        _wchmod(paths[2].c_str(), _S_IREAD);
+        const LogClearResult result = DeleteResultFiles(existing);
+        Check(result.Deleted.size() == 1 && result.Deleted[0] == paths[0] &&
+            result.Failed.size() == 1 && result.Failed[0] == paths[2] &&
+            !exists(paths[0]) && exists(paths[2]),
+            "027 FR-006: DeleteResultFiles deletes what it can and reports the read-only file as failed, without changing it");
+        Check(exists(project) && exists(paths[1]), "027 FR-009: the project file and other entries are not touched");
+
+        _wchmod(paths[2].c_str(), _S_IREAD | _S_IWRITE);
+        const LogClearResult rest = DeleteResultFiles(ExistingResultFiles(project));
+        Check(rest.Deleted.size() == 1 && rest.Failed.empty() && ExistingResultFiles(project).empty(),
+            "027 FR-002: once writable it is deleted, and then no result files remain");
+        _wrmdir(paths[1].c_str());
+        _wremove(project.c_str());
+    }
+
+    void CheckFeature028()
+    {
+        std::cout << "\n== feature 028: latency and bus load analysis ==\n";
+        auto writeLog = [](const std::string& name, const std::string& text) {
+            const std::string path = Join(g_tempDir, name);
+            std::ofstream(path.c_str(), std::ios::binary) << text;
+            return Widen(path);
+        };
+        std::vector<LogRecord> records;
+        std::string error;
+
+        // Reading: columns found by name (shuffled order, an extra column), empty cells
+        std::string latencyLog = "Status,Extra,CAN_ID,Tx_Node,Rx_Node,Tx_Request,Tx_Start,Tx_End,Rx_End\r\n"
+            "SUCCESS,x,0x080,1,2,0,0,250,100\r\n"
+            "SUCCESS,x,0x080,1,3,0,0,250,200\r\n"
+            "OVERWRITE,x,0x100,1,,500,,,\r\n";
+        for (int k = 1; k <= 20; ++k)
+        {
+            std::ostringstream row;
+            row << (k % 2 ? "SUCCESS" : "ARBITRATION_LOST_RETRY") << ",x,0x200,2,1," << 1000 * k << ',' << 1000 * k << ','
+                << 1000 * k + 250 << ',' << 1000 * k + k << "\r\n";
+            latencyLog += row.str();
+        }
+        latencyLog += "\r\n"; // an empty line is skipped
+        const bool read = ReadLogRecords(writeLog("t028_latency.log.csv", latencyLog), records, error);
+        Check(read && records.size() == 23 && records[2].Status == LogStatus::Overwrite && records[2].RxNode == 0 &&
+            records[2].TxStartUs == -1 && records[0].CanId == 0x080 && records[3].Status == LogStatus::Success &&
+            records[4].Status == LogStatus::RetrySuccess,
+            "028 FR-002: ReadLogRecords finds the columns by name; empty cells give RxNode 0 and time -1");
+
+        bool rejected = true;
+        const char* bad[] = {
+            "CAN_ID,Tx_Node,Rx_Node,Tx_Request,Tx_Start,Tx_End,Status\r\n",                                // no Rx_End
+            "CAN_ID,Tx_Node,Rx_Node,Tx_Request,Tx_Start,Tx_End,Rx_End,Status\r\n0x080,1,2,0,0,250,100,FOO\r\n", // bad status
+            "CAN_ID,Tx_Node,Rx_Node,Tx_Request,Tx_Start,Tx_End,Rx_End,Status\r\n0x080,1,2,abc,0,250,100,SUCCESS\r\n",
+        };
+        const char* lines[] = { "line 1:", "line 2:", "line 2:" };
+        for (int i = 0; i < 3; ++i)
+        {
+            std::vector<LogRecord> r;
+            std::string e;
+            rejected = rejected && !ReadLogRecords(writeLog("t028_bad.log.csv", bad[i]), r, e) && e.find(lines[i]) == 0;
+        }
+        std::vector<LogRecord> none;
+        rejected = rejected && !ReadLogRecords(Widen(Join(g_tempDir, "t028_missing.log.csv")), none, error);
+        Check(rejected, "028 US3: a missing column, a bad Status or number, or a missing file is an error with the line number");
+
+        // Latency table
+        const LatencyAnalysis lat = AnalyzeLatency(records);
+        const bool rowsOk = lat.Rows.size() == 4 &&
+            lat.Rows[0].TxNode == 0 && lat.Rows[1].TxNode == 1 && lat.Rows[1].RxNode == 2 &&
+            lat.Rows[2].TxNode == 1 && lat.Rows[2].RxNode == 3 && lat.Rows[3].TxNode == 2 && lat.Rows[3].RxNode == 1;
+        Check(rowsOk && lat.OverwriteCount == 1,
+            "028 FR-003 (Q1): rows are all, then (sender, receiver) pairs in order; OVERWRITE is counted apart");
+        Check(rowsOk && lat.Rows[3].Count == 20 && lat.Rows[3].MinUs == 1 && lat.Rows[3].MaxUs == 20 &&
+            std::fabs(lat.Rows[3].MeanUs - 10.5) < 1e-9 && lat.Rows[3].P95Us == 19 &&
+            lat.Rows[1].Count == 1 && lat.Rows[1].MinUs == 100 && lat.Rows[1].P95Us == 100 &&
+            lat.Rows[0].Count == 22 && lat.Rows[0].MinUs == 1 && lat.Rows[0].MaxUs == 200 &&
+            std::fabs(lat.Rows[0].MeanUs - 510.0 / 22.0) < 1e-9 && lat.Rows[0].P95Us == 100,
+            "028 FR-003 (Q2): Rx_End - Tx_Request; count, min, mean, max and nearest-rank P95 match the hand calculation");
+
+        // Histogram
+        bool hist = MakeHistogram({}).Counts.empty();
+        const Histogram same = MakeHistogram({ 7, 7, 7, 7, 7 });
+        hist = hist && same.Counts.size() == 1 && same.Counts[0] == 5 && same.StartUs == 7;
+        std::vector<long long> thousand;
+        for (int v = 1; v <= 1000; ++v)
+            thousand.push_back(v);
+        const Histogram h = MakeHistogram(thousand);
+        long long w = h.WidthUs;
+        while (w % 10 == 0)
+            w /= 10;
+        long long sum = 0;
+        for (long long c : h.Counts)
+            sum += c;
+        hist = hist && (w == 1 || w == 2 || w == 5) && h.Counts.size() >= 10 && h.Counts.size() <= 50 && sum == 1000 &&
+            h.StartUs <= 1 && h.StartUs + h.WidthUs * static_cast<long long>(h.Counts.size()) > 1000;
+        Check(hist, "028 FR-004: histogram bins have a round width, 10..50 bins, and the counts add up (empty / one value too)");
+
+        // Bus load: one transmission [0, 250), one seen by two receivers [9900, 10150)
+        std::vector<LogRecord> busRecords;
+        const std::string busLog = "CAN_ID,Tx_Node,Rx_Node,Tx_Request,Tx_Start,Tx_End,Rx_End,Status\r\n"
+            "0x080,1,2,0,0,250,250,SUCCESS\r\n"
+            "0x100,2,1,9800,9900,10150,10150,ARBITRATION_LOST_RETRY\r\n"
+            "0x100,2,3,9800,9900,10150,10150,ARBITRATION_LOST_RETRY\r\n"
+            "0x300,3,,9000,,,,OVERWRITE\r\n";
+        const bool busRead = ReadLogRecords(writeLog("t028_bus.log.csv", busLog), busRecords, error);
+        const BusLoadAnalysis bus = AnalyzeBusLoad(busRecords);
+        Check(busRead && bus.TransmissionCount == 2 && bus.RangeUs == 20000 && bus.SectionPct.size() == 2 &&
+            std::fabs(bus.SectionPct[0] - 3.5) < 1e-9 && std::fabs(bus.SectionPct[1] - 1.5) < 1e-9 &&
+            std::fabs(bus.AveragePct - 2.5) < 1e-9 && std::fabs(bus.MaxPct - 3.5) < 1e-9 && bus.MaxSection == 0,
+            "028 FR-006: a transmission seen by two receivers counts once, split at the 10 ms border; average = busy / range");
+        Check(bus.Ecus.size() == 2 && bus.Ecus[0].Node == 1 && bus.Ecus[1].Node == 2 && bus.Ecus[1].FrameCount == 1 &&
+            std::fabs(bus.Ecus[0].UsagePct + bus.Ecus[1].UsagePct - bus.AveragePct) < 1e-9,
+            "028 SC-003: per-ECU usage adds up to the average load");
+
+        // Graph helpers
+        const std::vector<double> ticks = NiceTicks(0, 100, 5);
+        const std::vector<double> cols = MaxPerColumn({ 1, 5, 2, 8, 3, 1 }, 3);
+        Check(ticks == std::vector<double>({ 0, 20, 40, 60, 80, 100 }) && cols == std::vector<double>({ 5, 8, 3 }) &&
+            MaxPerColumn({ 1, 2 }, 3) == std::vector<double>({ 1, 2 }),
+            "028: NiceTicks gives round ticks; MaxPerColumn keeps the peak of each column");
+
+        // 16 ECU vehicle sample, 5 s
+        const std::string prefix = Join(g_tempDir, "t028_vehicle16");
+        std::vector<LogRow> rows;
+        bool sample = RunProjectToCsv(Join(g_sampleDir, "sample_vehicle_16ecu.canprj"), prefix, 5000000LL, &rows);
+        std::vector<LogRecord> vehicle;
+        sample = sample && ReadLogRecords(Widen(prefix) + L".log.csv", vehicle, error);
+        const LatencyAnalysis vl = AnalyzeLatency(vehicle);
+        long long receives = 0;
+        for (const LogRecord& r : vehicle)
+            if (r.RxNode > 0 && r.Status != LogStatus::Overwrite)
+                ++receives;
+        bool counts = sample && !vl.Rows.empty() && vl.Rows[0].Count == receives && receives > 0;
+        long long pairSum = 0;
+        for (std::size_t i = 0; counts && i < vl.Rows.size(); ++i)
+        {
+            const Histogram hh = MakeHistogram(vl.Rows[i].Values);
+            long long s = 0;
+            for (long long c : hh.Counts)
+                s += c;
+            counts = counts && s == vl.Rows[i].Count;
+            if (i > 0)
+                pairSum += vl.Rows[i].Count;
+        }
+        counts = counts && pairSum == receives;
+        const BusLoadAnalysis vb = AnalyzeBusLoad(vehicle);
+        double ecuSum = 0.0, sectionMean = 0.0;
+        for (const EcuBusUsage& e : vb.Ecus)
+            ecuSum += e.UsagePct;
+        for (double p : vb.SectionPct)
+            sectionMean += p;
+        sectionMean /= static_cast<double>(vb.SectionPct.size());
+        std::ostringstream what;
+        what << "028 SC-001/SC-002/SC-003: 16 ECU vehicle sample (" << receives << " receives, average load "
+             << vb.AveragePct << " %): counts, histogram totals and load sums agree";
+        Check(counts && vb.AveragePct > 0.0 && std::fabs(ecuSum - vb.AveragePct) < 1e-6 &&
+            std::fabs(sectionMean - vb.AveragePct) < 1e-6, what.str());
+    }
 }
 
 int main(int argc, char** argv)
@@ -2253,6 +2441,8 @@ int main(int argc, char** argv)
     CheckFeature024();
     CheckFeature025();
     CheckFeature026();
+    CheckFeature027();
+    CheckFeature028();
 
     std::cout << "\n" << g_failures << " check(s) failed.\n";
     return g_failures == 0 ? 0 : 1;

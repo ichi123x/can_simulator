@@ -191,3 +191,5 @@ out/
 # ただし憲章が一次情報源として参照する資料は追跡する（複数PCで同じ環境を再現するため）。
 # 本リポジトリは private であることが前提。
 !Doc/references/*.pdf
+# シミュレーションの結果（プロジェクトファイルの隣に出力される CSV: .log.csv / .summary.csv / .startup.csv）は追跡しない
+*.canprj.*.csv

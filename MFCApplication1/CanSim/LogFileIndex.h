@@ -40,4 +40,23 @@ namespace CanSim
 
     // Frame log written next to a project file (feature 004): "<project>.log.csv".
     std::wstring LogPathFor(const std::wstring& projectPath);
+
+    // ---- feature 027: Log > Clear log ----
+    // The three result files a run writes next to the project file, in this
+    // order: frame log, summary, startup record.
+    std::vector<std::wstring> ResultFilePaths(const std::wstring& projectPath);
+
+    // Those of ResultFilePaths that exist as regular files (a directory of the
+    // same name does not count), in the same order. Empty for an empty path.
+    std::vector<std::wstring> ExistingResultFiles(const std::wstring& projectPath);
+
+    struct LogClearResult
+    {
+        std::vector<std::wstring> Deleted; // in the order given
+        std::vector<std::wstring> Failed;  // read-only, open in another program, ...
+    };
+
+    // Deletes each path. File attributes are left alone, so a read-only file
+    // ends up in Failed.
+    LogClearResult DeleteResultFiles(const std::vector<std::wstring>& paths);
 }
