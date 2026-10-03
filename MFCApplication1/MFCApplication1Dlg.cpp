@@ -20,6 +20,7 @@
 #include "SettingsDlg.h"
 #include "FrameEditDlg.h"
 #include "LogViewDlg.h"
+#include "AnalysisDlg.h"
 #include "CanSim/LogFileIndex.h"
 
 #include <algorithm>
@@ -103,7 +104,12 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_MESSAGE(WM_APP_ECU_LABEL_CHANGED, &CMFCApplication1Dlg::OnEcuLabelChanged)
 	ON_MESSAGE(WM_APP_LOAD_STARTUP_PROJECT, &CMFCApplication1Dlg::OnLoadStartupProject)
 	ON_COMMAND(ID_LOG_VIEW_SIMLOG, &CMFCApplication1Dlg::OnLogViewSimLog)
+	ON_COMMAND(ID_LOG_CLEAR, &CMFCApplication1Dlg::OnLogClear)
 	ON_MESSAGE(WM_APP_LOG_VIEWER_CLOSED, &CMFCApplication1Dlg::OnLogViewerClosed)
+	ON_COMMAND(ID_ANALYSIS_LATENCY, &CMFCApplication1Dlg::OnAnalysisLatency)
+	ON_COMMAND(ID_ANALYSIS_BUSLOAD, &CMFCApplication1Dlg::OnAnalysisBusLoad)
+	ON_MESSAGE(WM_APP_LATENCY_CLOSED, &CMFCApplication1Dlg::OnLatencyClosed)
+	ON_MESSAGE(WM_APP_BUSLOAD_CLOSED, &CMFCApplication1Dlg::OnBusLoadClosed)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
@@ -1003,7 +1009,9 @@ void CMFCApplication1Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL b
 	pPopupMenu->EnableMenuItem(ID_EDIT_SETTINGS, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_EDIT_FRAMES, idleOnly);
 	pPopupMenu->EnableMenuItem(ID_LOG_VIEW_SIMLOG, idleOnly);                   // 025 FR-008
-	pPopupMenu->EnableMenuItem(ID_ANALYSIS_PLACEHOLDER, MF_BYCOMMAND | MF_GRAYED); // 025 FR-002
+	pPopupMenu->EnableMenuItem(ID_LOG_CLEAR, idleOnly);                         // 027
+	pPopupMenu->EnableMenuItem(ID_ANALYSIS_LATENCY, idleOnly);                  // 028
+	pPopupMenu->EnableMenuItem(ID_ANALYSIS_BUSLOAD, idleOnly);
 	// 014 FR-004: same states as the toolbar buttons (Start is also greyed
 	// while the frame editor is open, 010 FR-013)
 	const CanSim::SimCommandStates sim = SimStates();
@@ -1017,7 +1025,7 @@ void CMFCApplication1Dlg::OnFileLoadProject()
 	if (InRun())
 		return;
 	CloseFrameEditor(); // 010 FR-014: the editor refers to the current project
-	CloseLogViewer();   // 025 FR-009: the log belongs to the current project
+	CloseResultWindows(); // 025 FR-009: the log belongs to the current project
 
 	CFileDialog dlg(TRUE, _T("canprj"), nullptr, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
 		LoadRcString(IDS_PROJECT_FILTER), this);
@@ -1060,7 +1068,7 @@ bool CMFCApplication1Dlg::LoadProjectFrom(const CString& path)
 void CMFCApplication1Dlg::SetProjectPath(const CString& path)
 {
 	if (path.CompareNoCase(m_projectPath) != 0)
-		CloseLogViewer(); // 025 FR-009: the log shown belongs to the previous file
+		CloseResultWindows(); // 025 FR-009: the log shown belongs to the previous file
 	m_projectPath = path;
 	const std::wstring title = CanSim::ComposeWindowTitle(std::wstring((LPCTSTR)m_baseTitle),
 		std::wstring((LPCTSTR)LoadRcString(IDS_PROJECT_PATH_LABEL)), std::wstring((LPCTSTR)path));
@@ -1137,6 +1145,67 @@ void CMFCApplication1Dlg::OnLogViewSimLog()
 	m_logViewer = viewer;
 }
 
+namespace
+{
+	// File names (without the folder) one per line, for the 027 messages.
+	CString JoinFileNames(const std::vector<std::wstring>& paths)
+	{
+		CString names;
+		for (const std::wstring& path : paths)
+		{
+			const std::size_t slash = path.find_last_of(L"\\/");
+			if (!names.IsEmpty())
+				names += _T("\n");
+			names += path.substr(slash == std::wstring::npos ? 0 : slash + 1).c_str();
+		}
+		return names;
+	}
+}
+
+// 027: "Log > Clear log" deletes the result files of the current project
+// after a confirmation (Q1), all three of them (Q2), and empties the log view
+// when anything was deleted (Q3).
+void CMFCApplication1Dlg::OnLogClear()
+{
+	if (InRun())
+		return; // the menu is greyed; guard other routes too
+	if (m_projectPath.IsEmpty())
+	{
+		AfxMessageBox(LoadRcString(IDS_LOG_NONE_NOPROJECT), MB_OK | MB_ICONINFORMATION); // US2-1
+		return;
+	}
+
+	const std::vector<std::wstring> existing = CanSim::ExistingResultFiles(std::wstring((LPCTSTR)m_projectPath));
+	CString message;
+	if (existing.empty())
+	{
+		const int slash = (std::max)(m_projectPath.ReverseFind(_T('\\')), m_projectPath.ReverseFind(_T('/')));
+		message.Format(LoadRcString(IDS_LOG_NONE), (LPCTSTR)m_projectPath.Mid(slash + 1)); // US2-2
+		AfxMessageBox(message, MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+
+	message.Format(LoadRcString(IDS_LOG_CLEAR_CONFIRM), (LPCTSTR)JoinFileNames(existing));
+	if (AfxMessageBox(message, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES)
+		return; // nothing changes
+
+	CloseResultWindows(); // FR-007: it may be showing a file about to go
+	const CanSim::LogClearResult result = CanSim::DeleteResultFiles(existing);
+	if (!result.Deleted.empty())
+		ClearLog(); // FR-008: the rows shown came from the deleted run
+
+	if (result.Failed.empty())
+	{
+		message.Format(LoadRcString(IDS_LOG_CLEAR_DONE), (LPCTSTR)JoinFileNames(result.Deleted));
+		AfxMessageBox(message, MB_OK | MB_ICONINFORMATION);
+	}
+	else
+	{
+		message.Format(LoadRcString(IDS_LOG_CLEAR_FAILED), (LPCTSTR)JoinFileNames(result.Failed)); // US2-3
+		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
+	}
+}
+
 LRESULT CMFCApplication1Dlg::OnLogViewerClosed(WPARAM, LPARAM)
 {
 	m_logViewer = nullptr;
@@ -1147,6 +1216,112 @@ void CMFCApplication1Dlg::CloseLogViewer()
 {
 	if (m_logViewer != nullptr)
 		m_logViewer->DestroyWindow(); // the closed notice clears m_logViewer
+}
+
+// 028 FR-008: every window that shows the result files of the current
+// project; closed whenever those files or the project change.
+void CMFCApplication1Dlg::CloseResultWindows()
+{
+	CloseLogViewer();
+	if (m_latencyDlg != nullptr)
+		m_latencyDlg->DestroyWindow(); // the closed notices clear the pointers
+	if (m_busLoadDlg != nullptr)
+		m_busLoadDlg->DestroyWindow();
+}
+
+// ---- feature 028: Analysis menu ----
+
+// Reads the frame log of the current project, or tells why it cannot
+// (the same notices as "Log > Simulation log", 025).
+bool CMFCApplication1Dlg::LoadAnalysisRecords(std::vector<CanSim::LogRecord>& records)
+{
+	if (m_projectPath.IsEmpty())
+	{
+		AfxMessageBox(LoadRcString(IDS_LOG_NONE_NOPROJECT), MB_OK | MB_ICONINFORMATION);
+		return false;
+	}
+	const CString logPath = CanSim::LogPathFor(std::wstring((LPCTSTR)m_projectPath)).c_str();
+	const DWORD attributes = ::GetFileAttributes(logPath);
+	if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+	{
+		CString message;
+		message.Format(LoadRcString(IDS_LOG_NONE), (LPCTSTR)ProjectFileName());
+		AfxMessageBox(message, MB_OK | MB_ICONINFORMATION);
+		return false;
+	}
+	std::string error;
+	bool ok = false;
+	{
+		CWaitCursor wait;
+		ok = CanSim::ReadLogRecords(std::wstring((LPCTSTR)logPath), records, error);
+	}
+	if (!ok)
+	{
+		CString message;
+		message.Format(LoadRcString(IDS_LOG_READ_ERROR), (LPCTSTR)logPath);
+		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
+	}
+	return ok;
+}
+
+CString CMFCApplication1Dlg::ProjectFileName() const
+{
+	const int slash = (std::max)(m_projectPath.ReverseFind(_T('\\')), m_projectPath.ReverseFind(_T('/')));
+	return m_projectPath.Mid(slash + 1);
+}
+
+void CMFCApplication1Dlg::OnAnalysisLatency()
+{
+	if (InRun())
+		return; // the menu is greyed; guard other routes too
+	if (m_latencyDlg != nullptr)
+	{
+		m_latencyDlg->SetForegroundWindow();
+		return;
+	}
+	std::vector<CanSim::LogRecord> records;
+	if (!LoadAnalysisRecords(records))
+		return;
+	CLatencyDlg* dlg = new CLatencyDlg(this, ProjectFileName(), CanSim::AnalyzeLatency(records));
+	if (!dlg->Open())
+	{
+		delete dlg; // no window was created
+		return;
+	}
+	m_latencyDlg = dlg;
+}
+
+void CMFCApplication1Dlg::OnAnalysisBusLoad()
+{
+	if (InRun())
+		return;
+	if (m_busLoadDlg != nullptr)
+	{
+		m_busLoadDlg->SetForegroundWindow();
+		return;
+	}
+	std::vector<CanSim::LogRecord> records;
+	if (!LoadAnalysisRecords(records))
+		return;
+	CBusLoadDlg* dlg = new CBusLoadDlg(this, ProjectFileName(), CanSim::AnalyzeBusLoad(records));
+	if (!dlg->Open())
+	{
+		delete dlg;
+		return;
+	}
+	m_busLoadDlg = dlg;
+}
+
+LRESULT CMFCApplication1Dlg::OnLatencyClosed(WPARAM, LPARAM)
+{
+	m_latencyDlg = nullptr;
+	return 0;
+}
+
+LRESULT CMFCApplication1Dlg::OnBusLoadClosed(WPARAM, LPARAM)
+{
+	m_busLoadDlg = nullptr;
+	return 0;
 }
 
 bool CMFCApplication1Dlg::AskSavePath(CString& path)
@@ -1212,7 +1387,7 @@ void CMFCApplication1Dlg::OnEditSettings()
 	if (InRun())
 		return;
 	CloseFrameEditor(); // 010 FR-014: ECU count and bit rate may change
-	CloseLogViewer();   // 025 FR-009
+	CloseResultWindows(); // 025 FR-009
 
 	CSettingsDlg dlg(m_settings, m_definitions.BitRateBps, this);
 	if (dlg.DoModal() != IDOK)
@@ -1309,7 +1484,7 @@ void CMFCApplication1Dlg::OnDestroy()
 	// Closing the main window while a switch is pending must not open a new
 	// editor (spec Edge Cases).
 	CloseFrameEditor();
-	CloseLogViewer(); // 025
+	CloseResultWindows(); // 025
 	KillTimer(kGrayTimerId); // 011
 	CDialogEx::OnDestroy();
 }
@@ -1409,9 +1584,12 @@ bool CMFCApplication1Dlg::WriteResults(const std::vector<CanSim::LogRow>& rows,
 	CString& logPath, CString& summaryPath, CString& startupPath)
 {
 	// Same file names as before feature 004: <project path>.log.csv etc.
-	logPath = CanSim::LogPathFor(std::wstring((LPCTSTR)m_projectPath)).c_str(); // 025: same name the log viewer looks for
-	summaryPath = m_projectPath + _T(".summary.csv");
-	startupPath = m_projectPath + _T(".startup.csv");
+	// 027: the names come from the same place as the ones "Clear log" deletes
+	// (the first is also the one the log viewer looks for, 025).
+	const std::vector<std::wstring> paths = CanSim::ResultFilePaths(std::wstring((LPCTSTR)m_projectPath));
+	logPath = paths[0].c_str();
+	summaryPath = paths[1].c_str();
+	startupPath = paths[2].c_str();
 
 	CanSim::Logger logger;
 	for (const CanSim::LogRow& row : rows)
@@ -1442,7 +1620,7 @@ void CMFCApplication1Dlg::OnSimStart()
 		return; // 010 FR-013: the menu item is greyed; guard other routes too
 
 	// 025 FR-009: the log shown would be replaced by this run.
-	CloseLogViewer();
+	CloseResultWindows();
 
 	// The results are written next to the project file, so it needs a place
 	// first (004 FR-017).
