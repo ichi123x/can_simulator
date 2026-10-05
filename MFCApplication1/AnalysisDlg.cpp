@@ -391,7 +391,7 @@ CLatencyDlg::CLatencyDlg(CWnd* owner, const CString& projectName, const CanSim::
 	: CAnalysisDlgBase(IDD_ANALYSIS_LATENCY, owner, WM_APP_LATENCY_CLOSED, projectName), m_analysis(analysis)
 {
 	m_initialSize96 = CSize(900, 640);
-	m_minSize96 = CSize(520, 400);
+	m_minSize96 = CSize(520, 400); // T007 asked for 480 x 360; below 520 the note line is cut off
 }
 
 void CLatencyDlg::CreateContent()
@@ -472,7 +472,7 @@ CBusLoadDlg::CBusLoadDlg(CWnd* owner, const CString& projectName, const CanSim::
 	: CAnalysisDlgBase(IDD_ANALYSIS_BUSLOAD, owner, WM_APP_BUSLOAD_CLOSED, projectName), m_analysis(analysis)
 {
 	m_initialSize96 = CSize(960, 680);
-	m_minSize96 = CSize(560, 440);
+	m_minSize96 = CSize(520, 400); // T010
 }
 
 void CBusLoadDlg::CreateContent()
