@@ -1,5 +1,6 @@
-// AnalysisDlg.h : analysis windows (feature 028)
-// "Analysis > Receive completion time" and "Analysis > CAN bus load". Both are
+// AnalysisDlg.h : analysis windows (features 028, 029)
+// "Analysis > Receive completion time" and "Analysis > CAN bus load" (028),
+// "Analysis > Transmit wait time" and "Analysis > Transmit jitter" (029). All are
 // modeless like the simulation log window (feature 025): the main dialog
 // creates them with new + Open, every way of closing destroys the window, and
 // the object deletes itself after telling the owner. They only show results
@@ -9,9 +10,12 @@
 
 #include "CanSim/LogAnalysis.h"
 
+#include <atomic>
+#include <future>
 #include <vector>
 
-// Graph drawn with GDI: a histogram (bars) or the bus load per section (line).
+// Graph drawn with GDI: a histogram (bars), the bus load per section (line)
+// or the jitter of one CAN ID over time (deviation, feature 029).
 class CAnalysisGraph : public CWnd
 {
 public:
@@ -20,6 +24,7 @@ public:
 	void SetBars(const CanSim::Histogram& histogram, const CString& xLabel, const CString& yLabel);
 	void SetLine(const std::vector<double>& pct, long long sectionUs, double averagePct,
 		const CString& xLabel, const CString& yLabel);
+	void SetDeviation(const std::vector<CanSim::JitterPoint>& points, const CString& xLabel, const CString& yLabel);
 	void SetNoData(const CString& text);
 
 protected:
@@ -28,7 +33,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 
 private:
-	enum class Mode { None, Bars, Line };
+	enum class Mode { None, Bars, Line, Deviation };
 	void Draw(CDC& dc, const CRect& client, int dpi);
 
 	Mode m_mode = Mode::None;
@@ -39,6 +44,7 @@ private:
 	std::vector<double> m_pct;
 	long long m_sectionUs = 10000;
 	double m_averagePct = 0.0;
+	std::vector<CanSim::JitterPoint> m_points;
 };
 
 // Placement, closing and the closed notice shared by the two windows.
@@ -117,4 +123,93 @@ private:
 	CStatic m_summary;
 	CAnalysisGraph m_graph;
 	CListCtrl m_list;
+};
+
+// Feature 029 revision 1: state shared between the analysis job (a worker
+// thread reading the log and computing) and the progress window.
+struct AnalysisJobState
+{
+	std::atomic<long long> Done{ 0 };   // bytes read
+	std::atomic<long long> Total{ 0 };  // size of the log
+	std::atomic<int> Phase{ 0 };        // 0 reading, 1 computing
+	std::atomic<bool> Cancel{ false };  // set by the Stop button
+};
+
+// Feature 029 revision 1: modal "Analysing" window with a progress bar and a
+// Stop button. It closes itself when the job has finished (IDOK), or after
+// Stop once the job has noticed it (IDCANCEL); the main window stays
+// disabled meanwhile.
+class CAnalysisProgressDlg : public CDialogEx
+{
+public:
+	CAnalysisProgressDlg(CWnd* owner, AnalysisJobState& state, std::future<int>& job);
+
+#ifdef AFX_DESIGN_TIME
+	enum { IDD = IDD_ANALYSIS_PROGRESS };
+#endif
+
+protected:
+	virtual BOOL OnInitDialog();
+	virtual void OnOK();
+	virtual void OnCancel();
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg void OnDestroy();
+	DECLARE_MESSAGE_MAP()
+
+private:
+	AnalysisJobState& m_state;
+	std::future<int>& m_job;
+	int m_shownPhase = -1;
+	bool m_cancelled = false;
+	UINT_PTR m_timer = 0;
+};
+
+// Feature 029: transmit wait time per CAN ID (table + histogram, as CLatencyDlg).
+class CTxWaitDlg : public CAnalysisDlgBase
+{
+public:
+	CTxWaitDlg(CWnd* owner, const CString& projectName, const CanSim::TxWaitAnalysis& analysis);
+
+#ifdef AFX_DESIGN_TIME
+	enum { IDD = IDD_ANALYSIS_TXWAIT };
+#endif
+
+protected:
+	virtual void CreateContent();
+	virtual void LayoutContent(int cx, int cy);
+	afx_msg void OnItemChanged(NMHDR* pNMHDR, LRESULT* pResult);
+	DECLARE_MESSAGE_MAP()
+
+private:
+	void ShowRow(int index);
+
+	CanSim::TxWaitAnalysis m_analysis;
+	CListCtrl m_list;
+	CStatic m_note;
+	CAnalysisGraph m_graph;
+};
+
+// Feature 029: transmit jitter per CAN ID (table + deviation over time).
+class CJitterDlg : public CAnalysisDlgBase
+{
+public:
+	CJitterDlg(CWnd* owner, const CString& projectName, const CanSim::JitterAnalysis& analysis);
+
+#ifdef AFX_DESIGN_TIME
+	enum { IDD = IDD_ANALYSIS_JITTER };
+#endif
+
+protected:
+	virtual void CreateContent();
+	virtual void LayoutContent(int cx, int cy);
+	afx_msg void OnItemChanged(NMHDR* pNMHDR, LRESULT* pResult);
+	DECLARE_MESSAGE_MAP()
+
+private:
+	void ShowRow(int index);
+
+	CanSim::JitterAnalysis m_analysis;
+	CListCtrl m_list;
+	CStatic m_note;
+	CAnalysisGraph m_graph;
 };

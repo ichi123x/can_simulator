@@ -32,6 +32,10 @@ const UINT WM_APP_LOG_VIEWER_CLOSED = WM_APP + 5;
 const UINT WM_APP_LATENCY_CLOSED = WM_APP + 6;
 const UINT WM_APP_BUSLOAD_CLOSED = WM_APP + 7;
 
+// Feature 029: sent to the owner when the analysis window has been destroyed.
+const UINT WM_APP_TXWAIT_CLOSED = WM_APP + 8;
+const UINT WM_APP_JITTER_CLOSED = WM_APP + 9;
+
 // Feature 013: header of the frame list. A double-click anywhere on it asks
 // the editor window to add a frame instead of the default handling (which
 // would auto-size a column on a divider).

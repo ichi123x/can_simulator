@@ -13,14 +13,27 @@
 
 - 新しい 2 項目は、`OnInitMenuPopup` で実行中・中断中はグレー（`idleOnly`）。トップレベルの「解析」は 025 の `UpdateTopMenus`（位置 3）のまま。
 
-## メニューを選んだとき（028 と同じ流れ）
+## メニューを選んだとき（改訂 1。028 の 2 項目も同じ流れ）
 
 ```text
 InRun() → 何もしない
 そのウィンドウが開いている → 前面に出すだけ
-LoadAnalysisRecords（028: プロジェクトなし・ログなし・読めないの通知）が false → 何もしない
-→ AnalyzeTxWait / AnalyzeJitter → new CTxWaitDlg / CJitterDlg → Open（失敗なら delete）
+RunAnalysis(analyze) が false → 何もしない
+  1. プロジェクトなし（IDS_LOG_NONE_NOPROJECT）・ログなし（IDS_LOG_NONE）→ 通知して false（「解析中」より先）
+  2. std::async の裏の仕事: ReadLogRecords（進み具合を AnalysisJobState に入れ、中断の要求で止まる）
+     → Phase = 1（集計）→ analyze(records)。結果は 0 成功・1 読めない（例外も）・2 中断
+  3. 待機カーソルで 500 ms 待ち、終わっていなければ CAnalysisProgressDlg を DoModal（メインは操作できない）
+  4. 1 なら IDS_LOG_READ_ERROR を「解析中」を閉じた後に出して false。2 なら何も出さず false（集計中の中断も何も開かない）
+→ AnalyzeTxWait / AnalyzeJitter（の結果） → new CTxWaitDlg / CJitterDlg → Open（失敗なら delete）
 ```
+
+## 解析中のウィンドウ（`CAnalysisProgressDlg`、`IDD_ANALYSIS_PROGRESS`、改訂 1）
+
+- モーダル。キャプション「解析中」、220 × 70 DLU、オーナーの中央に置く。
+- 中身: 文字（`IDC_STATIC_PROGRESS`）・進み具合のバー（`IDC_PROGRESS_ANALYSIS`、範囲 0〜1000）・「中断」ボタン（`IDCANCEL`）。
+- 50 ms のタイマーで更新する。読み込み中は `IDS_ANALYZING_READ`「ログを読み込んでいます...」と読んだ割合、集計中は `IDS_ANALYZING_CALC`「集計しています...」とバーを満タンにする。
+- 裏の仕事が終わったら自分で閉じる（中断を受けていれば `IDCANCEL`、そうでなければ `IDOK`）。
+- 「中断」・Esc・✖ は中断を頼み、文字を `IDS_ANALYZING_CANCEL`「中断しています...」にしてボタンを無効にする。仕事が止まるまで閉じない。Enter では何もしない。
 
 ## 送信待ち時間のウィンドウ（`CTxWaitDlg`、`IDD_ANALYSIS_TXWAIT`）
 
@@ -53,9 +66,13 @@ LoadAnalysisRecords（028: プロジェクトなし・ログなし・読めな�
 
 | ID | 値 |
 |---|---|
-| `IDD_ANALYSIS_TXWAIT` / `IDD_ANALYSIS_JITTER` | 136 / 137（`_APS_NEXT_RESOURCE_VALUE` は 138） |
-| `ID_ANALYSIS_TXWAIT` / `ID_ANALYSIS_JITTER` | 32787 / 32788（`_APS_NEXT_COMMAND_VALUE` は 32789） |
+| `IDD_ANALYSIS_TXWAIT` / `IDD_ANALYSIS_JITTER` | 136 / 137 |
+| `IDD_ANALYSIS_PROGRESS`（改訂 1） | 138 |
+| `IDC_PROGRESS_ANALYSIS` / `IDC_STATIC_PROGRESS`（改訂 1） | 1030 / 1031 |
+| `ID_ANALYSIS_TXWAIT` / `ID_ANALYSIS_JITTER` | 32787 / 32788 |
 | `IDS_WAIT_TITLE` / `IDS_WAIT_COLUMNS` / `IDS_WAIT_NOTE` | 278 / 279 / 280 |
-| `IDS_JIT_TITLE` / `IDS_JIT_COLUMNS` / `IDS_JIT_NOTE` / `IDS_JIT_AXIS_Y` | 281 / 282 / 283 / 284（`_APS_NEXT_SYMED_VALUE` は 285） |
+| `IDS_JIT_TITLE` / `IDS_JIT_COLUMNS` / `IDS_JIT_NOTE` / `IDS_JIT_AXIS_Y` | 281 / 282 / 283 / 284 |
+| `IDS_ANALYZING_READ` / `IDS_ANALYZING_CALC` / `IDS_ANALYZING_CANCEL`（改訂 1） | 285 / 286 / 287 |
+| 次の値（`_APS_NEXT_RESOURCE_VALUE` / `_CONTROL_VALUE` / `_SYMED_VALUE` / `_COMMAND_VALUE`） | 139 / 1032 / 288 / 32789 |
 
-ダイアログは 028 と同じく、`.rc` にはスタイルだけを書き、中身（一覧・説明・グラフ）は `OnInitDialog` でコードから作る。
+ダイアログは 028 と同じく、`.rc` にはスタイルだけを書き、中身（一覧・説明・グラフ）は `OnInitDialog` でコードから作る。解析中のウィンドウ（改訂 1）だけは、文字・バー・ボタンを `.rc` に書く。
