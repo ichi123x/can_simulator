@@ -110,6 +110,10 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_COMMAND(ID_ANALYSIS_BUSLOAD, &CMFCApplication1Dlg::OnAnalysisBusLoad)
 	ON_MESSAGE(WM_APP_LATENCY_CLOSED, &CMFCApplication1Dlg::OnLatencyClosed)
 	ON_MESSAGE(WM_APP_BUSLOAD_CLOSED, &CMFCApplication1Dlg::OnBusLoadClosed)
+	ON_COMMAND(ID_ANALYSIS_TXWAIT, &CMFCApplication1Dlg::OnAnalysisTxWait)
+	ON_COMMAND(ID_ANALYSIS_JITTER, &CMFCApplication1Dlg::OnAnalysisJitter)
+	ON_MESSAGE(WM_APP_TXWAIT_CLOSED, &CMFCApplication1Dlg::OnTxWaitClosed)
+	ON_MESSAGE(WM_APP_JITTER_CLOSED, &CMFCApplication1Dlg::OnJitterClosed)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
@@ -1012,6 +1016,8 @@ void CMFCApplication1Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL b
 	pPopupMenu->EnableMenuItem(ID_LOG_CLEAR, idleOnly);                         // 027
 	pPopupMenu->EnableMenuItem(ID_ANALYSIS_LATENCY, idleOnly);                  // 028
 	pPopupMenu->EnableMenuItem(ID_ANALYSIS_BUSLOAD, idleOnly);
+	pPopupMenu->EnableMenuItem(ID_ANALYSIS_TXWAIT, idleOnly);                   // 029
+	pPopupMenu->EnableMenuItem(ID_ANALYSIS_JITTER, idleOnly);
 	// 014 FR-004: same states as the toolbar buttons (Start is also greyed
 	// while the frame editor is open, 010 FR-013)
 	const CanSim::SimCommandStates sim = SimStates();
@@ -1227,13 +1233,20 @@ void CMFCApplication1Dlg::CloseResultWindows()
 		m_latencyDlg->DestroyWindow(); // the closed notices clear the pointers
 	if (m_busLoadDlg != nullptr)
 		m_busLoadDlg->DestroyWindow();
+	if (m_txWaitDlg != nullptr) // 029
+		m_txWaitDlg->DestroyWindow();
+	if (m_jitterDlg != nullptr)
+		m_jitterDlg->DestroyWindow();
 }
 
 // ---- feature 028: Analysis menu ----
 
-// Reads the frame log of the current project, or tells why it cannot
-// (the same notices as "Log > Simulation log", 025).
-bool CMFCApplication1Dlg::LoadAnalysisRecords(std::vector<CanSim::LogRecord>& records)
+// Reads the frame log of the current project and runs analyze on it, or
+// tells why it cannot (the same notices as "Log > Simulation log", 025).
+// 029 revision 1: the reading and analyze run on a worker thread; after
+// 0.5 s the modal "Analysing" window shows the progress and lets the user
+// stop. True only when analyze has run to the end.
+bool CMFCApplication1Dlg::RunAnalysis(const std::function<void(const std::vector<CanSim::LogRecord>&)>& analyze)
 {
 	if (m_projectPath.IsEmpty())
 	{
@@ -1249,19 +1262,48 @@ bool CMFCApplication1Dlg::LoadAnalysisRecords(std::vector<CanSim::LogRecord>& re
 		AfxMessageBox(message, MB_OK | MB_ICONINFORMATION);
 		return false;
 	}
-	std::string error;
-	bool ok = false;
+
+	enum { kDone = 0, kReadError = 1, kStopped = 2 };
+	AnalysisJobState state;
+	const std::wstring path((LPCTSTR)logPath);
+	std::future<int> job = std::async(std::launch::async, [&state, &path, &analyze]() -> int {
+		std::vector<CanSim::LogRecord> records;
+		std::string error;
+		const bool read = CanSim::ReadLogRecords(path, records, error, [&state](long long done, long long total) {
+			state.Done = done;
+			state.Total = total;
+			return !state.Cancel.load();
+		});
+		if (!read)
+			return state.Cancel.load() ? kStopped : kReadError;
+		state.Phase = 1;
+		analyze(records);
+		return state.Cancel.load() ? kStopped : kDone;
+	});
 	{
 		CWaitCursor wait;
-		ok = CanSim::ReadLogRecords(std::wstring((LPCTSTR)logPath), records, error);
+		if (job.wait_for(std::chrono::milliseconds(500)) != std::future_status::ready)
+		{
+			CAnalysisProgressDlg progress(this, state, job);
+			progress.DoModal(); // returns once the job has finished or stopped
+		}
 	}
-	if (!ok)
+	int result = kReadError;
+	try
+	{
+		result = job.get(); // also waits, in case the window could not be shown
+	}
+	catch (...)
+	{
+		result = kReadError; // e.g. out of memory
+	}
+	if (result == kReadError)
 	{
 		CString message;
 		message.Format(LoadRcString(IDS_LOG_READ_ERROR), (LPCTSTR)logPath);
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
 	}
-	return ok;
+	return result == kDone; // stopped: no window and no message
 }
 
 CString CMFCApplication1Dlg::ProjectFileName() const
@@ -1279,10 +1321,10 @@ void CMFCApplication1Dlg::OnAnalysisLatency()
 		m_latencyDlg->SetForegroundWindow();
 		return;
 	}
-	std::vector<CanSim::LogRecord> records;
-	if (!LoadAnalysisRecords(records))
+	CanSim::LatencyAnalysis analysis;
+	if (!RunAnalysis([&analysis](const std::vector<CanSim::LogRecord>& records) { analysis = CanSim::AnalyzeLatency(records); }))
 		return;
-	CLatencyDlg* dlg = new CLatencyDlg(this, ProjectFileName(), CanSim::AnalyzeLatency(records));
+	CLatencyDlg* dlg = new CLatencyDlg(this, ProjectFileName(), analysis);
 	if (!dlg->Open())
 	{
 		delete dlg; // no window was created
@@ -1300,10 +1342,10 @@ void CMFCApplication1Dlg::OnAnalysisBusLoad()
 		m_busLoadDlg->SetForegroundWindow();
 		return;
 	}
-	std::vector<CanSim::LogRecord> records;
-	if (!LoadAnalysisRecords(records))
+	CanSim::BusLoadAnalysis analysis;
+	if (!RunAnalysis([&analysis](const std::vector<CanSim::LogRecord>& records) { analysis = CanSim::AnalyzeBusLoad(records); }))
 		return;
-	CBusLoadDlg* dlg = new CBusLoadDlg(this, ProjectFileName(), CanSim::AnalyzeBusLoad(records));
+	CBusLoadDlg* dlg = new CBusLoadDlg(this, ProjectFileName(), analysis);
 	if (!dlg->Open())
 	{
 		delete dlg;
@@ -1321,6 +1363,62 @@ LRESULT CMFCApplication1Dlg::OnLatencyClosed(WPARAM, LPARAM)
 LRESULT CMFCApplication1Dlg::OnBusLoadClosed(WPARAM, LPARAM)
 {
 	m_busLoadDlg = nullptr;
+	return 0;
+}
+
+// ---- feature 029: transmit wait time and transmit jitter (same flow as 028) ----
+
+void CMFCApplication1Dlg::OnAnalysisTxWait()
+{
+	if (InRun())
+		return; // the menu is greyed; guard other routes too
+	if (m_txWaitDlg != nullptr)
+	{
+		m_txWaitDlg->SetForegroundWindow();
+		return;
+	}
+	CanSim::TxWaitAnalysis analysis;
+	if (!RunAnalysis([&analysis](const std::vector<CanSim::LogRecord>& records) { analysis = CanSim::AnalyzeTxWait(records); }))
+		return;
+	CTxWaitDlg* dlg = new CTxWaitDlg(this, ProjectFileName(), analysis);
+	if (!dlg->Open())
+	{
+		delete dlg; // no window was created
+		return;
+	}
+	m_txWaitDlg = dlg;
+}
+
+void CMFCApplication1Dlg::OnAnalysisJitter()
+{
+	if (InRun())
+		return;
+	if (m_jitterDlg != nullptr)
+	{
+		m_jitterDlg->SetForegroundWindow();
+		return;
+	}
+	CanSim::JitterAnalysis analysis;
+	if (!RunAnalysis([&analysis](const std::vector<CanSim::LogRecord>& records) { analysis = CanSim::AnalyzeJitter(records); }))
+		return;
+	CJitterDlg* dlg = new CJitterDlg(this, ProjectFileName(), analysis);
+	if (!dlg->Open())
+	{
+		delete dlg;
+		return;
+	}
+	m_jitterDlg = dlg;
+}
+
+LRESULT CMFCApplication1Dlg::OnTxWaitClosed(WPARAM, LPARAM)
+{
+	m_txWaitDlg = nullptr;
+	return 0;
+}
+
+LRESULT CMFCApplication1Dlg::OnJitterClosed(WPARAM, LPARAM)
+{
+	m_jitterDlg = nullptr;
 	return 0;
 }
 
@@ -1591,11 +1689,7 @@ bool CMFCApplication1Dlg::WriteResults(const std::vector<CanSim::LogRow>& rows,
 	summaryPath = paths[1].c_str();
 	startupPath = paths[2].c_str();
 
-	CanSim::Logger logger;
-	for (const CanSim::LogRow& row : rows)
-		logger.AddRow(row);
-
-	bool ok = logger.WriteCsv(std::wstring((LPCTSTR)logPath));
+	bool ok = CanSim::WriteLogCsv(rows, std::wstring((LPCTSTR)logPath));
 	ok = CanSim::WriteMetricsCsv(CanSim::ComputeMetrics(rows, runNetwork), std::wstring((LPCTSTR)summaryPath)) && ok;
 	ok = CanSim::WriteStartupCsv(CanSim::BuildStartupRecords(endState), std::wstring((LPCTSTR)startupPath)) && ok;
 	if (!ok)
@@ -1737,6 +1831,10 @@ void CMFCApplication1Dlg::FinishReplay()
 	SetDisplaySimUs(m_settings.DurationSec * 1000000LL); // 017: the end of the run
 	EndRun();
 	SetLogShown(m_logLines.size()); // 009 FR-005: every row once the run is complete
+	// The final state is painted before the results are written: writing a
+	// long run takes a moment, and the areas invalidated above would stay
+	// unpainted (white) meanwhile.
+	UpdateWindow();
 
 	CString logPath, summaryPath, startupPath;
 	CWaitCursor wait;

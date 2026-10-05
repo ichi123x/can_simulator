@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -32,7 +33,12 @@ namespace CanSim
     // Reads the frame log. The columns are found by their names in the
     // header line. False (with "line N: ..." in error) if the file cannot be
     // opened, a column is missing or a value cannot be read.
-    bool ReadLogRecords(const std::wstring& path, std::vector<LogRecord>& records, std::string& error);
+    // 029 revision 1: progress (optional) is called after every 4 MB and at
+    // the end; when it returns false, reading stops, records is emptied and
+    // error is kLogReadCancelled.
+    extern const char* const kLogReadCancelled;
+    bool ReadLogRecords(const std::wstring& path, std::vector<LogRecord>& records, std::string& error,
+        const std::function<bool(long long bytesRead, long long totalBytes)>& progress = nullptr);
 
     // ---- time from the transmit request until the receiver has the frame ----
 
@@ -94,6 +100,83 @@ namespace CanSim
     // One transmission per (TxNode, CanId, Tx_Start) of the rows that were
     // sent; the bus is busy over [Tx_Start, Tx_End).
     BusLoadAnalysis AnalyzeBusLoad(const std::vector<LogRecord>& records);
+
+    // ---- feature 029: transmit wait time and transmit jitter ----
+
+    // One transmission (the log repeats it once per receiver).
+    struct Transmission
+    {
+        unsigned CanId = 0;
+        int TxNode = 0;
+        long long TxRequestUs = -1;
+        long long TxStartUs = -1;
+    };
+
+    // The rows that were sent (not OVERWRITE, with request and start times),
+    // one per (TxNode, CanId, Tx_Start), sorted by (CanId, Tx_Start). The
+    // OVERWRITE rows are counted into overwriteCount.
+    std::vector<Transmission> CollectTransmissions(const std::vector<LogRecord>& records, long long& overwriteCount);
+
+    struct TxWaitRow
+    {
+        bool All = false;           // the row of every transmission
+        unsigned CanId = 0;
+        int TxNode = 0;
+        long long Count = 0;
+        long long MinUs = 0;
+        long long MaxUs = 0;
+        double MeanUs = 0.0;
+        long long P95Us = 0;        // nearest rank, as LatencyRow
+        std::vector<long long> Values; // ascending
+    };
+
+    struct TxWaitAnalysis
+    {
+        std::vector<TxWaitRow> Rows;   // [0] = all, then CAN ID ascending
+        long long OverwriteCount = 0;  // discarded rows, not in the table
+    };
+
+    // Tx_Start - Tx_Request per transmission.
+    TxWaitAnalysis AnalyzeTxWait(const std::vector<LogRecord>& records);
+
+    struct JitterPoint
+    {
+        long long TimeUs = 0;       // Tx_Start of the later transmission
+        long long DeviationUs = 0;  // start interval - request interval (+ late, - early)
+    };
+
+    struct JitterRow
+    {
+        unsigned CanId = 0;
+        int TxNode = 0;
+        long long PeriodUs = 0;     // most frequent request interval (the smaller on a tie); 0 if sent once
+        long long Count = 0;        // transmissions - 1
+        long long MinUs = 0;
+        long long MaxUs = 0;
+        double StdDevUs = 0.0;      // population standard deviation, as the summary CSV
+        std::vector<JitterPoint> Points; // by time
+    };
+
+    struct JitterAnalysis
+    {
+        std::vector<JitterRow> Rows; // CAN ID ascending
+    };
+
+    // Per CAN ID, (Start[k] - Start[k-1]) - (Request[k] - Request[k-1]). Without
+    // discarded transmissions this equals feature 001 FR-019 (interval - period);
+    // a transmission lost to a full buffer does not count as a period of jitter.
+    JitterAnalysis AnalyzeJitter(const std::vector<LogRecord>& records);
+
+    struct ColumnRange
+    {
+        bool Has = false;
+        long long MinUs = 0;
+        long long MaxUs = 0;
+    };
+
+    // Splits [t0, t1] into columns and keeps the smallest and the largest
+    // deviation of each column (so that neither peaks nor dips are lost).
+    std::vector<ColumnRange> MinMaxPerColumn(const std::vector<JitterPoint>& points, long long t0, long long t1, int columns);
 
     // ---- graph helpers ----
 

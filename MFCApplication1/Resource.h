@@ -31,6 +31,11 @@
 #define IDD_LOG_VIEW					133	// feature 025
 #define IDD_ANALYSIS_LATENCY			134	// feature 028
 #define IDD_ANALYSIS_BUSLOAD			135
+#define IDD_ANALYSIS_TXWAIT			136	// feature 029
+#define IDD_ANALYSIS_JITTER			137
+#define IDD_ANALYSIS_PROGRESS		138	// feature 029 revision 1
+#define IDC_PROGRESS_ANALYSIS		1030
+#define IDC_STATIC_PROGRESS			1031
 #define ID_EDIT_FRAMES					32777
 #define IDC_COMBO_FRAME_NODE			1014
 #define IDC_LIST_FRAMES					1015
@@ -119,6 +124,16 @@
 #define IDS_BUS_AXIS_Y					275
 #define IDS_ANALYSIS_NO_DATA			276
 #define IDS_BUS_AVERAGE					277
+#define IDS_WAIT_TITLE					278	// feature 029
+#define IDS_WAIT_COLUMNS				279
+#define IDS_WAIT_NOTE					280
+#define IDS_JIT_TITLE					281
+#define IDS_JIT_COLUMNS				282
+#define IDS_JIT_NOTE					283
+#define IDS_JIT_AXIS_Y					284
+#define IDS_ANALYZING_READ			285	// feature 029 revision 1
+#define IDS_ANALYZING_CALC			286
+#define IDS_ANALYZING_CANCEL		287
 
 #define ID_FILE_LOAD_PROJECT			32771
 #define ID_FILE_SAVE_PROJECT			32772
@@ -130,6 +145,8 @@
 #define ID_LOG_VIEW_SIMLOG				32780	// feature 025
 #define ID_ANALYSIS_LATENCY				32785	// feature 028 (replaces the 025 placeholder 32781)
 #define ID_ANALYSIS_BUSLOAD				32786
+#define ID_ANALYSIS_TXWAIT			32787	// feature 029
+#define ID_ANALYSIS_JITTER			32788
 #define ID_LOG_COPY						32782
 #define ID_LOG_SELECT_ALL				32783
 #define ID_LOG_CLEAR					32784	// feature 027
@@ -139,9 +156,9 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 
-#define _APS_NEXT_RESOURCE_VALUE	136
-#define _APS_NEXT_CONTROL_VALUE		1030
-#define _APS_NEXT_SYMED_VALUE		278
-#define _APS_NEXT_COMMAND_VALUE		32787
+#define _APS_NEXT_RESOURCE_VALUE	139
+#define _APS_NEXT_CONTROL_VALUE		1032
+#define _APS_NEXT_SYMED_VALUE		288
+#define _APS_NEXT_COMMAND_VALUE		32789
 #endif
 #endif

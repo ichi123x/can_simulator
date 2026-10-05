@@ -12,6 +12,7 @@
 #include "CanSim/FlowEffect.h"
 #include "CanSim/LogAnalysis.h"
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -19,6 +20,8 @@ class CFrameEditDlg;
 class CLogViewDlg;
 class CLatencyDlg;
 class CBusLoadDlg;
+class CTxWaitDlg;
+class CJitterDlg;
 
 
 // CMFCApplication1Dlg ダイアログ
@@ -81,6 +84,10 @@ protected:
 	afx_msg void OnAnalysisBusLoad();
 	afx_msg LRESULT OnLatencyClosed(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnBusLoadClosed(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnAnalysisTxWait();                                    // feature 029
+	afx_msg void OnAnalysisJitter();
+	afx_msg LRESULT OnTxWaitClosed(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnJitterClosed(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnDestroy();
 
 public:
@@ -165,10 +172,12 @@ private:
 	void CloseLogViewer();
 	CLogViewDlg* m_logViewer = nullptr;     // set back to nullptr by the closed notice
 	void CloseResultWindows();              // 028: the log window and both analysis windows
-	bool LoadAnalysisRecords(std::vector<CanSim::LogRecord>& records);
+	bool RunAnalysis(const std::function<void(const std::vector<CanSim::LogRecord>&)>& analyze); // 029 revision 1
 	CString ProjectFileName() const;
 	CLatencyDlg* m_latencyDlg = nullptr;    // 028, cleared by the closed notices
 	CBusLoadDlg* m_busLoadDlg = nullptr;
+	CTxWaitDlg* m_txWaitDlg = nullptr;      // feature 029
+	CJitterDlg* m_jitterDlg = nullptr;
 	int m_pendingEcu = 0;                   // ECU to open when the switch timer fires
 
 	// ---- feature 011: grey ECU after a double-click, borders ----
