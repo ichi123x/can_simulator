@@ -1,7 +1,21 @@
 {
-  "permissions": {
-    "allow": [
-      "Read(Doc/**)"
-    ]
-  }
+    "permissions":  {
+                        "allow":  [
+                                      "Read(Doc/**)"
+                                  ]
+                    },
+    "hooks":  {
+                  "Stop":  [
+                               {
+                                   "hooks":  [
+                                                 {
+                                                     "type":  "command",
+                                                     "command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .claude/hooks/run-tests.ps1",
+                                                     "timeout":  900,
+                                                     "statusMessage":  "ビルドとテストを実行しています..."
+                                                 }
+                                             ]
+                               }
+                           ]
+              }
 }

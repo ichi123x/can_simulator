@@ -193,3 +193,7 @@ out/
 !Doc/references/*.pdf
 # シミュレーションの結果（プロジェクトファイルの隣に出力される CSV: .log.csv / .summary.csv / .startup.csv）は追跡しない
 *.canprj.*.csv
+
+# CMake のビルド結果（build-old-* は setup.ps1 が退避した古いもの）と、コピーしたキット
+build-old-*/
+sdd-gtest-kit/
