@@ -1,15 +1,16 @@
 <!--
 Sync Impact Report
-Version change: 1.0.0 → 1.1.0
-Modified principles: none (existing I–V unchanged)
-Added sections:
-  - VI. CAN バスドメイン仕様準拠 (Core Principles)
-  - CAN バスシミュレータ ドメイン仕様 (new top-level section: 参照資料 / スコープ境界)
+Version change: 1.1.0 → 2.0.0
+Modified principles:
+  - III. テスト可能性の段階的確保 → III. 自動テスト必須（GoogleTest/CTest・テストファースト）
+    （「テストは将来導入」から「自動テスト必須」へ再定義。後方互換性のない再定義のため MAJOR）
+Added sections: none
 Removed sections: none
-Rationale for MINOR bump: Doc/CANバスシミュレータ仕様.md の仕様ポイント①〜⑤とスコープ境界を、
-今後のすべての機能仕様 (spec.md) を拘束する原則として新規追加したため（既存原則の破壊的変更なし）。
-Follow-up TODOs: none — 詳細な機能要件 (FR-xxx) は Doc/CANバスシミュレータ仕様.md 本体、および
-今後 /speckit.specify で作成される各機能の spec.md 側で管理し、本憲章には転記しない。
+Other edits: 技術スタック制約に CMake/GoogleTest/CTest の記述を追加（原則 III の実行基盤）
+Rationale for MAJOR bump: 原則 III の義務を「分離可能に実装する」のみから、GoogleTest/CTest
+による自動テストの必須化・テストファースト・実行コマンドの CLAUDE.md 記載へ再定義したため。
+Follow-up TODOs: CLAUDE.md への ctest 実行コマンドの記載は機能 030 の実装（/speckit.implement）で
+行う。既存の tools/cansim_runner/checks.cpp は移行完了まで暫定の検証手段として残す。
 -->
 
 # CAN Simulator (MFCApplication1) Constitution
@@ -33,14 +34,16 @@ Unicode、MFC の使用方法は動的リンク (`UseOfMfc=Dynamic`) を用い�
 Rationale: 既存のプロジェクト設定がこれらを前提にしており、逸脱するとビルド不能または未定義動作
 を招く。
 
-### III. テスト可能性の段階的確保
-現時点で自動テストの仕組みは存在しないが、CAN フレームの送受信・解析などのビジネスロジックを
-追加する際は、MFC ダイアログクラス (`CMFCApplication1Dlg`) の UI ハンドラに直接ロジックを
-埋め込むのではなく、UI から分離可能な形で実装しなければならない (MUST)。テストフレームワーク
-またはテストプロジェクトを導入した場合は、実行コマンドを CLAUDE.md に追記しなければならない
-(MUST)。
-Rationale: ダイアログイベントハンドラに直接ロジックを書くと、後からテストを導入する際の分離
-コストが高くなる。今のうちに分離を原則化することで、将来のテスト導入を妨げない。
+### III. 自動テスト必須（GoogleTest/CTest・テストファースト）
+`CanSim/` 配下のロジック（CAN フレームの送受信・調停・解析・集計など）の追加・変更には、
+GoogleTest で書いた自動テストを必ず伴わなければならない (MUST)。テストは CTest から実行
+できる状態にし、実装より先にテストを書いて失敗を確認してから実装する（テストファースト、
+MUST）。ビジネスロジックは MFC ダイアログクラス (`CMFCApplication1Dlg`) の UI ハンドラに
+埋め込まず、UI から分離したプレーン C++ として実装しなければならない (MUST)。テストの
+実行コマンド（`ctest` の呼び出し方）は CLAUDE.md に記載し、変更があれば同じ作業の中で更新
+しなければならない (MUST)。テスト名には対応する機能番号と SC/FR の ID を付ける。
+Rationale: UI 非依存の `CanSim/` を自動テストで守ることで、仕様（成功基準・機能要件）との対応を
+追跡でき、回帰を早期に検出できる。テストを先に書くことで、仕様をそのまま検証可能な形に落とす。
 
 ### IV. シンプルさ優先 (YAGNI)
 現在のダイアログベースアーキテクチャ（単一ダイアログ `IDD_MFCAPPLICATION1_DIALOG` が UI そのもの）
@@ -114,8 +117,10 @@ Rationale: これらはI.Hが確定させた仕様ポイントであり、CAN �
 - 言語・フレームワーク: ネイティブ C++ / MFC（.NET や他の GUI フレームワークへの置き換えは
   本憲章の改定なしに行わない）。
 - 対象 OS: Windows のみを前提とする。クロスプラットフォーム対応は現時点でスコープ外。
-- ビルドツール: Visual Studio または `MSBuild`（コマンド例は CLAUDE.md 参照）。CI/Lint の
-  仕組みは未整備であり、導入した場合は CLAUDE.md にコマンドを追記する。
+- ビルドツール: Visual Studio または `MSBuild`（コマンド例は CLAUDE.md 参照）。自動テストは
+  CMake + GoogleTest + CTest で `CanSim/` をビルド・実行する（MFC アプリ本体のビルドは
+  `.sln` / `.vcxproj` のままとする）。CI/Lint の仕組みは未整備であり、導入した場合は
+  CLAUDE.md にコマンドを追記する。
 - リソース変更（ダイアログレイアウト、アイコン、文字列テーブル等）は Visual Studio の
   リソースエディタまたは `.rc` ファイルの直接編集で行う。
 
@@ -150,4 +155,4 @@ practices)。Spec Kit のテンプレートやコマンドはこの憲章を実�
   FR-xxx 単位の詳細要件・未決事項 (Q-1〜) は `/speckit.specify` を通じて各機能の `spec.md` に
   引き継ぐ。
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-28
+**Version**: 2.0.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-07

@@ -8,8 +8,13 @@
   出力する（`MFCApplication1Dlg` の「シミュレーション → 開始」と同じ処理。ECU 数はプロジェクトの `EcuCount`）
 - `checks.exe` — 機能 001〜011・014・015・017〜020・022〜029 の成功基準（GUI 固有のものを除く）を自動で検証する
 
-いずれも **正式なテストプロジェクトではありません**。リポジトリのビルド（`MFCApplication1.sln`）
-には含まれず、必要なときに手動でビルドして使う開発補助ツールです。
+いずれもリポジトリのビルド（`MFCApplication1.sln`）には含まれず、必要なときに手動でビルドして使う
+開発補助ツールです。
+
+> **移行状況（機能 030）**: `checks.exe` の検証は GoogleTest/CTest へ移行済みです（`tests/`、
+> 手順は [CLAUDE.md](../../CLAUDE.md)、対応表は [tests/migration-ledger.md](../../tests/migration-ledger.md)）。
+> `checks.exe` は移行の突き合わせ用に残してあり、削除は別作業で行います。`pch.h` は CMake の
+> `cansim_core` も使うので、`checks.exe` を消すときも残してください。
 
 ## ビルド
 
