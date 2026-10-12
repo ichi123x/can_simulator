@@ -39,3 +39,10 @@ add_gtest(feature_026_spec_tests unit SOURCES unit/feature_026_spec_tests.cpp)
 add_gtest(feature_007_spec_tests unit SOURCES unit/feature_007_spec_tests.cpp)
 add_gtest(feature_016_spec_tests unit SOURCES unit/feature_016_spec_tests.cpp)
 add_gtest(feature_004_edge_tests unit SOURCES unit/feature_004_edge_tests.cpp)
+
+# 手で書く練習（tests/practice/README.md）。ctest -L practice で練習だけを実行する
+add_gtest(practice_001_tests practice SOURCES practice/practice_001_tests.cpp)
+add_gtest(practice_001_answers practice SOURCES practice/practice_001_answers.cpp)
+
+#マニュア追加（練習のため）
+add_gtest(practice_002_tests practice SOURCES practice/practice_002_tests.cpp)
