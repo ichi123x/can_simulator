@@ -18,8 +18,7 @@ description: "Task list for feature 029-tx-wait-jitter-analysis"
     - `IDS_WAIT_TITLE 278`・`IDS_WAIT_COLUMNS 279`・`IDS_WAIT_NOTE 280`・`IDS_JIT_TITLE 281`・`IDS_JIT_COLUMNS 282`・`IDS_JIT_NOTE 283`・`IDS_JIT_AXIS_Y 284`
     - `_APS_NEXT_RESOURCE_VALUE` 138、`_APS_NEXT_COMMAND_VALUE` 32789、`_APS_NEXT_SYMED_VALUE` 285。
   - `.rc`（UTF-16LE・BOM 付き・CRLF を保つ。`[IO.File]::ReadAllText(path, [Text.Encoding]::Unicode)` と `New-Object Text.UnicodeEncoding($false,$true)` で読み書きし、書いた後に読み直す）:
-    - メニュー「解析(&A)」を次の 5 行にする（既存の 2 行の ID は変えない）:
-      `MENUITEM "送信待ち時間(&W)...", ID_ANALYSIS_TXWAIT` / `MENUITEM "受信完了時間(&R)...", ID_ANALYSIS_LATENCY` / `MENUITEM "送信ジッター(&J)...", ID_ANALYSIS_JITTER` / `MENUITEM SEPARATOR` / `MENUITEM "CAN バス負荷(&B)...", ID_ANALYSIS_BUSLOAD`
+    - メニュー「解析(&A)」を次の 5 行にする（既存の 2 行の ID は変えない）: `MENUITEM "送信待ち時間(&W)...", ID_ANALYSIS_TXWAIT` / `MENUITEM "受信完了時間(&R)...", ID_ANALYSIS_LATENCY` / `MENUITEM "送信ジッター(&J)...", ID_ANALYSIS_JITTER` / `MENUITEM SEPARATOR` / `MENUITEM "CAN バス負荷(&B)...", ID_ANALYSIS_BUSLOAD`
     - ダイアログ `IDD_ANALYSIS_TXWAIT`・`IDD_ANALYSIS_JITTER`: `IDD_ANALYSIS_LATENCY` と同じスタイル・大きさ・フォントで、コントロールは置かない（中身はコードで作る。028 と同じ）。
     - 文字列テーブル（`IDS_BUS_AVERAGE` の次）:
       - `IDS_WAIT_TITLE "送信待ち時間 - %s"`
@@ -40,8 +39,7 @@ description: "Task list for feature 029-tx-wait-jitter-analysis"
     - 対象: Status が `Overwrite` 以外、`TxRequestUs >= 0`、`TxStartUs >= 0` の行。`Overwrite` の行は `overwriteCount` に数える。
     - `(TxNode, CanId, TxStartUs)` が同じ行は 1 つにする。数百万行でも速いように、対象の行をベクターに集めて `(CanId, TxStartUs, TxNode)` で `std::sort` し、隣と同じものを除く（`std::set` は使わない）。
     - 並び: `(CanId, TxStartUs)` の昇順。
-  - 028 の内部関数 `FillStats(LatencyRow&)` を、値の配列から統計を作る関数に分ける: 無名名前空間の `void ComputeStats(std::vector<long long>& values, long long& count, long long& minUs, long long& maxUs, double& meanUs, long long& p95Us)`（`values` を昇順に並べ替え、P95 は `values[ceil(0.95 n) − 1]`、件数 0 なら 0）。
-    `FillStats` はこれを呼ぶだけにし、028 の結果を変えない。
+  - 028 の内部関数 `FillStats(LatencyRow&)` を、値の配列から統計を作る関数に分ける: 無名名前空間の `void ComputeStats(std::vector<long long>& values, long long& count, long long& minUs, long long& maxUs, double& meanUs, long long& p95Us)`（`values` を昇順に並べ替え、P95 は `values[ceil(0.95 n) − 1]`、件数 0 なら 0）。`FillStats` はこれを呼ぶだけにし、028 の結果を変えない。
 
 **Checkpoint**: checks の 028 の項目がそのまま通る（統計の共通化で結果が変わらない）。
 
@@ -61,8 +59,7 @@ description: "Task list for feature 029-tx-wait-jitter-analysis"
   - コンストラクタ `(CWnd* owner, const CString& projectName, const CanSim::TxWaitAnalysis& analysis)`: `CAnalysisDlgBase(IDD_ANALYSIS_TXWAIT, owner, WM_APP_TXWAIT_CLOSED, projectName)`、`m_initialSize96 = CSize(900, 640)`、`m_minSize96 = CSize(520, 400)`。
   - `CreateContent`:
     - タイトルは `IDS_WAIT_TITLE` をプロジェクト名で整形。
-    - 一覧は `CreateList(m_list, IDS_WAIT_COLUMNS, { 90, 90, 80, 100, 100, 100, 100 }, 2)`。
-      全体の行は 1 列目 `IDS_LAT_ALL`・2 列目は空、ほかは CAN ID `"0x%03X"`・送信 ECU `"ECU %02d"`。件数・最小・最大・95% は整数、平均は小数第 1 位。
+    - 一覧は `CreateList(m_list, IDS_WAIT_COLUMNS, { 90, 90, 80, 100, 100, 100, 100 }, 2)`。全体の行は 1 列目 `IDS_LAT_ALL`・2 列目は空、ほかは CAN ID `"0x%03X"`・送信 ECU `"ECU %02d"`。件数・最小・最大・95% は整数、平均は小数第 1 位。
     - 説明の行は `IDS_WAIT_NOTE` を `OverwriteCount` で整形。グラフは `m_graph.Create(this, IDC_GRAPH_ANALYSIS)`。
     - 最初は 0 行目を選び、`ShowRow(0)`。
   - `ShowRow(index)`: 件数 0 なら `SetNoData(IDS_ANALYSIS_NO_DATA)`、それ以外は `SetBars(CanSim::MakeHistogram(row.Values), IDS_LAT_AXIS_X, IDS_LAT_AXIS_Y)`。
@@ -211,10 +208,8 @@ T012 checks.cpp  |  T013 docs
 
 - 手順 2（通知）・6（前面に出す・閉じる契機）・8（既存の項目）: 正常。
 - 手順 5（600 秒のログ）: **不合格**。送信待ち時間・受信完了時間・送信ジッターのどれも数秒では終わらず、2 分近くかかる。
-  - 計測（16 ECU の車両サンプル 600 秒のログ、約 193 万行・197 MB）: ログの読み込み（`ReadLogRecords`）が大半を占める。
-    最適化あり（Release 相当）で読み込み 5.5 秒・各解析 0.05〜0.23 秒、最適化なし（Debug 相当）で読み込み 62.6 秒・送信待ち時間と送信ジッターの計算が各 4.6 秒。
-- 手順 7（実行中）: 解析の計算中に、メニューの「解析」がグレーにならない（計算の間は画面が止まる）。
-  ユーザーの提案: 「解析中」のウィンドウを出し、そのウィンドウに中断ボタンを付けて、ユーザーが中断できるようにする。
+  - 計測（16 ECU の車両サンプル 600 秒のログ、約 193 万行・197 MB）: ログの読み込み（`ReadLogRecords`）が大半を占める。最適化あり（Release 相当）で読み込み 5.5 秒・各解析 0.05〜0.23 秒、最適化なし（Debug 相当）で読み込み 62.6 秒・送信待ち時間と送信ジッターの計算が各 4.6 秒。
+- 手順 7（実行中）: 解析の計算中に、メニューの「解析」がグレーにならない（計算の間は画面が止まる）。ユーザーの提案: 「解析中」のウィンドウを出し、そのウィンドウに中断ボタンを付けて、ユーザーが中断できるようにする。
 - → 029 改訂 1 で対応する（読み込みの高速化と、解析中のウィンドウ・中断）。
 
 ## Phase 7: 改訂 1（読み込みの高速化と、解析中のウィンドウ・中断）

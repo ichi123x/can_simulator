@@ -5,8 +5,7 @@
 - **Decision**: 014・015 と同じく、`DrawSimToolbar` で描き、`OnLButtonDown` で押下を受ける。
   - 押した瞬間に反転する。離すのを待たない。スライダーと同じく、押した時点で反映する。
   - 素早い 2 回目のクリック（`OnLButtonDblClk`）も押下として扱う。ダブルクリックは 2 回の反転になり、元に戻る。
-- **Rationale**: 暗い帯の上での見た目を揃えられる。標準のチェックボックスはフォーカスを持ち、Enter・Esc・Space の扱いがこのダイアログの方針とずれる。
-  座標を CanSim に置いて checks で検証できる。
+- **Rationale**: 暗い帯の上での見た目を揃えられる。標準のチェックボックスはフォーカスを持ち、Enter・Esc・Space の扱いがこのダイアログの方針とずれる。座標を CanSim に置いて checks で検証できる。
 - **Alternatives considered**: `CButton`（`BS_AUTOCHECKBOX`）+ `WM_CTLCOLORBTN` で背景を暗くする方法。チェック欄の見た目は OS のテーマに依存し、暗い帯で読みにくい。
 
 ## 決定2: 配置（96 dpi、クライアント座標 = 帯の中）
@@ -56,8 +55,7 @@
 
 ## 決定4: 数値の書式
 
-- **Decision**: `std::string FormatSimTimeUs(long long us)` を `SimControls` に置く。0 以上の整数を 3 けたごとに `,` で区切った ASCII 文字列を返す（負の値は 0 とする）。
-  例: `0` → `"0"`、`1000` → `"1,000"`、`600000000` → `"600,000,000"`。
+- **Decision**: `std::string FormatSimTimeUs(long long us)` を `SimControls` に置く。0 以上の整数を 3 けたごとに `,` で区切った ASCII 文字列を返す（負の値は 0 とする）。例: `0` → `"0"`、`1000` → `"1,000"`、`600000000` → `"600,000,000"`。
 - **Rationale**: 純粋関数として checks で検証できる。ロケールに依存しない。
 
 ## 決定5: フレーム表示の切り替え

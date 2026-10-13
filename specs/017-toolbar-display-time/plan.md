@@ -13,8 +13,7 @@
    - 表示する値は `m_displaySimUs` に持つ。
    - 開始で 0、再生の書き換えで `m_curSimUs`、自然終了・即時完了で終端、「終了」で停止時刻にする。
 
-チェックボックス・時刻の表示欄の座標と、数値の書式（3 けた区切り）は `CanSim/SimControls` の純粋関数にして checks.exe で検証する。
-計算・CSV・プロジェクトファイルの形式は変えない。
+チェックボックス・時刻の表示欄の座標と、数値の書式（3 けた区切り）は `CanSim/SimControls` の純粋関数にして checks.exe で検証する。計算・CSV・プロジェクトファイルの形式は変えない。
 
 ## Technical Context
 
@@ -89,8 +88,7 @@ tools/cansim_runner/checks.cpp, README.md
 CLAUDE.md
 ```
 
-**Structure Decision**: 014・015 と同じく、座標と書式は `SimControls`、描画は `DrawSimToolbar`、押下は `OnLButtonDown` に足す。
-フレーム表示の値は `m_settings.FrameDisplay` の 1 か所に持ち、チェックボックスはそれを描くだけにする。
+**Structure Decision**: 014・015 と同じく、座標と書式は `SimControls`、描画は `DrawSimToolbar`、押下は `OnLButtonDown` に足す。フレーム表示の値は `m_settings.FrameDisplay` の 1 か所に持ち、チェックボックスはそれを描くだけにする。
 
 ## Complexity Tracking
 

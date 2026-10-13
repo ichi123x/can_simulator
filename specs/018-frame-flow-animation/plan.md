@@ -97,8 +97,7 @@ tools/cansim_runner/checks.cpp, README.md
 CLAUDE.md
 ```
 
-**Structure Decision**: 「どこに何を描くか」は `FlowEffect`（96 dpi のコンテンツ座標、`BusDiagramLayout` と `ActiveFrames` から計算）に置き、
-ダイアログは DPI 換算して描くだけにする（機能 003/010 の構成図と同じ分け方）。
+**Structure Decision**: 「どこに何を描くか」は `FlowEffect`（96 dpi のコンテンツ座標、`BusDiagramLayout` と `ActiveFrames` から計算）に置き、ダイアログは DPI 換算して描くだけにする（機能 003/010 の構成図と同じ分け方）。
 
 ## Complexity Tracking
 

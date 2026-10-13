@@ -31,9 +31,6 @@
 
 ## Notes
 
-- 設定ファイルの形式・ログの出力形式（CSV/JSON Lines 等）はあえて未規定とし、Assumptions で
-  `/speckit.plan` 以降に判断を委ねる implementation detail として明記した（spec.md 本体では
-  「何を設定できるか／ログに何を含めるか」という内容のみを規定）。
-- 起動シーケンス（User Story 4 相当）とエラー状態制御は本機能のスコープ外。Assumptions に
-  明記済み。
+- 設定ファイルの形式・ログの出力形式（CSV/JSON Lines 等）はあえて未規定とし、Assumptions で`/speckit.plan` 以降に判断を委ねる implementation detail として明記した（spec.md 本体では「何を設定できるか／ログに何を含めるか」という内容のみを規定）。
+- 起動シーケンス（User Story 4 相当）とエラー状態制御は本機能のスコープ外。Assumptions に明記済み。
 - 全項目が初回検証でパスしたため、追加の反復は不要だった。

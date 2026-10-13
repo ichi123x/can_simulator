@@ -9,8 +9,7 @@ description: "Task list for feature 014-sim-pause-toolbar"
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md（すべて存在）。機能 004・005・007・009・010・012 の実装が完了していること。
 
-**Tests**: spec.md は自動テストのフレームワークを要求していない。新しい純粋関数（`CanSim/SimControls`）は checks.exe に検証項目を加える（憲章 III）。
-ボタンの見た目・中断と再開の動作は GUI の自動操作で確認する。
+**Tests**: spec.md は自動テストのフレームワークを要求していない。新しい純粋関数（`CanSim/SimControls`）は checks.exe に検証項目を加える（憲章 III）。ボタンの見た目・中断と再開の動作は GUI の自動操作で確認する。
 
 **Organization**: spec.md のユーザーストーリーごと。
 - US1: ツールバーのボタンで開始・終了する（P1）
@@ -34,8 +33,7 @@ description: "Task list for feature 014-sim-pause-toolbar"
 - [X] T001 GUI 検証の準備をする（リポジトリ外、scratchpad の `t014/`）。013 の `t013/Gui.cs` を土台にする。
   - アプリの起動、プロジェクトの読込み（ファイルダイアログのファイル名欄 1148、保存は 1001）、メニューのコマンド送出の関数を用意する。
   - ツールバーのボタンをクリックする関数を用意する。座標は `SimButtonRect` と同じ値（research.md 決定3、DPI 換算）の中央を `ClientToScreen` で求める。
-  - ボタンの色を読む関数を用意する。箱の中の 1 点の画面の色が、有効 `F0F0F0`・無効 `5F5F62`・押下中 `C8C8C8` のどれかで判定する。
-    ウィンドウ自身に描かせた画像（PrintWindow）で読む（012 の注意）。
+  - ボタンの色を読む関数を用意する。箱の中の 1 点の画面の色が、有効 `F0F0F0`・無効 `5F5F62`・押下中 `C8C8C8` のどれかで判定する。ウィンドウ自身に描かせた画像（PrintWindow）で読む（012 の注意）。
   - 「シミュレーション」メニューの項目の有効／無効を読む関数を用意する（`GetMenu` → サブメニュー 2 → `GetMenuState`）。
   - ログ表示エリアの行数を数える方法を用意する。完了・終了メッセージの文言、または `.log.csv` の行数で代える。
   - 一時フォルダに検証用の構成を作る。
@@ -255,8 +253,7 @@ description: "Task list for feature 014-sim-pause-toolbar"
 - **US2**: T012（T010 の後）→ T013 → T014 → T015
 - **Polish**: T016・T017 は並行可、T018 は最後
 
-US2 は US1 の `UpdateSimControls` とメニューの有効／無効（T010）に依存する。中断はメニューからも操作できるため、US1 のツールバー（T008・T009）が
-無くても US2 の確認自体はメニューで行える。
+US2 は US1 の `UpdateSimControls` とメニューの有効／無効（T010）に依存する。中断はメニューからも操作できるため、US1 のツールバー（T008・T009）が無くても US2 の確認自体はメニューで行える。
 
 ### Parallel Opportunities
 

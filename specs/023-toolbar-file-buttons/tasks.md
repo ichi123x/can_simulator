@@ -17,23 +17,19 @@ description: "Task list for feature 023-toolbar-file-buttons"
     - `#define IDS_FILE_BTN_SAVE 251	// feature 023`
     - `#define IDS_FILE_BTN_LOAD 252`
     - `_APS_NEXT_SYMED_VALUE` を 253、`_APS_NEXT_COMMAND_VALUE` を 32780 にする。
-  - `.rc` の文字列テーブル（`IDS_SIM_BTN_*` の近く）に `IDS_FILE_BTN_SAVE "保存"`、`IDS_FILE_BTN_LOAD "読込み"` を足す。
-    UTF-16LE・BOM 付き・CRLF を保つため、PowerShell でエンコーディングを明示して読み書きし、書いた後に読み直して文字化けが無いことを確かめる（CLAUDE.md のビルド節）。
+  - `.rc` の文字列テーブル（`IDS_SIM_BTN_*` の近く）に `IDS_FILE_BTN_SAVE "保存"`、`IDS_FILE_BTN_LOAD "読込み"` を足す。UTF-16LE・BOM 付き・CRLF を保つため、PowerShell でエンコーディングを明示して読み書きし、書いた後に読み直して文字化けが無いことを確かめる（CLAUDE.md のビルド節）。
 
 ## Phase 2: Foundational（すべてのストーリーの前提）
 
 - [X] T002 `MFCApplication1/CanSim/SimControls.h/.cpp` にツールバーのボタンの通し番号を足す（contracts の「CanSim に足す・変えるもの」）。ASCII のみ。
   - `enum class ToolbarButton { Save, Load, Start, Pause, Stop };`、`const int kToolbarButtonCount = 5;`、`const int kFileButtonCount = 2;`
-  - 通し番号 i のボタンの左端（96 dpi）は `kSimButtonLeft(=8) + kSimButtonPitch(=28) × slot`。slot は `i < kFileButtonCount ? i : i + 1`（開始の前にボタン 1 つ分の空き）。
-    大きさ（箱 24 × 18、上 14、名前 y 33〜49）は今の定数のまま。
-  - `DiagramRect ToolbarButtonRect(int index, int dpi)`、`ToolbarButtonBoxRect`、`ToolbarButtonLabelRect` を足す。
-    今の `ScaledButtonPart(index, …)` を、通し番号から slot を求める形に変える。
+  - 通し番号 i のボタンの左端（96 dpi）は `kSimButtonLeft(=8) + kSimButtonPitch(=28) × slot`。slot は `i < kFileButtonCount ? i : i + 1`（開始の前にボタン 1 つ分の空き）。大きさ（箱 24 × 18、上 14、名前 y 33〜49）は今の定数のまま。
+  - `DiagramRect ToolbarButtonRect(int index, int dpi)`、`ToolbarButtonBoxRect`、`ToolbarButtonLabelRect` を足す。今の `ScaledButtonPart(index, …)` を、通し番号から slot を求める形に変える。
   - `int FindToolbarButtonAt(int x, int y, int dpi)`: 当たり判定 `[Left, Right) × [Top, Bottom)` を含むボタンの通し番号を返す。無ければ -1（空きの上も -1）。
   - `bool IsToolbarButtonEnabled(int index, RunPhase phase, bool editingFrames)`:
     - Save・Load は `phase == RunPhase::Idle`（`editingFrames` に関係しない）。
     - Start・Pause・Stop は `GetSimCommandStates(phase, editingFrames)` の Start・Pause・Stop。
-  - 既存の `SimButtonRect(i)`・`SimButtonBoxRect(i)`・`SimButtonLabelRect(i)` は `ToolbarButton…Rect(i + kFileButtonCount)` を返す。
-    `FindSimButtonAt` は開始〜終了だけを 0〜2 で返す（保存・読込みの上は -1）。
+  - 既存の `SimButtonRect(i)`・`SimButtonBoxRect(i)`・`SimButtonLabelRect(i)` は `ToolbarButton…Rect(i + kFileButtonCount)` を返す。`FindSimButtonAt` は開始〜終了だけを 0〜2 で返す（保存・読込みの上は -1）。
   - 既存部品の x の定数を 84 増やす（plan.md の表）:
     - `kFrameDisplayBoxLeft` 188、`kFrameDisplayLabelLeft` 208、`kFrameDisplayLabelRight` 292、`kFrameDisplayHitLeft` 184、`kFrameDisplayHitRight` 296
     - `kSimTimeLeft` 314、`kSimTimeRight` 494、`kSimTimeValueRight` 464、`kSimTimeUnitLeft` 468
@@ -45,11 +41,9 @@ description: "Task list for feature 023-toolbar-file-buttons"
     - 記号の色: 保存 `RGB(120, 70, 180)`、読込み `RGB(210, 150, 30)`、開始・中断・終了は今の色。
     - 名前: `IDS_FILE_BTN_SAVE`、`IDS_FILE_BTN_LOAD`、`IDS_SIM_BTN_START`・`PAUSE`・`STOP`。
     - コマンド: `ID_FILE_SAVE_OVERWRITE`、`ID_FILE_LOAD_PROJECT`、`ID_SIM_START`・`PAUSE`・`STOP`。
-  - `IsButtonEnabled(states, index)` を `CanSim::IsToolbarButtonEnabled(index, m_runPhase, IsEditingFrames())` に置き換える
-    （`DrawSimToolbar`・`PressToolbarButton`・`OnLButtonUp` の 3 か所）。
+  - `IsButtonEnabled(states, index)` を `CanSim::IsToolbarButtonEnabled(index, m_runPhase, IsEditingFrames())` に置き換える（`DrawSimToolbar`・`PressToolbarButton`・`OnLButtonUp` の 3 か所）。
   - `ToolbarButtonAt` は `CanSim::FindToolbarButtonAt` を使う。`m_pressedButton` は通し番号（0〜4、-1 = なし）にする（`MFCApplication1Dlg.h` のコメントも直す）。
-  - `DrawSimToolbar` のループを 5 つにして、箱は `ToolbarButtonBoxRect`、名前は `ToolbarButtonLabelRect` で描く。
-    記号は通し番号で分ける（今の `i == 0 / 1 / else` を `ToolbarButton` の値で分ける形に）。
+  - `DrawSimToolbar` のループを 5 つにして、箱は `ToolbarButtonBoxRect`、名前は `ToolbarButtonLabelRect` で描く。記号は通し番号で分ける（今の `i == 0 / 1 / else` を `ToolbarButton` の値で分ける形に）。
     - 保存（フロッピー）: 記号の色で 10 × 10 の四角（`ScalePx(10)`、中心は箱の中心）。その上辺の中央に白の 5 × 3 の窓（`ScalePx(5)` × `ScalePx(3)`、上端から `ScalePx(1)` 下）。
     - 読込み（フォルダー）: 記号の色で、本体 10 × 7（下寄せ）と、本体の左上に乗るつまみ 4 × 2。
     - 箱・押下中・無効の色、名前の文字（10 px、白／無効は灰）は今のボタンと同じ。
@@ -66,8 +60,7 @@ description: "Task list for feature 023-toolbar-file-buttons"
   - `bool SaveProjectTo(const CString& path)`:
     - `CanSim::SaveProject(std::wstring((LPCTSTR)path), m_settings, m_definitions)` が失敗したら、`IDS_SAVE_ERROR` を `path` で整形して `AfxMessageBox(…, MB_OK | MB_ICONWARNING)` で出し、false を返す。このとき `m_projectPath` は変えない。
     - 成功したら `m_projectPath = path` にして true を返す。
-  - `OnFileSaveProject`（メニュー。毎回保存先を尋ねる動作は変えない）と、`OnSimStart` の「`m_projectPath` が空なら尋ねて保存」で、今ある同じ処理を `SaveProjectTo` に置き換える。
-    `OnSimStart` は失敗なら return する（今と同じ）。
+  - `OnFileSaveProject`（メニュー。毎回保存先を尋ねる動作は変えない）と、`OnSimStart` の「`m_projectPath` が空なら尋ねて保存」で、今ある同じ処理を `SaveProjectTo` に置き換える。`OnSimStart` は失敗なら return する（今と同じ）。
   - `afx_msg void OnFileSaveOverwrite()` を足し、`ON_COMMAND(ID_FILE_SAVE_OVERWRITE, &CMFCApplication1Dlg::OnFileSaveOverwrite)` をメッセージマップに足す。
     - `InRun()` なら何もしない（US3。ボタンは無効だが、ほかの経路にも備える）。
     - `CString path = m_projectPath;` が空なら `AskSavePath(path)` を呼び、キャンセルなら return する。
@@ -119,8 +112,7 @@ description: "Task list for feature 023-toolbar-file-buttons"
   - 既存の 014・015・017・019 の項目がそのまま通ることも確かめる（座標の数値を直書きしている項目があれば、新しい値に直す）。
 - [X] T008 [P] `CLAUDE.md` と `tools/cansim_runner/README.md` を更新する。
   - `CLAUDE.md`:
-    - ツールバーの節（014・017・019）に機能 023 の段落を足す。内容は、ボタンの並び（保存・読込み・空き・開始・中断・終了）、`ToolbarButton` の通し番号、
-      保存ボタンの動作（ファイルがあれば上書き、無ければ保存先を尋ねる。メニューの保存は毎回尋ねる）、`SaveProjectTo`、`ID_FILE_SAVE_OVERWRITE`。
+    - ツールバーの節（014・017・019）に機能 023 の段落を足す。内容は、ボタンの並び（保存・読込み・空き・開始・中断・終了）、`ToolbarButton` の通し番号、保存ボタンの動作（ファイルがあれば上書き、無ければ保存先を尋ねる。メニューの保存は毎回尋ねる）、`SaveProjectTo`、`ID_FILE_SAVE_OVERWRITE`。
     - アーキテクチャ節の `SimControls.h/.cpp` の説明にも 023 を足す。
     - 検証ツールの対象機能の一覧に 023 を足す。
   - `README.md`: 023 の検証項目を足す。
@@ -171,17 +163,14 @@ T003 → T004 → T005 → T006 (MFCApplication1Dlg.cpp)  |  T007 checks.cpp  | 
   - `Resource.h`・`MFCApplication1.rc`（`ID_FILE_SAVE_OVERWRITE`、`IDS_FILE_BTN_SAVE` / `LOAD`。.rc は読み直して確認済み）
   - `tools/cansim_runner/checks.cpp`・`README.md`、`CLAUDE.md`
 - T005・T006: コードの変更は不要だった。読込みは既存の `OnFileLoadProject` がそのまま動き、実行の状態・編集ウィンドウの開閉はどれも `UpdateSimControls` を呼んでいる。
-- 画面写しで見つけて直したこと: 「読込み」（3 文字、約 30 px）がボタンの幅（24 px）の名前の範囲で切られ、左端が欠けていた。
-  名前を `DT_NOCLIP` で描くようにした。中央揃えのまま隣の隙間に少しはみ出すだけで、「保存」とは重ならない。
+- 画面写しで見つけて直したこと: 「読込み」（3 文字、約 30 px）がボタンの幅（24 px）の名前の範囲で切られ、左端が欠けていた。名前を `DT_NOCLIP` で描くようにした。中央揃えのまま隣の隙間に少しはみ出すだけで、「保存」とは重ならない。
 - T009（ビルド）:
   - Release x64・Debug x86・Release x86: 警告・エラーなしでビルドできた。
-  - Debug x64: 初回はユーザーが起動中の Debug 版が exe を使っていてリンク（LNK1168）で止まった（プロセスは終了させていない）。
-    ユーザーが閉じた後にビルドし直し、警告・エラーなしで通った。
+  - Debug x64: 初回はユーザーが起動中の Debug 版が exe を使っていてリンク（LNK1168）で止まった（プロセスは終了させていない）。ユーザーが閉じた後にビルドし直し、警告・エラーなしで通った。
 - checks.exe: 全 175 項目 PASS（023 の 6 項目を追加）。
   - HEAD のソースの runner で作った基準 CSV（各サンプル 10 秒）とも一致した（004 SC-009）。
 - T010（GUI、Release x64）:
-  - quickstart 手順 1（並び）: 画面写しで確認した。保存・読込み・空き・開始・中断・終了 → フレーム表示 → シミュレーション時間 → スピード：→ スライダーの順で、重なりは無い。
-    起動直後は 保存・読込み・開始が有効、中断・終了がグレー。
+  - quickstart 手順 1（並び）: 画面写しで確認した。保存・読込み・空き・開始・中断・終了 → フレーム表示 → シミュレーション時間 → スピード：→ スライダーの順で、重なりは無い。起動直後は 保存・読込み・開始が有効、中断・終了がグレー。
   - 手順 2〜11（保存・読込みのダイアログ操作、実行中のグレー、押し方など）は未実施。ユーザーの手動確認を待つ。
 
 ## T010 の手動確認の結果（2026-10-02、ユーザー）
@@ -208,12 +197,9 @@ spec.md の「改訂 1」の A（チェックボックスの高さ）・B（読�
   - `kFrameDisplayBoxTop` 25 → 16（箱 16〜30）、`kFrameDisplayLabelTop` 22 → 13、`kFrameDisplayLabelBottom` 42 → 33。x・当たり判定（y 4〜60）は変えない。
 - [X] T012 [P] 保存の失敗が読み取り専用のファイルによるときのメッセージを足す。
   - `Resource.h`: `#define IDS_SAVE_READONLY 253	// feature 023 revision 1`、`_APS_NEXT_SYMED_VALUE` を 254 にする。
-  - `.rc`（UTF-16LE・BOM 付き・CRLF を保つ）: `IDS_SAVE_READONLY "プロジェクトファイル「%s」は読み取り専用のため、保存できませんでした。\n読み取り専用を外してから、もう一度保存してください。\n\n%s"`
-    （1 つ目の `%s` はファイル名、2 つ目はフルパス）。
-  - `MFCApplication1Dlg.cpp` の `SaveProjectTo`: 失敗したとき、`GetFileAttributes(path)` が `INVALID_FILE_ATTRIBUTES` でなく `FILE_ATTRIBUTE_READONLY` を含めば `IDS_SAVE_READONLY`、
-    それ以外は今の `IDS_SAVE_ERROR`。`m_projectPath` を変えないことは同じ。
-- [X] T013 `tools/cansim_runner/checks.cpp` に、チェックボックスの箱の縦の中心が終了ボタンの箱の縦の中心と ±1 px 以内で一致すること（DPI 96/120/144）、
-  チェックボックスの箱・文字が当たり判定と帯の中に収まることを足す（依存: T011）。
+  - `.rc`（UTF-16LE・BOM 付き・CRLF を保つ）: `IDS_SAVE_READONLY "プロジェクトファイル「%s」は読み取り専用のため、保存できませんでした。\n読み取り専用を外してから、もう一度保存してください。\n\n%s"`（1 つ目の `%s` はファイル名、2 つ目はフルパス）。
+  - `MFCApplication1Dlg.cpp` の `SaveProjectTo`: 失敗したとき、`GetFileAttributes(path)` が `INVALID_FILE_ATTRIBUTES` でなく `FILE_ATTRIBUTE_READONLY` を含めば `IDS_SAVE_READONLY`、それ以外は今の `IDS_SAVE_ERROR`。`m_projectPath` を変えないことは同じ。
+- [X] T013 `tools/cansim_runner/checks.cpp` に、チェックボックスの箱の縦の中心が終了ボタンの箱の縦の中心と ±1 px 以内で一致すること（DPI 96/120/144）、チェックボックスの箱・文字が当たり判定と帯の中に収まることを足す（依存: T011）。
 - [X] T014 `CLAUDE.md` の 023 の段落に改訂 1 を足し、4 構成のビルドと checks.exe（全項目 PASS・CSV 一致）を確かめる（依存: T011〜T013）。
 - [X] T015 手動確認: quickstart.md の手順 1（高さ）と 4（メッセージ）をもう一度確かめる（依存: T014）。
 

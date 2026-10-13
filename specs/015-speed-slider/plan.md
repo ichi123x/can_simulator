@@ -16,8 +16,7 @@
 - 中断中は値だけ変え、再開で効く。
 - +10 になったら、実行中・中断中はその場で完了にする（`FinishReplay`、Q1: A）。
 
-スライダーの座標・目盛りへの丸め・変更時の動作の判定は、`CanSim/SimControls` の純粋関数にして checks.exe で検証する。
-計算・CSV・プロジェクトファイルの形式は変えない。
+スライダーの座標・目盛りへの丸め・変更時の動作の判定は、`CanSim/SimControls` の純粋関数にして checks.exe で検証する。計算・CSV・プロジェクトファイルの形式は変えない。
 
 ## Technical Context
 
@@ -96,8 +95,7 @@ tools/cansim_runner/checks.cpp, README.md
 CLAUDE.md
 ```
 
-**Structure Decision**: スライダーは 014 のツールバーの一部として、同じ `SimControls`（座標）と `DrawSimToolbar`（描画）・マウス処理に足す。
-スピードの値は `m_settings.Speed` の 1 か所に持ち、スライダーはそれを描くだけにする（保存・読込み・開始の判定は今のまま使える）。
+**Structure Decision**: スライダーは 014 のツールバーの一部として、同じ `SimControls`（座標）と `DrawSimToolbar`（描画）・マウス処理に足す。スピードの値は `m_settings.Speed` の 1 か所に持ち、スライダーはそれを描くだけにする（保存・読込み・開始の判定は今のまま使える）。
 
 ## Complexity Tracking
 

@@ -3,8 +3,7 @@
 ## 決定1: 実行の状態を CanSim の `RunPhase` にし、有効／無効を 1 つの関数で決める
 
 - **Decision**:
-  - `CanSim/SimControls.h` に `enum class RunPhase { Idle, Running, Paused };` を置く。
-    ダイアログの `RunState`（`Idle`/`Running`）はこれに置き換える。
+  - `CanSim/SimControls.h` に `enum class RunPhase { Idle, Running, Paused };` を置く。ダイアログの `RunState`（`Idle`/`Running`）はこれに置き換える。
   - `SimCommandStates GetSimCommandStates(RunPhase phase, bool editingFrames)` が、`{ Start, Pause, Stop }` の有効／無効を返す。
     | phase | Start | Pause | Stop |
     |---|---|---|---|
@@ -12,8 +11,7 @@
     | Running | false | true | true |
     | Paused | true | false | true |
   - `OnInitMenuPopup`（メニュー）とツールバーの描画・クリック判定の両方が、この関数を使う。
-- **Rationale**: FR-004（メニューとボタンの一致）。表を 1 か所に置けば、両者がずれることはない。純粋関数なので checks で表全体を検証できる。
-  Paused で editing を見ないのは、中断中は「編集」メニューがグレーで、編集中にならないためである（spec Edge Cases）。
+- **Rationale**: FR-004（メニューとボタンの一致）。表を 1 か所に置けば、両者がずれることはない。純粋関数なので checks で表全体を検証できる。Paused で editing を見ないのは、中断中は「編集」メニューがグレーで、編集中にならないためである（spec Edge Cases）。
 - **Alternatives considered**: メニューとツールバーで別々に判定する方法は、ずれる危険があるので採らない。
 
 ## 決定2: ツールバーは自前で描く（`CToolBar` を使わない）
@@ -24,13 +22,11 @@
   - 押した場所と離した場所が同じ有効なボタンのとき、`PostMessage(WM_COMMAND, ID_SIM_*)` で対応するメニューのコマンドを送る。
 - **Rationale**:
   - 添付画像の見た目（暗い帯・角丸・緑／青／赤の記号・名前は下）を、ビットマップのリソース無しで、DPI に合わせて描ける。
-  - ダイアログでの `CToolBar` は、`RepositionBars`・`ON_UPDATE_COMMAND_UI` の配送（ダイアログでは来ない）・カスタムドローによる背景色の変更
-    などの手当てが要る。構成図と同じ自前描画の方が単純で、座標を CanSim に置いて検証できる（憲章 III・IV）。
+  - ダイアログでの `CToolBar` は、`RepositionBars`・`ON_UPDATE_COMMAND_UI` の配送（ダイアログでは来ない）・カスタムドローによる背景色の変更などの手当てが要る。構成図と同じ自前描画の方が単純で、座標を CanSim に置いて検証できる（憲章 III・IV）。
   - コマンドを送る方式にすると、ボタンとメニューの処理が同じ関数を通る（FR-003）。
 - **Alternatives considered**:
   - `CToolBar` + 32bpp のイメージリスト: 名前の表示・暗い背景・無効時のグレーの作り込みが多く、リソースのビットマップが要る。
-  - ボタンのコントロール（`CButton` のオーナードロー）× 3: 押下の見た目はコントロールが持つが、フォーカス枠・Enter キーの扱い（このダイアログは
-    Enter を握りつぶしている）・タブ順など考えることが増える。
+  - ボタンのコントロール（`CButton` のオーナードロー）× 3: 押下の見た目はコントロールが持つが、フォーカス枠・Enter キーの扱い（このダイアログはEnter を握りつぶしている）・タブ順など考えることが増える。
 
 ## 決定3: ツールバーの座標（96 dpi、帯の中の座標 = クライアント座標）
 
@@ -49,10 +45,8 @@
     | 押下中 | `RGB(200,200,200)` | 有効と同じ | 白 |
     | 無効 | `RGB(95,95,98)` | `RGB(140,140,140)` | `RGB(140,140,140)` |
 
-  - 換算は `ScaleToDpi`（構成図と同じ）。当たり判定 `FindSimButtonAt(x, y, dpi)` は、換算後の `[Left, Right) × [Top, Bottom)` で
-    ボタン番号（0〜2）を返し、どれでもなければ -1 を返す。
-- **Rationale**: 画像のイメージ（3 つの角丸ボタンが左から並ぶ暗い帯）に合わせた。高さ 64 px は、箱 36 px と名前 12 px に余白を足した値。
-  描画と判定で同じ換算を使う（機能 010 と同じ考え方）。
+  - 換算は `ScaleToDpi`（構成図と同じ）。当たり判定 `FindSimButtonAt(x, y, dpi)` は、換算後の `[Left, Right) × [Top, Bottom)` でボタン番号（0〜2）を返し、どれでもなければ -1 を返す。
+- **Rationale**: 画像のイメージ（3 つの角丸ボタンが左から並ぶ暗い帯）に合わせた。高さ 64 px は、箱 36 px と名前 12 px に余白を足した値。描画と判定で同じ換算を使う（機能 010 と同じ考え方）。
 
 ## 決定4: コンテンツを帯の高さだけ下げる（`m_contentTop`）
 
@@ -65,11 +59,8 @@
     - 編集ウィンドウを開く位置の y
   - `OnInitDialog` で、ウィンドウの高さを `ContentTop()` だけ広げる（`.rc` の DLU は変えない）。
   - `OnEraseBkgnd` はクライアント全体を白く塗る（今のまま）。帯は `OnPaint` で上から塗る。
-- **Rationale**: FR-009。CanSim の構成図・ログ表示エリアの座標（checks 011 の位置の検証）はコンテンツ内の座標のまま変えずに済む。
-  ずらしをダイアログの 1 つの関数にまとめるので、漏れがあれば ECU のダブルクリックの位置ずれとして GUI 確認で見つかる。
-  高さを実行時に広げるのは、DLU とピクセルの換算（フォント依存）を避けて、帯の高さぴったりにするためである。
-- **Alternatives considered**: `SetViewportOrg` で描画だけずらす方法は、無効化の矩形・当たり判定・子ウィンドウ（スクロールバー）の位置は別に
-  ずらす必要があり、まとまらない。
+- **Rationale**: FR-009。CanSim の構成図・ログ表示エリアの座標（checks 011 の位置の検証）はコンテンツ内の座標のまま変えずに済む。ずらしをダイアログの 1 つの関数にまとめるので、漏れがあれば ECU のダブルクリックの位置ずれとして GUI 確認で見つかる。高さを実行時に広げるのは、DLU とピクセルの換算（フォント依存）を避けて、帯の高さぴったりにするためである。
+- **Alternatives considered**: `SetViewportOrg` で描画だけずらす方法は、無効化の矩形・当たり判定・子ウィンドウ（スクロールバー）の位置は別にずらす必要があり、まとまらない。
 
 ## 決定5: 中断と再開の時計
 
@@ -93,8 +84,7 @@
   - 中断の処理の中で表示を中断の時刻まで進めてから止めるので、0.1 秒以内に止まり、止まった表示は中断の時刻と一致する。
   - `m_prevSimUs = m_curSimUs` から再開するので、強調の収集（`Collect` は `toUs` が減らない前提）とログの行は欠けも重複もない。
   - CSV は開始時の全計算（`m_runRows`）か、「終了」時の再計算のどちらかで、中断はどちらにも関わらないので変わらない（FR-010）。
-- **Alternatives considered**: 中断中もタイマーを動かして時刻を止めておく方法は、無駄な再描画が続き、0.1 秒以内という条件を
-  タイマーの間隔に依存させることになる。
+- **Alternatives considered**: 中断中もタイマーを動かして時刻を止めておく方法は、無駄な再描画が続き、0.1 秒以内という条件をタイマーの間隔に依存させることになる。
 
 ## 決定6: 「実行中か」の判定を 2 種類に分ける
 
@@ -112,8 +102,7 @@
 ## 決定7: ツールバーの再描画のきっかけ
 
 - **Decision**: `void UpdateSimControls()` を追加する。中身は `UpdateTopMenus()` と、ツールバーの帯の `InvalidateRect` である。
-  - 呼ぶのは、状態が変わる所（開始・中断・再開・`EndRun`）と、編集中が変わる所（`OpenFrameEditor` の後、`OnFrameEditorClosed`、
-    切り替え待ちの開始と終了、`CloseFrameEditor`）。
+  - 呼ぶのは、状態が変わる所（開始・中断・再開・`EndRun`）と、編集中が変わる所（`OpenFrameEditor` の後、`OnFrameEditorClosed`、切り替え待ちの開始と終了、`CloseFrameEditor`）。
   - 押下中の見た目は、`m_pressedButton`（-1 = なし）で持つ。押下中にボタンの外へ出たら、押下の見た目を外す（`OnMouseMove`、マウスの捕捉）。
 - **Rationale**: 「開始」は編集中にグレーになる（FR-004）ので、編集ウィンドウの開閉でも描き直す必要がある。
 

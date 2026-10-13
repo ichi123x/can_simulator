@@ -9,8 +9,7 @@ description: "Task list for feature 018-frame-flow-animation"
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md（すべて存在）。機能 005・014・016・017 の実装が完了していること。
 
-**Tests**: spec.md は自動テストのフレームワークを要求していない。新しい純粋関数（`CanSim/FlowEffect`）は checks.exe に検証項目を加える（憲章 III）。
-動きの見た目は GUI の自動操作（画面写し・画素の色）と目視で確認する。
+**Tests**: spec.md は自動テストのフレームワークを要求していない。新しい純粋関数（`CanSim/FlowEffect`）は checks.exe に検証項目を加える（憲章 III）。動きの見た目は GUI の自動操作（画面写し・画素の色）と目視で確認する。
 
 **Organization**: spec.md のユーザーストーリーは 1 つ（US1 送信 ECU から受信 ECU へ流れる動きを見る P1）。
 

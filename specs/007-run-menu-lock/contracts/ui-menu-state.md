@@ -9,5 +9,4 @@
 - 実行中のフレーム表示の強調は、開始時のフレーム表示の設定で決まる（実行中は切り替えられない）。
 - バスの「使用中（青）」は SOF〜EOF の間だけ。インターミッション（EOF 後 3 ビット）は表示しない。
 
-この表は、機能 004 の `contracts/ui-menu-dialogs.md` のメニューの有効条件と、機能 005 の `contracts/ui-speed-replay.md` の
-「実行中のフレーム表示切替: 可」を置き換える。
+この表は、機能 004 の `contracts/ui-menu-dialogs.md` のメニューの有効条件と、機能 005 の `contracts/ui-speed-replay.md` の「実行中のフレーム表示切替: 可」を置き換える。
