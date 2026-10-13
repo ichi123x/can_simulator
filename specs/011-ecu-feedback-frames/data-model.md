@@ -9,8 +9,7 @@
 | `kDiagramFrameInset` | 4（96 dpi、構成図の領域の各辺からの距離） |
 | `BusDiagramLayout::Frame` | `DiagramRect` = (4, 4) - (1136, 212)。ECU 数 0〜16 で同じ |
 
-- 条件（checks で検証）: `Frame` は構成図の領域 (0, 0) - (1140, 216) の内側。バス線・「CAN BUS」の文字の範囲・すべての ECU の箱・接続線は
-  `Frame` の内側にあり、線と 2 px 以上離れている（DPI 96/120/144 で換算した後も重ならない）。
+- 条件（checks で検証）: `Frame` は構成図の領域 (0, 0) - (1140, 216) の内側。バス線・「CAN BUS」の文字の範囲・すべての ECU の箱・接続線は`Frame` の内側にあり、線と 2 px 以上離れている（DPI 96/120/144 で換算した後も重ならない）。
 
 ## グレー表示中の ECU（`CMFCApplication1Dlg` に追加）
 

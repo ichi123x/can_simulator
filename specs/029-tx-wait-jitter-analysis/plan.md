@@ -4,8 +4,7 @@
 
 ## Summary
 
-「解析」メニューに「送信待ち時間(W)」「送信ジッター(J)」を加え、全体を「送信待ち時間・受信完了時間・送信ジッター・区切り線・CAN バス負荷」の順に並べ替える（Q2 = A）。
-どちらも 028 と同じく、現在のプロジェクトのフレームログ（`.log.csv`）を `CanSim::ReadLogRecords` で読み、CanSim で計算し、モードレスのウィンドウに表とグラフを出す。
+「解析」メニューに「送信待ち時間(W)」「送信ジッター(J)」を加え、全体を「送信待ち時間・受信完了時間・送信ジッター・区切り線・CAN バス負荷」の順に並べ替える（Q2 = A）。どちらも 028 と同じく、現在のプロジェクトのフレームログ（`.log.csv`）を `CanSim::ReadLogRecords` で読み、CanSim で計算し、モードレスのウィンドウに表とグラフを出す。
 
 - **CanSim**（`LogAnalysis.h/.cpp` に追加。ASCII のみ）:
   - `CollectTransmissions`: ログの行を送信 1 回にまとめる（`(TxNode, CanId, TxStartUs)` が同じ行。OVERWRITE は除き、件数だけ数える）。028 の `AnalyzeBusLoad` と同じまとめ方。

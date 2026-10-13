@@ -4,36 +4,25 @@
 
 ## Summary
 
-ダイアログをメニュー駆動に作り替える。既存のコントロールをすべて削除し、メニュー「ファイル／編集／
-シミュレーション」、セッティングダイアログ（ECU 数・通信速度・シミュレーション時間）、`.canprj`
-プロジェクトの保存・読込み、実行結果のフレーム再生（フレーム表示）を追加する。`.canprj` は機能 001
-の設定ファイル（`.cfg`）形式を拡張した後継（`[Project]` セクションの追加）で、読込み・保存・実行用
-ネットワークの生成・フレーム再生用イベントの抽出は `CanSim/` の UI 非依存 C++ に置く（憲章 III）。UI は
-メニュー処理・セッティング画面・GDI 描画（機能 003 の構成図に強調表示を追加）・タイマー再生のみを持つ。
+ダイアログをメニュー駆動に作り替える。既存のコントロールをすべて削除し、メニュー「ファイル／編集／シミュレーション」、セッティングダイアログ（ECU 数・通信速度・シミュレーション時間）、`.canprj`プロジェクトの保存・読込み、実行結果のフレーム再生（フレーム表示）を追加する。`.canprj` は機能 001の設定ファイル（`.cfg`）形式を拡張した後継（`[Project]` セクションの追加）で、読込み・保存・実行用ネットワークの生成・フレーム再生用イベントの抽出は `CanSim/` の UI 非依存 C++ に置く（憲章 III）。UI はメニュー処理・セッティング画面・GDI 描画（機能 003 の構成図に強調表示を追加）・タイマー再生のみを持つ。
 
 ## Technical Context
 
 **Language/Version**: C++14相当（機能 001〜003 と同じ）
 
-**Primary Dependencies**: MFC（動的リンク）、Win32（`CFileDialog`、メニュー、`SetTimer`）、C++ 標準
-ライブラリのみ。新規の外部ライブラリなし。
+**Primary Dependencies**: MFC（動的リンク）、Win32（`CFileDialog`、メニュー、`SetTimer`）、C++ 標準ライブラリのみ。新規の外部ライブラリなし。
 
-**Storage**: `.canprj`（UTF-8 のセクション区切り `key=value` テキスト。契約は
-`contracts/project-file-format.md`）。結果は従来どおり `<プロジェクトファイル名>.log.csv` などの CSV。
+**Storage**: `.canprj`（UTF-8 のセクション区切り `key=value` テキスト。契約は`contracts/project-file-format.md`）。結果は従来どおり `<プロジェクトファイル名>.log.csv` などの CSV。
 
-**Testing**: 機能 001〜003 と同じ方針（自動テスト基盤は導入しない）。`CanSim/` の新規モジュール
-（`ProjectFile`、`FrameEvents`）は `tools/cansim_runner/checks.cpp` に検証項目を追加し `cl.exe` で
-検証する。メニュー・ダイアログ・再生は `quickstart.md` の目視手順で確認する。
+**Testing**: 機能 001〜003 と同じ方針（自動テスト基盤は導入しない）。`CanSim/` の新規モジュール（`ProjectFile`、`FrameEvents`）は `tools/cansim_runner/checks.cpp` に検証項目を追加し `cl.exe` で検証する。メニュー・ダイアログ・再生は `quickstart.md` の目視手順で確認する。
 
 **Target Platform**: Windows 10/11（Win32/x64、Debug/Release）
 
 **Project Type**: desktop-app（既存 `MFCApplication1` を拡張。新しい VS プロジェクトは作らない）
 
-**Performance Goals**: 機能 001 の目標を据え置き（10 秒のシミュレーションを 1 秒未満）。フレーム
-表示 OFF の「開始」は同期実行で完結し、UI スレッドを占有する時間は 1 秒未満。
+**Performance Goals**: 機能 001 の目標を据え置き（10 秒のシミュレーションを 1 秒未満）。フレーム表示 OFF の「開始」は同期実行で完結し、UI スレッドを占有する時間は 1 秒未満。
 
-**Constraints**: フレーム表示 ON/OFF で出力 CSV が完全一致（FR-015/SC-006）。既存 CSV 出力の内容は
-変えない（SC-009）。`CanSim/` は ASCII のみ。UI 文字列は `.rc`（UTF-16LE）のみに置く。
+**Constraints**: フレーム表示 ON/OFF で出力 CSV が完全一致（FR-015/SC-006）。既存 CSV 出力の内容は変えない（SC-009）。`CanSim/` は ASCII のみ。UI 文字列は `.rc`（UTF-16LE）のみに置く。
 
 **Scale/Scope**: ECU 最大 16。新規ソース: `ProjectFile`、`FrameEvents`（CanSim）、`SettingsDlg`（UI）。
 
@@ -84,10 +73,7 @@ tools/cansim_runner/                    # 変更: runner/checks を .canprj に�
 CLAUDE.md                               # 変更: アーキテクチャ・ビルド・検証手順
 ```
 
-**Structure Decision**: `.canprj` の解析は既存の `ConfigLoader` を拡張して再利用し（形式を
-そのまま引き継ぐ）、保存・実行ネットワーク生成・フレームイベント抽出だけを新モジュールに切り出す。
-実行は従来どおり `SimulationEngine` を UI スレッドで同期実行する。フレーム再生は結果（`LogRow`）を
-先に得てから、タイマーで UI 側が再生する（エンジンに再生用の分岐を入れない）。
+**Structure Decision**: `.canprj` の解析は既存の `ConfigLoader` を拡張して再利用し（形式をそのまま引き継ぐ）、保存・実行ネットワーク生成・フレームイベント抽出だけを新モジュールに切り出す。実行は従来どおり `SimulationEngine` を UI スレッドで同期実行する。フレーム再生は結果（`LogRow`）を先に得てから、タイマーで UI 側が再生する（エンジンに再生用の分岐を入れない）。
 
 ## Complexity Tracking
 

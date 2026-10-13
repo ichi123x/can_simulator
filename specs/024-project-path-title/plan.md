@@ -4,10 +4,7 @@
 
 ## Summary
 
-ウィンドウのタイトルバーを「CAN Bus Simulator␣␣␣␣プロジェクト名：<フルパス>」にする。
-現在のプロジェクトファイル `m_projectPath` を変える箇所を 1 つの関数 `SetProjectPath` にまとめ、そこでタイトルを書き直す。
-起動時のコマンドライン引数に .canprj のパスがあれば、ダイアログの表示後にメニューの読込みと同じ処理（新しい共通関数 `LoadProjectFrom`）で読み込む。
-関連付けの登録はしない（spec FR-008、Q1 = A）。
+ウィンドウのタイトルバーを「CAN Bus Simulator␣␣␣␣プロジェクト名：<フルパス>」にする。現在のプロジェクトファイル `m_projectPath` を変える箇所を 1 つの関数 `SetProjectPath` にまとめ、そこでタイトルを書き直す。起動時のコマンドライン引数に .canprj のパスがあれば、ダイアログの表示後にメニューの読込みと同じ処理（新しい共通関数 `LoadProjectFrom`）で読み込む。関連付けの登録はしない（spec FR-008、Q1 = A）。
 
 - **タイトルの組み立て**・**引数からのパスの取り出し**・**拡張子の判定**は、CanSim（`ProjectFile.h/.cpp`）の純粋関数にして checks で検証する。
 - **絶対パスへの変換**（相対パス・8.3 形式）は Win32 の `GetFullPathNameW` / `GetLongPathNameW` を使うため、ダイアログ側で行う。
@@ -21,8 +18,7 @@
 | 読込み（メニュー・ツールバー） | `OnFileLoadProject` が検査・読込み・反映 | ファイル選択の後は `LoadProjectFrom(path)` を呼ぶだけ（中身は今の処理をそのまま移す） |
 | 保存（メニュー・ツールバー・「開始」） | `SaveProjectTo` が成功時に `m_projectPath = path` | 成功時に `SetProjectPath(path)` |
 
-- `LoadProjectFrom` は今の `OnFileLoadProject` の後半（拡張子の検査 → `LoadConfig` → エラー表示 or 反映）で、成功時の `m_projectPath = path` を `SetProjectPath(path)` にする。
-  編集ウィンドウを閉じる処理（`CloseFrameEditor`）は `OnFileLoadProject` に残す（起動直後は編集ウィンドウが無い）。
+- `LoadProjectFrom` は今の `OnFileLoadProject` の後半（拡張子の検査 → `LoadConfig` → エラー表示 or 反映）で、成功時の `m_projectPath = path` を `SetProjectPath(path)` にする。編集ウィンドウを閉じる処理（`CloseFrameEditor`）は `OnFileLoadProject` に残す（起動直後は編集ウィンドウが無い）。
 - 起動時の読込みを Post にするのは、エラーのメッセージボックスをメインウィンドウが表示された後に出し、オーナーをメインウィンドウにするため。
 
 ## Technical Context

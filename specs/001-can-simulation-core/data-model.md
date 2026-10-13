@@ -1,7 +1,6 @@
 # Data Model: CAN バスシミュレーション コア機能
 
-`spec.md` の Key Entities を、実装単位のエンティティとして詳細化する。すべて `CanSim/`
-配下のプレーン C++ 型として表現し、MFC/GUI 型には依存しない。
+`spec.md` の Key Entities を、実装単位のエンティティとして詳細化する。すべて `CanSim/`配下のプレーン C++ 型として表現し、MFC/GUI 型には依存しない。
 
 ## Network（ネットワーク）
 
@@ -64,9 +63,7 @@ RetryPending --インターミッション後バスアイドル--> ArbitratingTr
 | Kind | 列挙 | `TxRequest` / `BusIdle` / `TxComplete` / `IntermissionEnd` / `RxProcess` / `SimulationEnd` 等（FR-006） |
 | NodeId | 整数（該当する場合） | 対象ノード。同一時刻内の処理順の副キーとして使用（FR-007） |
 
-**順序付け**: `EventQueue` は `(TimeNs, Kind の優先順位, NodeId)` の順で決定的にソートする
-（種類ごとの優先順位は `spec.md` Edge Cases および憲章 P③ の「同一構成から常に同一結果」を
-満たすよう `SimulationEngine` 内で固定順とする）。
+**順序付け**: `EventQueue` は `(TimeNs, Kind の優先順位, NodeId)` の順で決定的にソートする（種類ごとの優先順位は `spec.md` Edge Cases および憲章 P③ の「同一構成から常に同一結果」を満たすよう `SimulationEngine` 内で固定順とする）。
 
 ## LogRow（ログ行）
 
@@ -83,8 +80,7 @@ RetryPending --インターミッション後バスアイドル--> ArbitratingTr
 | RetryCount | 整数 | 調停負けによる再送信回数 |
 | OverwriteCount | 整数 | 上書き回数 |
 
-**生成規則**: 1フレーム×受信ノードごとに1行。受信ノードがないフレームは送信側の情報のみで
-1行出力する（FR-017）。
+**生成規則**: 1フレーム×受信ノードごとに1行。受信ノードがないフレームは送信側の情報のみで1行出力する（FR-017）。
 
 ## MetricsSummary（性能指標集計、FR-018〜020）
 

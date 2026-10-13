@@ -4,10 +4,7 @@
 
 ## Summary
 
-メインダイアログの上部に、白背景の構成図描画領域を追加し、「CAN BUS」見出し・バス線・ECU
-（奇数=上／偶数=下の千鳥配置）を描画する。ECU 数は現在の ECU 数（機能 004 のセッティング／プロジェクトで決まる値、初期値 2）。ダイアログの
-初期サイズは、16 ECU が収まる横長（約5:1の図領域が収まる大きさ）に拡げる。ECU 数の入力手段・既存コントロールの削除・ダイアログ全体の白化は機能 004 が担い、本機能は「現在の ECU 数を描く表示部品」に絞る。ECU の座標計算は UI
-非依存の純粋関数として `CanSim/` に切り出し（憲章 III）、実描画（GDI）のみをダイアログ側に置く。
+メインダイアログの上部に、白背景の構成図描画領域を追加し、「CAN BUS」見出し・バス線・ECU（奇数=上／偶数=下の千鳥配置）を描画する。ECU 数は現在の ECU 数（機能 004 のセッティング／プロジェクトで決まる値、初期値 2）。ダイアログの初期サイズは、16 ECU が収まる横長（約5:1の図領域が収まる大きさ）に拡げる。ECU 数の入力手段・既存コントロールの削除・ダイアログ全体の白化は機能 004 が担い、本機能は「現在の ECU 数を描く表示部品」に絞る。ECU の座標計算は UI非依存の純粋関数として `CanSim/` に切り出し（憲章 III）、実描画（GDI）のみをダイアログ側に置く。
 
 ## Technical Context
 
@@ -17,18 +14,15 @@
 
 **Storage**: なし（表示のみ。ECU 数はメモリ上の int）
 
-**Testing**: 座標計算 `BusDiagramLayout` を `tools/cansim_runner/checks.cpp` に検証項目として追加
-（`cl.exe` 単体ビルド可能）。描画・初期サイズの目視確認は `quickstart.md` の手順による。
+**Testing**: 座標計算 `BusDiagramLayout` を `tools/cansim_runner/checks.cpp` に検証項目として追加（`cl.exe` 単体ビルド可能）。描画・初期サイズの目視確認は `quickstart.md` の手順による。
 
 **Target Platform**: Windows 10/11（Win32/x64、Debug/Release）
 
 **Project Type**: desktop-app（既存 `MFCApplication1` を拡張）
 
-**Performance Goals**: 描画は数十個の矩形・線のみで問題にならない。ちらつき防止にメモリ DC
-経由の描画を用いる。
+**Performance Goals**: 描画は数十個の矩形・線のみで問題にならない。ちらつき防止にメモリ DC経由の描画を用いる。
 
-**Constraints**: 表示部は常に白（システムテーマ非依存）。ECU の位置・大きさ・間隔は ECU 数
-に依存しない（FR-009）。`.rc` は UTF-16LE のためエンコーディング明示で編集（CLAUDE.md）。
+**Constraints**: 表示部は常に白（システムテーマ非依存）。ECU の位置・大きさ・間隔は ECU 数に依存しない（FR-009）。`.rc` は UTF-16LE のためエンコーディング明示で編集（CLAUDE.md）。
 
 **Scale/Scope**: ECU 最大16。新規ファイル1組（レイアウト）＋ダイアログ/リソースの変更。
 
@@ -45,8 +39,7 @@
 
 違反なし。Complexity Tracking は該当なし。
 
-**Post-Design Re-check**: Phase 1 の成果物は新規依存・新規 VS プロジェクトを含まない。全項目 PASS
-のまま。
+**Post-Design Re-check**: Phase 1 の成果物は新規依存・新規 VS プロジェクトを含まない。全項目 PASSのまま。
 
 ## Project Structure
 
@@ -75,10 +68,7 @@ tools/cansim_runner/checks.cpp    # 変更: レイアウト計算の検証項目
 CLAUDE.md                         # 変更: アーキテクチャ節の更新
 ```
 
-**Structure Decision**: 描画（GDI 呼び出し）は UI 層、幾何計算は `CanSim/` の純粋 C++。表示専用の
-ため `SimulationEngine` には手を入れない。ダイアログの `OnPaint` 内で、構成図領域（ダイアログ
-クライアント座標の固定矩形）に描く。UI ラベル「ECU NN」「CAN BUS」は英字のため `CanSim`
-側の ASCII 制約とも整合する。
+**Structure Decision**: 描画（GDI 呼び出し）は UI 層、幾何計算は `CanSim/` の純粋 C++。表示専用のため `SimulationEngine` には手を入れない。ダイアログの `OnPaint` 内で、構成図領域（ダイアログクライアント座標の固定矩形）に描く。UI ラベル「ECU NN」「CAN BUS」は英字のため `CanSim`側の ASCII 制約とも整合する。
 
 ## Complexity Tracking
 

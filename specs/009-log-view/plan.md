@@ -4,10 +4,7 @@
 
 ## Summary
 
-CAN バス構成図の下に薄いグレーの「ログ表示エリア」を追加する。実行結果（`LogRow` 群と、ノードの起動状態の遷移時刻）から、時刻順の
-表示用の行一覧を `CanSim/LogLines`（UI 非依存）で作り、ダイアログは機能 005 の再生時計（実経過時間 × 2^スピード）に合わせて、その一覧の
-先頭から順に「表示済み」に加えていく。描画はメイン `OnPaint` でメモリ DC に見えている範囲（十数行）だけを文字にする自前描画とし、右側に標準の
-縦スクロールバー（`CScrollBar`）を置く。最新行への自動追従と、過去を見ている間の固定は、スクロールバーの位置で判定する。数万行でも軽く動く。
+CAN バス構成図の下に薄いグレーの「ログ表示エリア」を追加する。実行結果（`LogRow` 群と、ノードの起動状態の遷移時刻）から、時刻順の表示用の行一覧を `CanSim/LogLines`（UI 非依存）で作り、ダイアログは機能 005 の再生時計（実経過時間 × 2^スピード）に合わせて、その一覧の先頭から順に「表示済み」に加えていく。描画はメイン `OnPaint` でメモリ DC に見えている範囲（十数行）だけを文字にする自前描画とし、右側に標準の縦スクロールバー（`CScrollBar`）を置く。最新行への自動追従と、過去を見ている間の固定は、スクロールバーの位置で判定する。数万行でも軽く動く。
 
 ## Technical Context
 
@@ -17,8 +14,7 @@ CAN バス構成図の下に薄いグレーの「ログ表示エリア」を追�
 
 **Storage**: なし（表示のみ。行は実行のたびにメモリ上に作る）
 
-**Testing**: `CanSim/LogLines`（行の生成・並び順・時刻）は `tools/cansim_runner/checks.cpp` で検証。描画・スクロール・追従は GUI の自動操作
-（スクリーンショット）で確認。
+**Testing**: `CanSim/LogLines`（行の生成・並び順・時刻）は `tools/cansim_runner/checks.cpp` で検証。描画・スクロール・追従は GUI の自動操作（スクリーンショット）で確認。
 
 **Target Platform**: Windows 10/11（Win32/x64、Debug/Release）
 
@@ -28,8 +24,7 @@ CAN バス構成図の下に薄いグレーの「ログ表示エリア」を追�
 
 **Constraints**: CSV 出力に影響しない（FR-011）。`CanSim/` は ASCII のみ、表示文字列は `.rc`。フレーム表示の ON/OFF とは独立。
 
-**Scale/Scope**: 新規 `LogLines`（CanSim）。変更: `MFCApplication1Dlg`（領域、スクロールバー、供給、描画）、`.rc`（ダイアログ寸法、スクロールバー、文字列）、
-`checks.cpp`、CLAUDE.md。
+**Scale/Scope**: 新規 `LogLines`（CanSim）。変更: `MFCApplication1Dlg`（領域、スクロールバー、供給、描画）、`.rc`（ダイアログ寸法、スクロールバー、文字列）、`checks.cpp`、CLAUDE.md。
 
 ## Constitution Check
 
@@ -67,8 +62,7 @@ tools/cansim_runner/checks.cpp          # 変更: LogLines の検証
 CLAUDE.md                               # 変更
 ```
 
-**Structure Decision**: 表示用の行は「時刻 + 種類 + 元データへの添字」だけを持つ軽い構造体とし（文字列は描画時に見えている行だけ作る）、12 万行でも
-メモリと生成時間を抑える。
+**Structure Decision**: 表示用の行は「時刻 + 種類 + 元データへの添字」だけを持つ軽い構造体とし（文字列は描画時に見えている行だけ作る）、12 万行でもメモリと生成時間を抑える。
 
 ## Complexity Tracking
 

@@ -4,10 +4,7 @@
 
 ## Summary
 
-(1) 実行状態が変わるたびに、メニューバーのトップレベル項目「ファイル」「編集」を位置指定で有効／無効（グレー）にし、
-メニューバーを再描画する。実行中は両メニューが開かず、フレーム表示の切替・保存もできなくなる。(2) インターミッション
-（EOF 後 3 ビット）を経てからバスアイドルになる動作は `SimulationEngine` に実装済みのため、コードは変えず、全通信速度で
-「次の送信開始 − 前の送信終了 = 3 ビット時間」と「伝送時間にインターミッションを含まない」を checks.exe で検証する。
+(1) 実行状態が変わるたびに、メニューバーのトップレベル項目「ファイル」「編集」を位置指定で有効／無効（グレー）にし、メニューバーを再描画する。実行中は両メニューが開かず、フレーム表示の切替・保存もできなくなる。(2) インターミッション（EOF 後 3 ビット）を経てからバスアイドルになる動作は `SimulationEngine` に実装済みのため、コードは変えず、全通信速度で「次の送信開始 − 前の送信終了 = 3 ビット時間」と「伝送時間にインターミッションを含まない」を checks.exe で検証する。
 
 ## Technical Context
 
@@ -17,8 +14,7 @@
 
 **Storage**: なし
 
-**Testing**: (2) は `tools/cansim_runner/checks.cpp` に検証を追加。(1) は GUI の自動操作（実行中にトップレベルメニューを
-開こうとして開かないこと、停止後に開けること）で確認。
+**Testing**: (2) は `tools/cansim_runner/checks.cpp` に検証を追加。(1) は GUI の自動操作（実行中にトップレベルメニューを開こうとして開かないこと、停止後に開けること）で確認。
 
 **Target Platform**: Windows 10/11（Win32/x64、Debug/Release）
 
@@ -28,8 +24,7 @@
 
 **Constraints**: 「シミュレーション」メニューは常に有効。✖ は常に有効。インターミッションは画面に表示しない（spec FR-007）。
 
-**Scale/Scope**: 変更は `MFCApplication1Dlg.h/.cpp`（メニュー状態の更新関数と、実行開始・終了時の呼び出し、`OnEditFrameDisplay`
-のガード）と `checks.cpp`、文書のみ。
+**Scale/Scope**: 変更は `MFCApplication1Dlg.h/.cpp`（メニュー状態の更新関数と、実行開始・終了時の呼び出し、`OnEditFrameDisplay`のガード）と `checks.cpp`、文書のみ。
 
 ## Constitution Check
 
@@ -66,8 +61,7 @@ CLAUDE.md                         # 変更
 specs/005-simulation-speed/contracts/ui-speed-replay.md  # 変更: 後継の注記
 ```
 
-**Structure Decision**: トップレベルのメニューは位置（0 = ファイル、1 = 編集）で有効／無効にする。項目単位の有効／無効
-（`OnInitMenuPopup`）は残し、二重に守る。
+**Structure Decision**: トップレベルのメニューは位置（0 = ファイル、1 = 編集）で有効／無効にする。項目単位の有効／無効（`OnInitMenuPopup`）は残し、二重に守る。
 
 ## Complexity Tracking
 

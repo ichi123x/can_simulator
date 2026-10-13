@@ -37,8 +37,7 @@ description: "Task list for feature 020-area-labels"
   - `MFCApplication1Dlg.h/.cpp`（`DrawAreaLabel`、構成図・ログの枠での描画）
   - `Resource.h`・`MFCApplication1.rc`（`IDS_EVENT_VIEW_LABEL` / `IDS_LOG_VIEW_LABEL`。読み直して確認済み）
   - `tools/cansim_runner/checks.cpp`・`README.md`、`CLAUDE.md`
-- 実装中の修正: ログ表示のラベルの左端は、当初 147 px を換算して求めていた。DPI 144 では、枠の左端（150 と 3 を別々に換算して引く）と 1 px ずれた。
-  そこで、`ScaleLogLabelRect(dpi)` で、枠の換算から直接求めるようにした。
+- 実装中の修正: ログ表示のラベルの左端は、当初 147 px を換算して求めていた。DPI 144 では、枠の左端（150 と 3 を別々に換算して引く）と 1 px ずれた。そこで、`ScaleLogLabelRect(dpi)` で、枠の換算から直接求めるようにした。
 - ビルド: Debug/Release × x64/x86 の 4 構成とも、警告・エラーなしでビルドできた。
 - checks.exe: 全 168 項目 PASS（020 の 2 項目を追加）。基準 CSV との比較も一致した。
 - GUI（Release|x64、120 dpi）: 起動直後と、`sample_16ecu`（フレーム表示 ON・実行中）の画面写し（`t020/idle.png`・`t020/running16.png`）を撮った。

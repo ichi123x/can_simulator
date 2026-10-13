@@ -31,5 +31,4 @@ const int kMaxSpeed = 10;
 const int kInstantSpeed = 10;
 ```
 
-`ConfigLoader`: `Speed=` が `kLegacyMinSpeed`〜`kMaxSpeed` の整数なら受け入れ、`kMinSpeed` 未満は `kMinSpeed` にする。それ以外はエラー
-`"[Project] Speed: '<text>' must be an integer between -10 and 10."`。
+`ConfigLoader`: `Speed=` が `kLegacyMinSpeed`〜`kMaxSpeed` の整数なら受け入れ、`kMinSpeed` 未満は `kMinSpeed` にする。それ以外はエラー`"[Project] Speed: '<text>' must be an integer between -10 and 10."`。

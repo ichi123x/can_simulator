@@ -31,8 +31,7 @@
 - タイトル: `IDS_LOG_VIEW_TITLE`「シミュレーションログ - %s」（%s = ログのフルパス）。
 - 大きさを変えられる（`WS_THICKFRAME`、最大化あり）。初期 900 × 600 px（96 dpi 換算）、メインウィンドウの中央。
 - 中身: 白い背景に黒の等幅文字（MS Gothic 13 px）、ファイルのとおりの内容。縦・横のスクロールバー。
-- 操作: スクロールバー、ホイール（3 行）、↑↓←→・PgUp/PgDn・Home/End・Ctrl+Home/Ctrl+End、
-  ドラッグ／Shift + キーで選択、Ctrl+A、Ctrl+C、右クリックのメニュー（`IDS_LOG_MENU_COPY`「コピー(&C)」・`IDS_LOG_MENU_SELECT_ALL`「すべて選択(&A)」）。
+- 操作: スクロールバー、ホイール（3 行）、↑↓←→・PgUp/PgDn・Home/End・Ctrl+Home/Ctrl+End、ドラッグ／Shift + キーで選択、Ctrl+A、Ctrl+C、右クリックのメニュー（`IDS_LOG_MENU_COPY`「コピー(&C)」・`IDS_LOG_MENU_SELECT_ALL`「すべて選択(&A)」）。
 - 選択が 16 MB を超える Ctrl+C: `IDS_LOG_COPY_TOO_LARGE`「選択範囲が大きすぎるため、コピーできません（16 MB まで）。」
 - 編集の操作は無い（文字の入力・削除・貼り付けは何も起きない）。
 - 閉じる: ✖・Esc。閉じるとオーナーに `WM_APP_LOG_VIEWER_CLOSED`（`WM_APP + 5`）を送る。

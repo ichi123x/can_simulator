@@ -12,26 +12,20 @@ description: "Task list for feature 024-project-path-title"
 ## Phase 1: Setup
 
 - [X] T001 [P] `MFCApplication1/Resource.h` と `MFCApplication1/MFCApplication1.rc` にラベルの文字列を足す。
-  - `Resource.h`（UTF-8 BOM 付きのまま。PowerShell で `New-Object Text.UTF8Encoding($true)` を指定して読み書きする）:
-    `#define IDS_PROJECT_PATH_LABEL 254	// feature 024` を `IDS_SAVE_READONLY` の次に足し、`_APS_NEXT_SYMED_VALUE` を 255 にする。
-  - `.rc` の文字列テーブル（`IDS_SAVE_READONLY` の次）に `IDS_PROJECT_PATH_LABEL "プロジェクトファイル名："`（全角のコロン）を足す。
-    UTF-16LE・BOM 付き・CRLF を保つため、`[IO.File]::ReadAllText(path, [Text.Encoding]::Unicode)` と `New-Object Text.UnicodeEncoding($false,$true)` で読み書きし、書いた後に読み直して文字化けが無いことを確かめる。
+  - `Resource.h`（UTF-8 BOM 付きのまま。PowerShell で `New-Object Text.UTF8Encoding($true)` を指定して読み書きする）: `#define IDS_PROJECT_PATH_LABEL 254	// feature 024` を `IDS_SAVE_READONLY` の次に足し、`_APS_NEXT_SYMED_VALUE` を 255 にする。
+  - `.rc` の文字列テーブル（`IDS_SAVE_READONLY` の次）に `IDS_PROJECT_PATH_LABEL "プロジェクトファイル名："`（全角のコロン）を足す。UTF-16LE・BOM 付き・CRLF を保つため、`[IO.File]::ReadAllText(path, [Text.Encoding]::Unicode)` と `New-Object Text.UnicodeEncoding($false,$true)` で読み書きし、書いた後に読み直して文字化けが無いことを確かめる。
   - 書いた後に `git diff` で、追加した行以外が変わっていないこと（特に先頭の BOM と日本語のコメント）を確かめる。
 
 ## Phase 2: Foundational（すべてのストーリーの前提）
 
 - [X] T002 [P] `MFCApplication1/CanSim/ProjectFile.h/.cpp` に純粋関数を 3 つ足す（contracts の「CanSim に足す・変えるもの」）。ASCII のみ。`ProjectFile.h` に `#include <vector>` を足す。
-  - `std::wstring ComposeWindowTitle(const std::wstring& appTitle, const std::wstring& label, const std::wstring& projectPath)`:
-    `appTitle + L"    " + label + projectPath`（区切りは半角空白 4 つ。パスが空ならラベルで終わる。research 決定2）。
-  - `std::wstring FindStartupProjectArg(const std::vector<std::wstring>& args)`:
-    `args[0]` はプログラムなので除き、その後の最初の空でない引数を返す。無ければ空文字列（2 つ目以降は無視。research 決定4）。
+  - `std::wstring ComposeWindowTitle(const std::wstring& appTitle, const std::wstring& label, const std::wstring& projectPath)`: `appTitle + L"    " + label + projectPath`（区切りは半角空白 4 つ。パスが空ならラベルで終わる。research 決定2）。
+  - `std::wstring FindStartupProjectArg(const std::vector<std::wstring>& args)`: `args[0]` はプログラムなので除き、その後の最初の空でない引数を返す。無ければ空文字列（2 つ目以降は無視。research 決定4）。
   - `bool HasProjectExtension(const std::wstring& path)`: 末尾が `.canprj`（大文字小文字を区別しない、ASCII の範囲で比較）なら true。`.canprj` だけ・空文字列は、末尾が一致すれば true／しなければ false（今のダイアログの `HasProjectExtension` と同じ判定。research 決定7）。
 - [X] T003 `MFCApplication1/MFCApplication1Dlg.h/.cpp` で、現在のプロジェクトファイルの変更と読込みの処理を 1 か所にまとめる（依存: T001, T002）。動作はまだ変えない（タイトル以外）。
   - メンバー `CString m_baseTitle;`（`.rc` のキャプション）を足す。`OnInitDialog` の `SetIcon` の後で `GetWindowText(m_baseTitle)` する。
-  - `void SetProjectPath(const CString& path)`: `m_projectPath = path` にして、`SetWindowText(CanSim::ComposeWindowTitle(m_baseTitle, LoadRcString(IDS_PROJECT_PATH_LABEL), path))` でタイトルを書き直す。
-    `m_projectPath` への代入はこの関数だけにする（今の `OnFileLoadProject` と `SaveProjectTo` の代入を置き換える）。
-  - `bool LoadProjectFrom(const CString& path)`: 今の `OnFileLoadProject` の、ファイル選択より後の処理（拡張子の検査 → `CanSim::LoadConfig` → エラーなら `IDS_BAD_EXTENSION` / `IDS_LOAD_ERROR` のメッセージで false、
-    成功なら `m_settings`・`InvalidateToolbar`・`m_definitions`・`SetProjectPath(path)`・`SetEcuCount` で true）をそのまま移す。
+  - `void SetProjectPath(const CString& path)`: `m_projectPath = path` にして、`SetWindowText(CanSim::ComposeWindowTitle(m_baseTitle, LoadRcString(IDS_PROJECT_PATH_LABEL), path))` でタイトルを書き直す。`m_projectPath` への代入はこの関数だけにする（今の `OnFileLoadProject` と `SaveProjectTo` の代入を置き換える）。
+  - `bool LoadProjectFrom(const CString& path)`: 今の `OnFileLoadProject` の、ファイル選択より後の処理（拡張子の検査 → `CanSim::LoadConfig` → エラーなら `IDS_BAD_EXTENSION` / `IDS_LOAD_ERROR` のメッセージで false、成功なら `m_settings`・`InvalidateToolbar`・`m_definitions`・`SetProjectPath(path)`・`SetEcuCount` で true）をそのまま移す。
   - `OnFileLoadProject` は `InRun()` の確認・`CloseFrameEditor()`・ファイル選択の後に `LoadProjectFrom(dlg.GetPathName())` を呼ぶだけにする。
   - 無名名前空間の `HasProjectExtension` を消し、`CanSim::HasProjectExtension(std::wstring((LPCTSTR)path))` を使う。
 
@@ -60,19 +54,15 @@ description: "Task list for feature 024-project-path-title"
 **Independent Test**: quickstart.md の手順 6〜10。
 
 - [X] T007 [US2] 起動時の引数を受け取って読み込む（依存: T003。spec US2、FR-005〜007、research 決定4〜6）。
-  - `MFCApplication1/FrameEditDlg.h` の `WM_APP_*` の並びの次に `const UINT WM_APP_LOAD_STARTUP_PROJECT = WM_APP + 4;` を足す
-    （既存の `WM_APP + 1〜3` と重ならないように同じ場所で番号を管理する。コメント `// feature 024: main dialog loads the project given on the command line`）。
+  - `MFCApplication1/FrameEditDlg.h` の `WM_APP_*` の並びの次に `const UINT WM_APP_LOAD_STARTUP_PROJECT = WM_APP + 4;` を足す（既存の `WM_APP + 1〜3` と重ならないように同じ場所で番号を管理する。コメント `// feature 024: main dialog loads the project given on the command line`）。
   - `MFCApplication1/MFCApplication1Dlg.h/.cpp`:
     - メンバー `CString m_startupProject;` と `void SetStartupProject(const CString& path) { m_startupProject = path; }`（public）を足す。
     - `OnInitDialog` の最後（`return TRUE` の前）で、`m_startupProject` が空でなければ `PostMessage(WM_APP_LOAD_STARTUP_PROJECT)`。
     - `afx_msg LRESULT OnLoadStartupProject(WPARAM, LPARAM)` を足し、`ON_MESSAGE(WM_APP_LOAD_STARTUP_PROJECT, …)` をメッセージマップに足す。処理:
       1. `m_startupProject` を取り出して空にする（1 回だけ）。空なら何もしない。
-      2. `GetFullPathNameW` で絶対パスにする（失敗したら元の文字列のまま）。続けて `GetLongPathNameW` で 8.3 形式を長い名前にする（失敗したら `GetFullPathNameW` の結果のまま。ファイルが無いときは失敗する）。
-         バッファは `MAX_PATH` 固定にせず、1 回目の呼び出しで必要な長さを得てから確保する。
+      2. `GetFullPathNameW` で絶対パスにする（失敗したら元の文字列のまま）。続けて `GetLongPathNameW` で 8.3 形式を長い名前にする（失敗したら `GetFullPathNameW` の結果のまま。ファイルが無いときは失敗する）。バッファは `MAX_PATH` 固定にせず、1 回目の呼び出しで必要な長さを得てから確保する。
       3. `LoadProjectFrom(fullPath)` を呼ぶ。失敗してもアプリは続ける（メッセージは `LoadProjectFrom` が出す。タイトルのパスは空のまま。FR-006）。
-  - `MFCApplication1/MFCApplication1.cpp` の `InitInstance`: `CMFCApplication1Dlg dlg;` の後、`DoModal` の前で、
-    `__argc` / `__wargv` を `std::vector<std::wstring>` にして `CanSim::FindStartupProjectArg` を呼び、空でなければ `dlg.SetStartupProject(...)`。
-    `#include "CanSim/ProjectFile.h"` と `<vector>`・`<string>` を足す。`ParseCommandLine` / `ProcessShellCommand` は使わない。
+  - `MFCApplication1/MFCApplication1.cpp` の `InitInstance`: `CMFCApplication1Dlg dlg;` の後、`DoModal` の前で、`__argc` / `__wargv` を `std::vector<std::wstring>` にして `CanSim::FindStartupProjectArg` を呼び、空でなければ `dlg.SetStartupProject(...)`。`#include "CanSim/ProjectFile.h"` と `<vector>`・`<string>` を足す。`ParseCommandLine` / `ProcessShellCommand` は使わない。
   - 関連付けのレジストリへの書き込みは行わない（FR-008）。
 
 **Checkpoint**: `MFCApplication1.exe <パス>` で起動すると、そのプロジェクトが読み込まれ、タイトルに絶対パスが出る。
@@ -132,8 +122,7 @@ T003 → T004 → T005 → T006 → T007 (MFCApplication1Dlg.cpp, MFCApplication
 
 - 変更:
   - `CanSim/ProjectFile.h/.cpp`: `ComposeWindowTitle`、`FindStartupProjectArg`、`HasProjectExtension`（ダイアログの無名名前空間から移した）
-  - `MFCApplication1Dlg.h/.cpp`: `SetProjectPath`（`m_projectPath` を変える唯一の箇所。タイトルも書き直す）、`LoadProjectFrom`（`OnFileLoadProject` の後半を移した）、
-    `m_baseTitle`・`m_startupProject`、`OnLoadStartupProject`（`GetFullPathNameW` → `GetLongPathNameW` → `LoadProjectFrom`）
+  - `MFCApplication1Dlg.h/.cpp`: `SetProjectPath`（`m_projectPath` を変える唯一の箇所。タイトルも書き直す）、`LoadProjectFrom`（`OnFileLoadProject` の後半を移した）、`m_baseTitle`・`m_startupProject`、`OnLoadStartupProject`（`GetFullPathNameW` → `GetLongPathNameW` → `LoadProjectFrom`）
   - `MFCApplication1.cpp`: `InitInstance` で `__wargv` から起動時のプロジェクトを選んで渡す
   - `FrameEditDlg.h`: `WM_APP_LOAD_STARTUP_PROJECT`（`WM_APP + 4`）
   - `Resource.h`（UTF-8 BOM のまま）・`.rc`（UTF-16LE のまま。1 行 44 文字だけ増えたことを確認）: `IDS_PROJECT_PATH_LABEL`（254）
@@ -148,8 +137,7 @@ T003 → T004 → T005 → T006 → T007 (MFCApplication1Dlg.cpp, MFCApplication
 
 ## Phase 6: 改訂 1（ユーザーの指示: ラベルを短くする）
 
-- [X] T012 `MFCApplication1/MFCApplication1.rc` の `IDS_PROJECT_PATH_LABEL` を「プロジェクト名：」に変える（UTF-16LE・BOM 付き・CRLF のまま）。
-  CLAUDE.md・plan.md・research.md・data-model.md・contracts・quickstart.md・spec.md（Input を除く）の記述も合わせる。上の T001・T004 と実装結果の記録は当時の文字列のまま残す。
+- [X] T012 `MFCApplication1/MFCApplication1.rc` の `IDS_PROJECT_PATH_LABEL` を「プロジェクト名：」に変える（UTF-16LE・BOM 付き・CRLF のまま）。CLAUDE.md・plan.md・research.md・data-model.md・contracts・quickstart.md・spec.md（Input を除く）の記述も合わせる。上の T001・T004 と実装結果の記録は当時の文字列のまま残す。
 - [X] T013 4 構成のビルドと起動の確認（依存: T012）。
 
 ### 改訂 1 の結果（2026-10-02）

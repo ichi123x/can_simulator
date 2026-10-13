@@ -52,8 +52,7 @@ description: "Task list for feature 027-log-clear"
     - `afx_msg void OnLogClear();   // feature 027` を `OnLogViewSimLog` の次に宣言する。
     - `ON_COMMAND(ID_LOG_CLEAR, &CMFCApplication1Dlg::OnLogClear)` をメッセージマップに足す。
   - `OnInitMenuPopup`: `ID_LOG_VIEW_SIMLOG` の次に `pPopupMenu->EnableMenuItem(ID_LOG_CLEAR, idleOnly); // 027` を足す。
-  - 無名名前空間に `CString JoinFileNames(const std::vector<std::wstring>& paths)` を足す。
-    各パスの最後の `\` か `/` より後（ファイル名）を、`\n` でつないで返す。
+  - 無名名前空間に `CString JoinFileNames(const std::vector<std::wstring>& paths)` を足す。各パスの最後の `\` か `/` より後（ファイル名）を、`\n` でつないで返す。
   - `OnLogClear` の流れ（plan.md の「流れ」）:
     1. `InRun()` なら return する。
     2. `m_projectPath` が空なら return する（通知は T005 で足す）。
@@ -76,8 +75,7 @@ description: "Task list for feature 027-log-clear"
 - [X] T005 [US2] `MFCApplication1/MFCApplication1Dlg.cpp` の `OnLogClear` に通知を足す（依存: T004）。
   - 手順 2: `AfxMessageBox(LoadRcString(IDS_LOG_NONE_NOPROJECT), MB_OK | MB_ICONINFORMATION)` を出してから return する（025 と同じ）。
   - 手順 3: `IDS_LOG_NONE` を出してから return する。%s はプロジェクトのファイル名で、`OnLogViewSimLog` と同じく最後の `\` / `/` より後を使う（025 と同じ）。確認は出さない。
-  - 手順 8: `result.Failed` が空でなければ、`IDS_LOG_CLEAR_FAILED` を `JoinFileNames(result.Failed)` で整形し、`MB_OK | MB_ICONWARNING` で通知する。
-    削除できたものは削除されたまま。手順 7（1 つでも削除できたらログ表示エリアを空にする）は、この場合もそのまま行う。
+  - 手順 8: `result.Failed` が空でなければ、`IDS_LOG_CLEAR_FAILED` を `JoinFileNames(result.Failed)` で整形し、`MB_OK | MB_ICONWARNING` で通知する。削除できたものは削除されたまま。手順 7（1 つでも削除できたらログ表示エリアを空にする）は、この場合もそのまま行う。
 
 ## Phase 5: Polish & Cross-Cutting
 
@@ -145,6 +143,5 @@ T003 → T004 → T005 (MFCApplication1Dlg.h/.cpp)  |  T006 checks.cpp  |  T007 
   - checks.exe: 全 195 項目 PASS（027 の 6 項目を追加）。
   - HEAD のソースの runner で作った基準 CSV（各サンプル 10 秒）とも一致した（004 SC-009、SC-004）。
 - T009（GUI）:
-  - 手順 1（メニュー）: Release x64 を別に起動し、Windows API でメニューを読み出して確認した。
-    「ログ表示(&L)」の下に「シミュレーションログ(&L)...」（32780）と「ログクリア(&C)...」（32784）がこの順で並ぶ。
+  - 手順 1（メニュー）: Release x64 を別に起動し、Windows API でメニューを読み出して確認した。「ログ表示(&L)」の下に「シミュレーションログ(&L)...」（32780）と「ログクリア(&C)...」（32784）がこの順で並ぶ。
   - 手順 2〜11（確認・通知のダイアログ、削除、ログ表示エリア、ウィンドウを閉じる、読み取り専用、実行中、編集中、再実行）: ユーザーが手動で確認し、正常に動作した（2026-10-03）。

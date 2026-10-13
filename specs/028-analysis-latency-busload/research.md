@@ -28,8 +28,7 @@
 ## R3. 受信完了時間の終点
 
 - **Decision**: `Rx_End`（受信完了）を終点にする。`Rx_Process`（受信処理遅延の後）は使わない。
-- **Rationale**: spec の Assumptions。集計 CSV の「総送信レイテンシ」は `Rx_Process − Tx_Request` なので、受信処理遅延が 0 でない構成では値が違う。
-  この違いはウィンドウの説明の文に書いておく。
+- **Rationale**: spec の Assumptions。集計 CSV の「総送信レイテンシ」は `Rx_Process − Tx_Request` なので、受信処理遅延が 0 でない構成では値が違う。この違いはウィンドウの説明の文に書いておく。
 
 ## R4. ヒストグラムのビン
 

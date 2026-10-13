@@ -34,8 +34,7 @@ description: "Task list for feature 028-analysis-latency-busload"
     - `IDS_BUS_COLUMNS`: `"ECU|送信フレーム数|使用率 (%)"`
     - `IDS_LAT_NOTE`: `"送信要求 → 受信完了の時間（再送は届いた 1 回を 1 件）。破棄（OVERWRITE）%d 件は含みません。"`
     - `IDS_BUS_SUMMARY`: `"平均負荷 %s%%　最大負荷 %s%%（%s〜%s ms）　範囲 0〜%s ms（10 ms ごと）"`
-    - そのほか: `IDS_LAT_TITLE "受信完了時間 - %s"`、`IDS_LAT_ALL "全体"`、`IDS_LAT_AXIS_X "時間 (µs)"`、`IDS_LAT_AXIS_Y "件数"`、
-      `IDS_BUS_TITLE "CAN バス負荷 - %s"`、`IDS_BUS_AXIS_X "時刻 (ms)"`、`IDS_BUS_AXIS_Y "負荷 (%)"`、`IDS_ANALYSIS_NO_DATA "データがありません"`
+    - そのほか: `IDS_LAT_TITLE "受信完了時間 - %s"`、`IDS_LAT_ALL "全体"`、`IDS_LAT_AXIS_X "時間 (µs)"`、`IDS_LAT_AXIS_Y "件数"`、`IDS_BUS_TITLE "CAN バス負荷 - %s"`、`IDS_BUS_AXIS_X "時刻 (ms)"`、`IDS_BUS_AXIS_Y "負荷 (%)"`、`IDS_ANALYSIS_NO_DATA "データがありません"`
   - `.rc` の扱い: UTF-16LE・BOM 付き・CRLF を保つ。PowerShell でエンコーディングを明示して読み書きし、日本語は `[char]` のコードで組み立てる。書いた後に読み直して確かめる。
 - [X] T002 [P] `MFCApplication1/MFCApplication1.vcxproj` と `.vcxproj.filters` に、新しいファイルを登録する。`LogViewDlg` と同じ形で並べる。
   - `CanSim\LogAnalysis.h/.cpp`
@@ -130,8 +129,7 @@ description: "Task list for feature 028-analysis-latency-busload"
   - ハンドラ: `afx_msg void OnAnalysisLatency();`、`afx_msg LRESULT OnLatencyClosed(WPARAM, LPARAM);`（`m_latencyDlg = nullptr`）。
     - `ON_COMMAND(ID_ANALYSIS_LATENCY, …)` と `ON_MESSAGE(WM_APP_LATENCY_CLOSED, …)` を足す。
   - 共通の下ごしらえ: `bool LoadAnalysisRecords(std::vector<CanSim::LogRecord>& records)`
-    - 処理: `m_projectPath` が空なら `IDS_LOG_NONE_NOPROJECT`、ログが無ければ `IDS_LOG_NONE`（プロジェクトのファイル名）を通知して false。
-      ここまでは `OnLogViewSimLog` と同じ判定と通知。
+    - 処理: `m_projectPath` が空なら `IDS_LOG_NONE_NOPROJECT`、ログが無ければ `IDS_LOG_NONE`（プロジェクトのファイル名）を通知して false。ここまでは `OnLogViewSimLog` と同じ判定と通知。
     - `CanSim::ReadLogRecords` が失敗したら、`IDS_LOG_READ_ERROR`（ログのパス）を通知して false。
     - 待機カーソル（`CWaitCursor`）を出す。
   - `OnAnalysisLatency` の流れ:
@@ -287,14 +285,12 @@ T008 → T011 → T012 (MFCApplication1Dlg.h/.cpp)
   - ダイアログの一覧・説明・グラフは、置き場のコントロールを `.rc` に置かず、`OnInitDialog` でコードから作った（025 の `IDD_LOG_VIEW` と同じ作り）。
   - 2 つのウィンドウの共通部分（位置決め・閉じ方・オーナーへの通知・最小の大きさ）は `CAnalysisDlgBase` にまとめた。
   - グラフの平均の文字のために `IDS_BUS_AVERAGE`（277、「平均」）を足した（`_APS_NEXT_SYMED_VALUE` は 278）。
-  - 最小の大きさ（T017 で確認）: 受信完了時間のウィンドウは T007 の 480 × 360 px ではなく 520 × 400 px にした。480 では一覧の下の説明の行（「…破棄（OVERWRITE）n 件は含みません。」）の末尾が切れ、時間の軸の値も 1 つしか出ないため。
-    CAN バス負荷のウィンドウは T010 どおり 520 × 400 px（以前は 560 × 440 px で、指定より大きかった）。
+  - 最小の大きさ（T017 で確認）: 受信完了時間のウィンドウは T007 の 480 × 360 px ではなく 520 × 400 px にした。480 では一覧の下の説明の行（「…破棄（OVERWRITE）n 件は含みません。」）の末尾が切れ、時間の軸の値も 1 つしか出ないため。CAN バス負荷のウィンドウは T010 どおり 520 × 400 px（以前は 560 × 440 px で、指定より大きかった）。
 - 画面写しで見つけて直したこと:
   - 縦軸の名前（「件数」「負荷 (%)」）が一番上の目盛りの値と重なっていた。グラフの上の余白を広げ、軸の名前をその中に置いた。
   - 「平均 19.0%」の文字に折れ線が重なっていた。文字を白い背景で描くようにした。
 - T015:
-  - ビルド: Release x64・Debug x86・Release x86 は、警告・エラーなしでビルドできた。
-    Debug x64 は初回、ユーザーが起動中の Debug 版が exe を使っていてリンク（LNK1168）で止まった（プロセスは終了させていない）。アプリを閉じてもらった後にビルドし直し、警告・エラーなしで通った。
+  - ビルド: Release x64・Debug x86・Release x86 は、警告・エラーなしでビルドできた。Debug x64 は初回、ユーザーが起動中の Debug 版が exe を使っていてリンク（LNK1168）で止まった（プロセスは終了させていない）。アプリを閉じてもらった後にビルドし直し、警告・エラーなしで通った。
   - checks.exe: 全 209 項目 PASS（028 の 9 項目を追加）。HEAD の runner で作った基準 CSV とも一致した（SC-005）。
 - T016（GUI、Release x64、作業用フォルダーにコピーした `sample_vehicle_16ecu.canprj` を 5 秒実行したログ）:
   - 手順 1（メニュー）: Windows API で読み出して確認した。「解析(&A)」の下に「受信完了時間(&R)...」（32785）と「CAN バス負荷(&B)...」（32786）だけがあり、「準備中」は無い。

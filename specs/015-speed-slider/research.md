@@ -7,8 +7,7 @@
 - **Rationale**:
   - 暗い帯の上での見た目（棒状のつまみ・24 個の数字すべての表示）を、014 のボタンと揃えて描ける。
   - 座標と丸めを CanSim に置いて checks で検証できる（憲章 III）。
-  - 標準のトラックバーは、背景色・つまみの形・目盛りの数字（トラックバーは数字を描かない）の作り込みが要る。また、フォーカスを持つコントロールになり、
-    Enter・Esc・矢印キーの扱いがこのダイアログの方針（フォーカスを持つコントロールを置かない）とずれる。
+  - 標準のトラックバーは、背景色・つまみの形・目盛りの数字（トラックバーは数字を描かない）の作り込みが要る。また、フォーカスを持つコントロールになり、Enter・Esc・矢印キーの扱いがこのダイアログの方針（フォーカスを持つコントロールを置かない）とずれる。
 - **Alternatives considered**: `CSliderCtrl`（`TBS_AUTOTICKS`）+ 数字の STATIC × 24。カスタムドローと位置合わせが要り、DPI ごとのずれも出やすい。
 
 ## 決定2: スライダーの寸法（96 dpi、クライアント座標 = 帯の中の座標）
@@ -38,8 +37,7 @@
     - 距離が同じなら小さい方の値にする（決定的）。範囲外の x は端の値にする。
   - `bool IsOnSpeedSlider(int x, int y, int dpi)`: 当たり判定（決定2）を、換算後の `[Left, Right) × [Top, Bottom)` で判定する。
   - `DiagramRect SpeedThumbRect(int speed, int dpi)`、`DiagramRect SpeedLabelRect(int speed, int dpi)`、`DiagramRect SpeedTrackRect(int dpi)`（描画用）。
-- **Rationale**: FR-002〜FR-005、SC-001。描画と判定が同じ換算を使う（014 と同じ考え方）。距離で丸めると、DPI の換算で目盛りの間隔が
-  不揃い（±1 px）になっても、一番近い目盛りに止まる。
+- **Rationale**: FR-002〜FR-005、SC-001。描画と判定が同じ換算を使う（014 と同じ考え方）。距離で丸めると、DPI の換算で目盛りの間隔が不揃い（±1 px）になっても、一番近い目盛りに止まる。
 
 ## 決定4: スピードを変えたときの動作（CanSim の判定 + ダイアログの処理）
 
@@ -51,9 +49,7 @@
   | Paused | < kInstantSpeed | None（再開で効く） |
   | Running / Paused | kInstantSpeed（+10） | FinishNow |
   - ダイアログの `SetSpeed(int speed)` は、値が今と同じなら何もしない。違えば、`GetSpeedChangeAction` の結果で次のとおり動く。
-    - **Rebase**: 先に、古いスピードで今のシミュレーション時刻 `t = CurrentSimTimeUs()` を求める。
-      その後 `m_simBaseUs = t`、`m_replayStartQpc` = 今、`m_settings.Speed = speed` にする。
-      `m_curSimUs` / `m_prevSimUs` は変えない（次のタイマーで t 以上から続く）。
+    - **Rebase**: 先に、古いスピードで今のシミュレーション時刻 `t = CurrentSimTimeUs()` を求める。その後 `m_simBaseUs = t`、`m_replayStartQpc` = 今、`m_settings.Speed = speed` にする。`m_curSimUs` / `m_prevSimUs` は変えない（次のタイマーで t 以上から続く）。
     - **FinishNow**: `m_settings.Speed = speed`、ドラッグの捕捉を外し、`FinishReplay()`（全行の表示・全結果の CSV・完了メッセージ・待機へ）。
     - **None**: `m_settings.Speed = speed` だけ。
     - いずれもツールバーを描き直す。
@@ -71,8 +67,7 @@
   - `OnLButtonUp` と `OnCaptureChanged` では、ドラッグを終える。
   - 素早い 2 回目のクリック（`OnLButtonDblClk`）は、帯の中なら押下として扱う（014 と同じ）。
   - ボタンの押下とスライダーのドラッグは、どちらか一方だけ（押した場所で決まる）。
-- **Rationale**: FR-005（ドラッグ中も目盛りごとに反映、US2 シナリオ 2）。+10 で完了したときは、`FinishReplay` のメッセージボックスの前に捕捉を外す
-  （モーダルの間に捕捉が残らないように）。
+- **Rationale**: FR-005（ドラッグ中も目盛りごとに反映、US2 シナリオ 2）。+10 で完了したときは、`FinishReplay` のメッセージボックスの前に捕捉を外す（モーダルの間に捕捉が残らないように）。
 
 ## 決定6: セッティングからの削除
 

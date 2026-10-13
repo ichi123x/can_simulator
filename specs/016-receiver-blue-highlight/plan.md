@@ -6,8 +6,7 @@
 
 `CMFCApplication1Dlg::DrawBusDiagram` の受信 ECU（`m_active.Receivers` に含まれる ECU）の描き方を、次の 2 点だけ変える。
 
-1. 箱: 緑（`kReceiverFill` = `RGB(170,225,170)`、`kReceiverFrame` = `RGB(40,140,40)`）を、青（塗り `RGB(160,195,245)`、枠はバスと同じ
-   `kActiveBusColor` = `RGB(30,90,220)`、太さ 2）に変える。
+1. 箱: 緑（`kReceiverFill` = `RGB(170,225,170)`、`kReceiverFrame` = `RGB(40,140,40)`）を、青（塗り `RGB(160,195,245)`、枠はバスと同じ`kActiveBusColor` = `RGB(30,90,220)`、太さ 2）に変える。
 2. 接続線: 送信 ECU と同じ青の太線のペン（`activeLinePen`）で描く。
 
 強調の対象（どの ECU が受信 ECU か）・送信 ECU（赤）・バス（青）・フレーム表示 OFF の扱い・中断中の保持は変えない。

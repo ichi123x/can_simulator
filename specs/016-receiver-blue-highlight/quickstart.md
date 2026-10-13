@@ -6,8 +6,7 @@
 
 ## 2. GUI の確認（Debug|x64、サンプルは一時フォルダにコピー）
 
-`sample_collision`（ECU 1・3 が送信、ECU 2 は何も受信しない待機 ECU）と `sample_appendix_a` を、フレーム表示 ON にして実行する。
-フレームの送信中であることは、バスの色が青であることで判定する。詳しい色は [data-model.md](./data-model.md) を参照。
+`sample_collision`（ECU 1・3 が送信、ECU 2 は何も受信しない待機 ECU）と `sample_appendix_a` を、フレーム表示 ON にして実行する。フレームの送信中であることは、バスの色が青であることで判定する。詳しい色は [data-model.md](./data-model.md) を参照。
 
 1. `sample_appendix_a`（フレーム表示 ON、スピード -10）で実行し、中断する（バスが青の時点で中断できるまでくり返す）。
    - バスが青のとき、送信 ECU は赤、受信 ECU の箱は塗り `A0C3F5`・枠が青で、受信 ECU の接続線は青になっている。

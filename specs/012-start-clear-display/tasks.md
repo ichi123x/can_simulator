@@ -9,11 +9,9 @@ description: "Task list for feature 012-start-clear-display"
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md（すべて存在）。機能 004・005・009・011 の実装が完了していること。
 
-**Tests**: spec.md は自動テストを要求していない。コアの変更はないので checks.exe は既存項目の PASS と CSV の一致を確認する。表示の初期化と順序は
-GUI の自動操作（画面の色の読み取り、時刻の計測、スクリーンショット）で確認する。
+**Tests**: spec.md は自動テストを要求していない。コアの変更はないので checks.exe は既存項目の PASS と CSV の一致を確認する。表示の初期化と順序はGUI の自動操作（画面の色の読み取り、時刻の計測、スクリーンショット）で確認する。
 
-**Organization**: spec.md のユーザーストーリー（US1「開始」するとすぐに表示が空になる P1、US2 新しい実行の行が先頭から順に表示される P1）ごと。
-US2 は US1 の初期化（先頭行 0・表示 0 行）で満たされるため、コードの変更は US1 だけで、US2 は確認のみ。
+**Organization**: spec.md のユーザーストーリー（US1「開始」するとすぐに表示が空になる P1、US2 新しい実行の行が先頭から順に表示される P1）ごと。US2 は US1 の初期化（先頭行 0・表示 0 行）で満たされるため、コードの変更は US1 だけで、US2 は確認のみ。
 
 ## Format: `[ID] [P?] [Story] Description`
 
