@@ -47,32 +47,32 @@ namespace CanSim
         std::vector<int> stuffedRegionBits = preCrcBits;
         AppendBitsMsbFirst(stuffedRegionBits, crc, 15);
 
-        // Apply bit stuffing: insert one opposite bit after every 5
-        // consecutive identical bits in the original (unstuffed) stream.
-        int stuffBitCount = 0;
-        int runLength = 1;
-        for (std::size_t i = 1; i < stuffedRegionBits.size(); ++i)
+        // Apply bit stuffing (Bosch CAN 2.0A section 5, domain spec FR-021):
+        // copy the bits into a stuffed buffer and, whenever the last 5 bits of
+        // that buffer have the same level, append one bit of the opposite level.
+        // The stuff bit is part of the buffer, so it counts as the first bit of
+        // the next run (feature 031). A run of 5 at the end of the CRC sequence
+        // also gets a stuff bit, before the CRC delimiter.
+        std::vector<int> stuffedBits;
+        stuffedBits.reserve(stuffedRegionBits.size() + stuffedRegionBits.size() / 4 + 1);
+        int runLength = 0;
+        for (int bit : stuffedRegionBits)
         {
-            if (stuffedRegionBits[i] == stuffedRegionBits[i - 1])
+            runLength = (!stuffedBits.empty() && stuffedBits.back() == bit) ? runLength + 1 : 1;
+            stuffedBits.push_back(bit);
+            if (runLength == 5)
             {
-                ++runLength;
-                if (runLength == 5)
-                {
-                    ++stuffBitCount;
-                    runLength = 1; // the inserted opposite bit starts a new run of 1
-                }
-            }
-            else
-            {
-                runLength = 1;
+                stuffedBits.push_back(1 - bit); // stuff bit
+                runLength = 1;                  // first bit of the next run
             }
         }
+        const int stuffBitCount = static_cast<int>(stuffedBits.size() - stuffedRegionBits.size());
 
         FrameTimingResult result;
         result.StuffBitCount = stuffBitCount;
         // Fixed-form fields after the CRC sequence, never stuffed:
         // CRC delimiter(1) + ACK slot(1) + ACK delimiter(1) + EOF(7) = 10 bits.
-        result.TotalBits = static_cast<int>(stuffedRegionBits.size()) + stuffBitCount + 10;
+        result.TotalBits = static_cast<int>(stuffedBits.size()) + 10;
         result.BitTimeNs = bitRateBps > 0 ? (1000000000LL / bitRateBps) : 0;
         result.TxDurationNs = static_cast<long long>(result.TotalBits) * result.BitTimeNs;
         result.IntermissionNs = 3 * result.BitTimeNs;

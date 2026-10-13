@@ -2,6 +2,12 @@
 // Computes the actual on-wire transmission time of a CAN 2.0A standard data
 // frame, including real (data-dependent) bit stuffing (FR-008, FR-009,
 // FR-010). See contracts/ and the domain spec doc FR-020/021/023.
+//
+// Bit stuffing (feature 031, Bosch CAN 2.0A section 5): over SOF .. the end of
+// the CRC sequence, a bit of the opposite level is inserted after every 5
+// consecutive bits of the same level. The inserted stuff bit is counted as the
+// first bit of the next run. The CRC delimiter, ACK slot, ACK delimiter and EOF
+// (10 bits) are not stuffed. TotalBits = 34 + 8 * dlc + StuffBitCount + 10.
 
 #pragma once
 

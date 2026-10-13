@@ -183,7 +183,8 @@ namespace
         // With feature 002 in place every node needs 11 recessive bit times
         // (22 us at 500 kbps) before it may transmit, so the first frame of the
         // initial burst starts at 22 us instead of 0.
-        Check(first080 == 162, "002 SC-006: 0x080 first Tx_Start is 140 us + 22 us startup = 162 us");
+        // Feature 031: 0x050 (DLC 2, data 0xFF) is 65 bits = 130 us with standard bit stuffing (was 67 bits).
+        Check(first080 == 158, "002 SC-006: 0x080 first Tx_Start is 22 us startup + 130 us (0x050) + 6 us intermission = 158 us");
 
         // SC-004: transmit counts follow duration / period
         std::map<unsigned, long long> periods;
@@ -369,14 +370,16 @@ namespace
                           << " node2=" << (b ? b->NormalEntryUs : -1)
                           << " node3=" << (c ? c->NormalEntryUs : -1) << "\n";
                 Check(a && a->NormalEntryUs == 22, "node 1 syncs on an idle bus at 22 us");
-                Check(b && b->NormalEntryUs == 280,
-                    "SC-004: a node joining mid-frame syncs at the intermission end (280 us)");
+                // Feature 031: 0x100 (DLC 8, data 0xFF) is 123 bits = 246 us (was 126 bits), so the frame
+                // sent at 22 us ends at 268 us and the intermission ends at 274 us.
+                Check(b && b->NormalEntryUs == 274,
+                    "SC-004: a node joining mid-frame syncs at the intermission end (274 us)");
                 // Feature 006: node 1's second request moved from 300 to 322 us
                 // (Normal 22 + period 300) and node 3 now powers on at 305 us, so
-                // its window (305 + 22 = 327) is cut by the frame 322 -> 574 and
-                // it syncs at 574 - 16 + 22 = 580 us.
-                Check(c && c->NormalEntryUs == 580,
-                    "FR-007: a node interrupted by a new frame restarts and syncs at 580 us");
+                // its window (305 + 22 = 327) is cut by the frame 322 -> 568 and
+                // it syncs at 568 - 16 + 22 = 574 us (feature 031: the frame is 246 us long; it was 322 -> 574 before).
+                Check(c && c->NormalEntryUs == 574,
+                    "FR-007: a node interrupted by a new frame restarts and syncs at 574 us");
             }
         }
 

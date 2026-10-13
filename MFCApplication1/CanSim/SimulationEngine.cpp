@@ -13,6 +13,15 @@ namespace CanSim
         : m_network(std::move(network))
         , m_simDurationNs(simDurationUs * 1000)
     {
+        // Feature 031 FR-006: one transmission time per frame definition.
+        m_frameTimings.resize(m_network.Nodes.size());
+        for (std::size_t n = 0; n < m_network.Nodes.size(); ++n)
+        {
+            const Node& node = m_network.Nodes[n];
+            m_frameTimings[n].reserve(node.Frames.size());
+            for (const FrameDefinition& fd : node.Frames)
+                m_frameTimings[n].push_back(ComputeFrameTiming(fd.CanId, fd.Dlc, fd.Data, m_network.BitRateBps));
+        }
     }
 
     void SimulationEngine::Run(Logger& logger)
@@ -154,10 +163,8 @@ namespace CanSim
         if (!r.HasWinner)
             return; // FR-012/014: nothing pending, bus stays idle.
 
-        const FrameDefinition& fd =
-            m_network.Nodes[static_cast<std::size_t>(r.WinnerNodeIndex)].Frames[r.WinnerFrameDefIndex];
-        const FrameTimingResult timing =
-            ComputeFrameTiming(fd.CanId, fd.Dlc, r.WinnerPending.CurrentData, m_network.BitRateBps);
+        const FrameTimingResult& timing =
+            m_frameTimings[static_cast<std::size_t>(r.WinnerNodeIndex)][r.WinnerFrameDefIndex];
 
         const long long txStartNs = e.TimeNs;
         const long long txEndNs = txStartNs + timing.TxDurationNs;

@@ -6,6 +6,7 @@
 
 #include "CanTypes.h"
 #include "EventQueue.h"
+#include "FrameTiming.h"
 #include "Logger.h"
 
 namespace CanSim
@@ -59,6 +60,12 @@ namespace CanSim
         // start of the recessive run currently in progress (data-model.md).
         long long m_bitTimeNs = 0;
         long long m_recessiveRunStartNs = 0;
+
+        // Transmission time of every frame definition, computed once when the
+        // engine is built: m_frameTimings[node index][frame definition index].
+        // A frame's bits depend only on its CAN ID, DLC and data (always Dlc x
+        // 0xFF, feature 006), so they never change during a run (feature 031 FR-006).
+        std::vector<std::vector<FrameTimingResult>> m_frameTimings;
 
         // Rolling window for Bus_Load_Pct (FR-018), default 100ms (FR-071 equivalent).
         static constexpr long long kBusLoadWindowUs = 100000;
