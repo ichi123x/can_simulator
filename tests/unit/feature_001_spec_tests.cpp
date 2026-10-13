@@ -507,6 +507,19 @@ TEST(F001Spec, F001_SC005_SixteenNodes_LoadedAndRunProducesLog)
     EXPECT_FALSE(rows.empty()) << "16 ノードの実行でログが出なかった";
 }
 
+TEST(F001Spec,Practice_OneNode_Loaded)
+{
+    RecordProperty("spec", "001:SC-005");
+    const ConfigLoadResult result = LoadFromText("f001_sc005_1nodes.canprj", MakeConfigText(1));
+    ASSERT_TRUE(result.Success) << "1 ノードの構成が拒否された: " << result.ErrorMessage;
+    EXPECT_EQ(1u, result.Config.Nodes.size()) << "読み込まれたノード数";
+    const Network net = BuildRunNetwork(result.Project, result.Config);
+    EXPECT_EQ(1u, net.Nodes.size()) << "実行用ネットワークのノード数";
+    const std::vector<LogRow> rows = RunNetwork(net, 100000LL);
+    EXPECT_FALSE(rows.empty()) << "1 ノードの実行でログが出なかった";
+    
+}
+
 TEST(F001Spec, F001_SC005_EighteenAndTwentyNodes_AlwaysRejected)
 {
     RecordProperty("spec", "001:SC-005");
@@ -517,3 +530,16 @@ TEST(F001Spec, F001_SC005_EighteenAndTwentyNodes_AlwaysRejected)
         EXPECT_FALSE(result.Success) << n << " ノードの構成が受け入れられた";
     }
 }
+#if 0  //つづきはここから！
+TEST(F001Spec, Practice_ZeroNodes_Rejected)
+{
+    RecordProperty("spec", "001:SC-005");
+    for (int n : {17, 18, 20})
+    {
+        const ConfigLoadResult result =
+            LoadFromText("f001_sc005_many.canprj", MakeConfigText(n));
+        EXPECT_FALSE(result.Success) << n << " ノードの構成が受け入れられた";
+    }
+}
+#endif
+

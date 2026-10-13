@@ -1,0 +1,6 @@
+{
+  "cmake.ctestArgs": ["-LE", "slow"],
+  "testMate.cpp.test.advancedExecutables": [
+    { "pattern": "build/tests/Debug/*_tests.exe" }
+  ]
+}
