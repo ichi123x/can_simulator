@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "FrameEvents.h"
+#include "FrameEditor.h"
 #include "ProjectFile.h"
 #include "ReplayClock.h"
 #include "support/test_helpers.h"
@@ -114,13 +115,16 @@ TEST(F005Spec, F005_US2_5_SpeedSavedAndLoaded_MissingIsZero)
         ProjectSettings s;
         s.Speed = speed;
         const std::wstring path = TempPath("f005_speed.canprj");
-        ASSERT_TRUE(SaveProject(path, s, Network()));
+        Network definitions;
+        EnsureNode(definitions, 1); // ノード 0 個の構成は読込みで拒否されるので、ノードを 1 つ入れておく
+        ASSERT_TRUE(SaveProject(path, s, definitions));
         const ConfigLoadResult r = LoadConfig(path);
         DeleteFileW(path.c_str());
         ASSERT_TRUE(r.Success) << r.ErrorMessage;
         EXPECT_EQ(speed, r.Project.Speed) << "保存したスピードに戻る";
     }
-    const ConfigLoadResult old = LoadFromText("f005_nospeed.canprj", "[Project]\nEcuCount=2\nDurationSec=10\n");
+    //const ConfigLoadResult old = LoadFromText("f005_nospeed.canprj", "[Project]\nEcuCount=2\nDurationSec=10\n");
+    const ConfigLoadResult old = LoadFromText("f005_nospeed.canprj", "[Project]\nEcuCount=2\nDurationSec=10\n[Node1]\nNodeId=1\n");
     ASSERT_TRUE(old.Success) << old.ErrorMessage;
     EXPECT_EQ(0, old.Project.Speed) << "スピードの無いファイルは 0";
 }

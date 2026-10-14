@@ -7,6 +7,7 @@
 #include <set>
 
 #include "SimControls.h"
+#include "FrameEditor.h" 
 #include "support/test_helpers.h"
 
 using namespace CanSim;
@@ -40,20 +41,30 @@ TEST(F026Spec, F026_SC004_LegacySpeeds_ReadAsMinus10)
     RecordProperty("spec", "026:FR-005");
     for (int legacy : {-13, -12, -11})
     {
+    //    Network definitions;
+    //   EnsureNode(definitions, 1); // ノード 0 個の構成は読込みで拒否されるので、ノードを 1 つ入れておく
+
+        //const ConfigLoadResult r =
+        //    LoadFromText("f026_legacy.canprj", "[Project]\nSpeed=" + std::to_string(legacy) + "\n");
         const ConfigLoadResult r =
-            LoadFromText("f026_legacy.canprj", "[Project]\nSpeed=" + std::to_string(legacy) + "\n");
+            LoadFromText("f026_legacy.canprj", "[Project]\nSpeed=" + std::to_string(legacy) + "\n[Node1]\nNodeId=1\n");
         ASSERT_TRUE(r.Success) << legacy << ": " << r.ErrorMessage;
         EXPECT_EQ(-10, r.Project.Speed) << legacy << " は -10 として読む";
     }
     for (int ok : {-10, 0, 10})
     {
-        const ConfigLoadResult r = LoadFromText("f026_ok.canprj", "[Project]\nSpeed=" + std::to_string(ok) + "\n");
+    //    Network definitions;
+    //    EnsureNode(definitions, 1); // ノード 0 個の構成は読込みで拒否されるので、ノードを 1 つ入れておく
+    
+        //const ConfigLoadResult r = LoadFromText("f026_ok.canprj", "[Project]\nSpeed=" + std::to_string(ok) + "\n");
+        const ConfigLoadResult r = LoadFromText("f026_ok.canprj", "[Project]\nSpeed=" + std::to_string(ok) + "\n[Node1]\nNodeId=1\n");
+
         ASSERT_TRUE(r.Success) << ok << ": " << r.ErrorMessage;
         EXPECT_EQ(ok, r.Project.Speed);
     }
     for (const char* bad : {"-14", "11", "1.5", "fast", ""})
     {
-        const ConfigLoadResult r = LoadFromText("f026_bad.canprj", std::string("[Project]\nSpeed=") + bad + "\n");
+        const ConfigLoadResult r = LoadFromText("f026_bad.canprj", std::string("[Project]\nSpeed=") + bad + "\n[Node1]\nNodeId=1\n");
         EXPECT_FALSE(r.Success) << "Speed=" << bad << " が受け入れられた";
         if (!r.Success)
             EXPECT_NE(std::string::npos, r.ErrorMessage.find("-10")) << "エラーの文言の範囲は -10〜+10: " << r.ErrorMessage;

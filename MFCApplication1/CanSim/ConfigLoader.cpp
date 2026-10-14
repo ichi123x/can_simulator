@@ -273,9 +273,12 @@ namespace CanSim
             project.Speed = value < kMinSpeed ? kMinSpeed : static_cast<int>(value);
         }
 
-        // ---- Nodes (FR-001) ----
-        // Feature 004: a project may define no node at all (ECU count 0, or
-        // ECUs without any frame definition).
+        // ---- Nodes (FR-001: 1 to 16 nodes) ----
+        if (raw.nodes.empty())
+        {
+            result.ErrorMessage = "No node is defined. At least 1 node is required.";
+            return result;
+        }
         if (raw.nodes.size() > 16)
         {
             result.ErrorMessage = "Too many nodes (" + std::to_string(raw.nodes.size()) +

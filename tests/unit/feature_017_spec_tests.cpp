@@ -7,6 +7,7 @@
 
 #include "ProjectFile.h"
 #include "SimControls.h"
+#include "FrameEditor.h"
 #include "support/test_helpers.h"
 
 using namespace CanSim;
@@ -92,7 +93,9 @@ TEST(F017Spec, F017_SC003_FrameDisplaySavedAndLoaded)
         ProjectSettings s;
         s.FrameDisplay = on;
         const std::wstring path = TempPath("f017_sc003.canprj");
-        ASSERT_TRUE(SaveProject(path, s, Network()));
+        Network definitions;
+        EnsureNode(definitions, 1); // ノード 0 個の構成は読込みで拒否されるので、ノードを 1 つ入れておく
+        ASSERT_TRUE(SaveProject(path, s, definitions));
         const ConfigLoadResult r = LoadConfig(path);
         DeleteFileW(path.c_str());
         ASSERT_TRUE(r.Success) << r.ErrorMessage;

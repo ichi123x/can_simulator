@@ -534,12 +534,15 @@ TEST(F001Spec, F001_SC005_EighteenAndTwentyNodes_AlwaysRejected)
 TEST(F001Spec, Practice_ZeroNodes_Rejected)
 {
     RecordProperty("spec", "001:SC-005");
-    for (int n : {17, 18, 20})
-    {
+ //   for (int n : {17, 18, 20})
+ //   {
        const ConfigLoadResult result =
-            LoadFromText("f001_0node.canprj", MakeConfigText(n));
-        EXPECT_FALSE(result.Success) << n << " ノードの構成が受け入れられた";
-    }
+//            LoadFromText("f001_0node.canprj", MakeConfigText(n));
+//        EXPECT_FALSE(result.Success) << n << " ノードの構成が受け入れられた";
+             LoadFromText("f001_0node.canprj", MakeConfigText(0));
+        EXPECT_FALSE(result.Success) << "0 ノードの構成が受け入れられた";
+       
+//    }
 }
 
 
