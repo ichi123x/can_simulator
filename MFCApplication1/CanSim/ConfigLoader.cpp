@@ -51,6 +51,11 @@ namespace CanSim
         {
             if (s.empty())
                 return false;
+            // std::stoul accepts a leading '-' and wraps the value around, so a
+            // negative number would slip through as a huge one. Every value read
+            // here must be a non-negative integer (contracts/config-input-format.md).
+            if (s[0] == '-')
+                return false;
             try
             {
                 std::size_t pos = 0;

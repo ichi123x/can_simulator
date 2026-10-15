@@ -149,3 +149,24 @@ PowerShell スクリプト（`.specify/scripts/powershell/*.ps1`）がテンプ�
 **起動制御による時刻への影響**: 電源投入時刻・初期化時間が既定値（0）の構成でも、各ノードはバスが空であることを11ビット時間（500 kbps で 22 µs）ぶん観測してから通常動作に入ります。そのため、起動直後にバスが連続して埋まっている区間の送受信時刻はその分だけ後ろにずれます（バスが一度空いて以降は送信要求時刻どおりに戻ります）。送信順序・調停結果・送信回数・ログの行数は影響を受けません。CAN の実挙動に忠実であることを優先しているため、起動を省略する互換モードは意図的に設けていません。
 
 現時点でドキュメント/ビュー アーキテクチャは使用しておらず、単一のダイアログ (`IDD_MFCAPPLICATION1_DIALOG`) がアプリケーションの UI そのものです。新しい CAN シミュレータ機能を追加する際は、ドメインロジックを `CanSim/` に UI 非依存な形で追加し、`MFCApplication1Dlg` からはそれを呼び出すだけのグルーコードを書く、という分離を維持してください（憲章 III）。
+
+<!-- gtest-setup -->
+## テストの実行
+
+- ビルドとテスト: `cmake -S . -B build && cmake --build build --config Debug && ctest --test-dir build -C Debug --output-on-failure -LE slow`
+- マージ前の全テスト（Release、slow を含む）: `cmake --build build --config Release && ctest --test-dir build -C Release --output-on-failure`
+- 処理時間・速度を測るテストは別のファイル（別の `add_gtest`）にして `slow` を付ける。Debug の時間では合否を決めない
+- ラベル: `unit` / `integration` / `acceptance` / `slow`（`tests/CMakeLists.txt` の `add_gtest` で付ける）
+- テスト名の決まり: `F<機能番号>_<ID>_<条件>_<結果>`（英数字と _ だけ。日本語にすると ctest で 0 件実行のまま成功になるため、フックが止める）、`RecordProperty("spec", "<機能番号>:<ID>")` で spec.md の ID を記録する
+- テストコードのコメントと、失敗時に表示するメッセージは日本語で書く（ソースは UTF-8）
+- `/speckit-implement` では、各タスクの後に上のコマンドを実行し、全件成功を確かめること
+- 作業の終わりには Stop フック（`.claude/hooks/run-tests.ps1`）が自動でビルドとテストを実行する。失敗していると作業を終えられない
+
+<!-- gtest-coverage -->
+## カバレッジ
+
+- 測る: `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/scripts/coverage.ps1`（結果: `build/coverage/uncovered.txt` と `build/coverage/index.html`）
+- 赤い行（テストで実行されていない行）を減らすときは `/coverage` を使う。測る → 根拠を探す → テストを書く → 測り直す、をくり返す
+- テストは、期待値の根拠が仕様（spec.md・data-model.md・contracts/・ヘッダーのコメント）にある行だけ書き、根拠を各テストのコメントに残す
+- 根拠が無い行はテストを書かずに人に確認する。人が「テストしない」と決めた行は `tests/coverage-hold.md` に理由と一緒に載せる
+- 赤い行を消すためだけのテストは書かない。100% は目標にしない
