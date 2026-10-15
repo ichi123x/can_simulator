@@ -30,26 +30,7 @@ msbuild MFCApplication1\MFCApplication1.sln /p:Configuration=Debug /p:Platform=x
 - `framework.h` で `NOMINMAX` を定義済み。`CanSim/` 配下で `std::min`/`std::max`/`std::numeric_limits<T>::max()` などを使う際は、Windows ヘッダーの `min`/`max` マクロとの衝突を避けるためにこれに依存してよい（新たに `#undef min`/`#undef max` を個別ファイルに書く必要はない）
 - `CanSim/` 配下の新規ソースは日本語コメント・文字列リテラルを含めない（ASCII のみ）こと。`.cpp` は PCH（`pch.h`）を経由して `framework.h` を取り込む都合上、BOM なし UTF-8 で保存されるとコンパイラが実行時ロケール（日本語環境では コードページ 932）でソースを解釈し、非 ASCII 文字が文字化けする（警告 C4819）。UI 表示文字列は `MFCApplication1.rc`（UTF-16LE、BOM 付き）側の日本語ラベル・文字列テーブルに閉じ込め、`CanSim/`・`MFCApplication1Dlg.cpp` 側は英語の識別子・メッセージのみを扱う方針としている
 - `MFCApplication1.rc` は UTF-16LE（BOM 付き、CRLF）のバイナリに近いテキストファイル。編集する際は Read/Edit ツールでの直接編集を避け、PowerShell の `Get-Content -Encoding Unicode` / `[System.IO.File]::WriteAllText(path, text, (New-Object System.Text.UnicodeEncoding($false,$true)))` のようにエンコーディングを明示して読み書きすること（さもないと文字化けで壊れる）
-- 自動テストは機能 030 から GoogleTest + CTest です（憲章 III。`MFCApplication1.sln` には含まれず、アプリのビルドとは別に CMake で作ります）。ルートの `CMakeLists.txt` が `MFCApplication1/CanSim/*.cpp`（移動していない）を静的ライブラリ `cansim_core` にし、`tests/` の `runTests`（`cansim_core` と `gtest_main` をリンク）が機能ごとの `tests/feature_NNN_tests.cpp` を実行します。テスト名は `FeatureNNN.<SC/FR の ID>`（`SC001to005` = SC-001〜SC-005）。CMake 3.22 以上とネットワーク（初回の GoogleTest の取得。オフラインなら `-DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=<手元の googletest>`）が必要です。新しいロジックは、実装より先にテストを書いて失敗を確認してから実装します（憲章 III）。
-- **テストのコメントは日本語**で書きます（`tests/` のコメントと、失敗時に表示する `Check()` のラベル・診断メッセージ。テスト名・SC/FR の ID・識別子は英数字のまま）。これは `CanSim/`（ASCII のみ）とは別の規則です。`tests/` のソースは BOM なし UTF-8 で、ルートの `CMakeLists.txt` が MSVC に `/utf-8` を渡して読ませています（日本語版 Windows の既定のコードページ 932 のままだと文字化けして警告 C4819 になるため）。出力も UTF-8 なので、日本語を正しく見るにはコンソールを UTF-8（`chcp 65001`）にします。
-- `checks.exe`（`tools/cansim_runner/checks.cpp`）は、同じ検証を `tests/` へ移し終えて残してあるだけの旧ツールです（全 204 呼び出しを移行済みで、`tests/migration-ledger.md` に対応表）。削除は別作業で行います。`CanSim/` が UI 非依存のプレーン C++ である性質を利用して、GUI を操作せずに機能 001〜011・014・015・017〜020・022〜029 の成功基準（GUI 固有のものを除く）を一括検証できます。
-
-```powershell
-# リポジトリのルートで（Windows。Visual Studio 付属の CMake でよい）
-cmake -S . -B build
-cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure      # 全 55 件（Release 約 3 秒）
-# Debug では、実行時間で判定する速度の検査（ラベル slow、Feature018Slow）を外す
-ctest --test-dir build -C Debug -LE slow                   # 54 件（Debug 約 17 秒）
-
-# 機能を絞る
-ctest --test-dir build -C Release -R Feature006
-
-# 基準 CSV との比較（機能 004 SC-009・008 SC-005）も走らせる。未設定なら比較は行わず NOTE を出す
-$env:CANSIM_BASELINE_DIR = "<sample_<名前>.log.csv などのあるディレクトリ>"
-# 通った項目の一覧を checks.exe と同じ形で見る
-$env:CANSIM_TEST_VERBOSE = "1"; build\tests\Release\runTests.exe
-```
+- GoogleTest の連携は sdd-gtest-kit で作り直し中です（このブランチ `ver.0.9-gtestkit`）。`checks.exe`（`tools/cansim_runner/checks.cpp`）は、`CanSim/` が UI 非依存のプレーン C++ である性質を利用して、GUI を操作せずに機能 001〜011・014・015・017〜020・022〜029 の成功基準（GUI 固有のものを除く）を一括検証できます。
 
 ```bat
 REM 「x64 Native Tools Command Prompt for VS 2022」等でリポジトリのルートから実行
@@ -67,7 +48,7 @@ REM ため、基準は 006 以降のビルドで作ったものを使う（READM
 "%OUT%\checks.exe" MFCApplication1\CanSim\SampleConfigs "%OUT%"
 ```
 
-  単発のシミュレーション実行には同ディレクトリの `runner.cpp` を同様にビルドして使います（`runner.exe <.canprj> <出力接頭辞> [秒数]`）。詳細は [tools/cansim_runner/README.md](tools/cansim_runner/README.md) を参照してください。Lint の仕組みは未整備です。`build/`（CMake のビルドツリー）は `.gitignore` 済みで、テストの一時出力は `build/test_tmp` に出ます。
+  単発のシミュレーション実行には同ディレクトリの `runner.cpp` を同様にビルドして使います（`runner.exe <.canprj> <出力接頭辞> [秒数]`）。詳細は [tools/cansim_runner/README.md](tools/cansim_runner/README.md) を参照してください。Lint の仕組みは未整備です。
 
 ## Spec Kit（SDD）ワークフロー
 

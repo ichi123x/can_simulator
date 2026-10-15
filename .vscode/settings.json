@@ -1,3 +1,0 @@
-{
-  "cmake.ctestArgs": ["-LE", "slow"]
-}
