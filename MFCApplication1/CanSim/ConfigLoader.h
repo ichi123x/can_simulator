@@ -1,8 +1,8 @@
 // ConfigLoader.h
 // Reads and validates a network configuration file in the format defined by
 // contracts/config-input-format.md (FR-001..FR-005), extended by feature 004
-// into the .canprj project file (optional [Project] section, zero nodes
-// allowed; specs/004-menu-project-settings/contracts/project-file-format.md).
+// into the .canprj project file (optional [Project] section, at least
+// one node; specs/004-menu-project-settings/contracts/project-file-format.md).
 
 #pragma once
 

@@ -567,10 +567,10 @@ namespace
 
         // Defaults and validation of [Project] (FR-005, FR-006, FR-010)
         {
-            ConfigLoadResult r = LoadText("p_default.canprj", "[Network]\r\nBitRateBps=250000\r\n");
+            ConfigLoadResult r = LoadText("p_default.canprj", "[Network]\r\nBitRateBps=250000\r\n[Node1]\r\nNodeId=1\r\n");
             Check(r.Success && r.Project.EcuCount == 2 && r.Project.DurationSec == 10 &&
-                      r.Project.FrameDisplay && r.Config.Nodes.empty() && r.Config.BitRateBps == 250000,
-                "004 FR-006 / 021: [Project] defaults are EcuCount=2, DurationSec=10, FrameDisplay=1 (021); zero nodes allowed");
+                      r.Project.FrameDisplay && r.Config.Nodes.size() == 1 && r.Config.BitRateBps == 250000,
+                "004 FR-006 / 021: [Project] defaults are EcuCount=2, DurationSec=10, FrameDisplay=1 (021)");
 
             const char* bad[] = { "EcuCount=17", "EcuCount=-1", "DurationSec=0", "DurationSec=601",
                                   "FrameDisplay=2", "EcuCount=abc" };
@@ -583,7 +583,7 @@ namespace
             Check(allRejected, "004 FR-010: out-of-range [Project] values are rejected with a reason");
 
             ConfigLoadResult edge = LoadText("p_edge.canprj",
-                "[Project]\r\nEcuCount=16\r\nDurationSec=600\r\nFrameDisplay=1\r\n");
+                "[Project]\r\nEcuCount=16\r\nDurationSec=600\r\nFrameDisplay=1\r\n[Node1]\r\nNodeId=1\r\n");
             Check(edge.Success && edge.Project.EcuCount == 16 && edge.Project.DurationSec == 600 &&
                       edge.Project.FrameDisplay,
                 "004 FR-005: boundary values EcuCount=16, DurationSec=600, FrameDisplay=1 are accepted");
@@ -643,8 +643,8 @@ namespace
 
         // Runs with no ECU / no frames produce header-only CSVs (US3 AS5)
         {
-            ConfigLoadResult empty = LoadText("p_zero.canprj", "[Project]\r\nEcuCount=0\r\n");
-            ConfigLoadResult noFrames = LoadText("p_noframes.canprj", "[Project]\r\nEcuCount=2\r\n");
+            ConfigLoadResult empty = LoadText("p_zero.canprj", "[Project]\r\nEcuCount=0\r\n[Node1]\r\nNodeId=1\r\n");
+            ConfigLoadResult noFrames = LoadText("p_noframes.canprj", "[Project]\r\nEcuCount=2\r\n[Node1]\r\nNodeId=1\r\n");
             bool ok = empty.Success && noFrames.Success;
             std::vector<LogRow> rows0, rows2;
             ok = ok && RunProjectToCsv(Join(g_tempDir, "p_zero.canprj"), Join(g_tempDir, "p_zero"), 1000000LL, &rows0);
@@ -754,7 +754,7 @@ namespace
 
         // Speed in [Project] (FR-001, FR-002)
         {
-            ConfigLoadResult def = LoadText("s_default.canprj", "[Project]\r\nEcuCount=2\r\n");
+            ConfigLoadResult def = LoadText("s_default.canprj", "[Project]\r\nEcuCount=2\r\n[Node1]\r\nNodeId=1\r\n");
             Check(def.Success && def.Project.Speed == 0, "005 FR-002: Speed defaults to 0 when absent");
 
             struct Case { const char* Text; int Expected; };
@@ -762,7 +762,7 @@ namespace
             bool accepted = true;
             for (const Case& c : ok)
             {
-                ConfigLoadResult r = LoadText("s_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n");
+                ConfigLoadResult r = LoadText("s_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n[Node1]\r\nNodeId=1\r\n");
                 accepted = accepted && r.Success && r.Project.Speed == c.Expected;
             }
             Check(accepted, "005 FR-002: Speed +3 / -3 / 10 / -10 / 0 are accepted (026: range -10..10)");
@@ -780,7 +780,12 @@ namespace
             s.Speed = -10;
             const std::string path = Join(g_tempDir, "s_roundtrip.canprj");
             ConfigLoadResult back;
-            const bool saved = SaveProject(Widen(path), s, Network());
+            // Zero nodes is a load error (001 FR-001), so save one node
+            Network oneNode;
+            Node node;
+            node.NodeId = 1;
+            oneNode.Nodes.push_back(node);
+            const bool saved = SaveProject(Widen(path), s, oneNode);
             back = LoadConfig(Widen(path));
             Check(saved && back.Success && back.Project.Speed == -10, "005 FR-002: Speed survives save then reload");
         }
@@ -2211,7 +2216,7 @@ namespace
         bool read = true;
         for (const Case& c : legacy)
         {
-            ConfigLoadResult r = LoadText("s026_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n");
+            ConfigLoadResult r = LoadText("s026_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n[Node1]\r\nNodeId=1\r\n");
             read = read && r.Success && r.Project.Speed == c.Expected;
         }
         Check(read, "026 FR-005/SC-004: Speed -13 / -12 / -11 of older files load as -10; -10 and 10 as they are");

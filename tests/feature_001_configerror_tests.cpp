@@ -93,3 +93,10 @@ TEST(Feature001ConfigErrors, F001_BadConfig_ReportsError)
         EXPECT_EQ(r.ErrorMessage, c.Expected);
     }
 }
+// ノードが 1 つも無い構成は、読込みエラーにする（001 FR-001: 1〜16 ノード。0 個は読込みエラー）
+TEST(Feature001ConfigErrors, F001_FR001_ZeroNodes_Rejected)
+{
+    ConfigLoadResult r = LoadText("e_zero_nodes.canprj", "[Network]\r\nBitRateBps=250000\r\n");
+    EXPECT_FALSE(r.Success) << "ノードが 0 個なのに読み込めたことになっている";
+    EXPECT_EQ(r.ErrorMessage, "No node is defined. At least 1 node is required.");
+}

@@ -1,7 +1,7 @@
 # Research: メニューバー・プロジェクト保存/読込み・設定・フレーム表示・シミュレーション操作
 
 ## 決定1: `.canprj` は `.cfg` 形式の拡張とし、`ConfigLoader` を再利用する
-- **Decision**: 形式は機能 001 の `[Network]`／`[NodeN]`／`[NodeN.FrameM]` 構文を踏襲し、新しく`[Project]` セクション（`EcuCount`、`DurationSec`、`FrameDisplay`）を任意で追加する。既定値はspec FR-006（2、10、OFF）。通信速度は既存の `[Network] BitRateBps` を使う（単一の情報源）。`ConfigLoader` は `[Project]` の読込みを追加し、検証規則（CAN ID 重複、Dlc=Data、NodeId 1〜16 等）はそのまま再利用する。ノード 0 個（`[NodeN]` なし）を許容する（現状は「少なくとも 1 つ」で拒否）。
+- **Decision**: 形式は機能 001 の `[Network]`／`[NodeN]`／`[NodeN.FrameM]` 構文を踏襲し、新しく`[Project]` セクション（`EcuCount`、`DurationSec`、`FrameDisplay`）を任意で追加する。既定値はspec FR-006（2、10、OFF）。通信速度は既存の `[Network] BitRateBps` を使う（単一の情報源）。`ConfigLoader` は `[Project]` の読込みを追加し、検証規則（CAN ID 重複、Dlc=Data、NodeId 1〜16 等）はそのまま再利用する。ノード 0 個（`[NodeN]` なし）は、機能 001 FR-001 のとおり読込みで拒否する（当初は許容としたが、のちに拒否へ戻した）。
 - **Rationale**: 001 の検証を作り直さずに済む。サンプルと利用者の記述負担が最小。
 - **Alternatives**: JSON 形式 — 新規パーサが必要。`.cfg` と `.canprj` の併用 — メニューに `.cfg` の読込みは設けない（spec Assumptions）ため不要。
 

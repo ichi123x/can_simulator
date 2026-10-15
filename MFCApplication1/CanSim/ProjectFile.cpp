@@ -32,7 +32,21 @@ namespace CanSim
         os << "[Network]\r\n";
         os << "BitRateBps=" << definitions.BitRateBps << "\r\n";
 
-        for (const Node& node : definitions.Nodes)
+        // A file without any [NodeN] is rejected on load (001 FR-001), so with no
+        // definition at all write the nodes BuildRunNetwork would add instead
+        // (ECU 1..EcuCount, or ECU 1 when EcuCount is 0). The run result after
+        // reloading is the same.
+        std::vector<Node> placeholders;
+        if (definitions.Nodes.empty())
+        {
+            ProjectSettings atLeastOne = settings;
+            if (atLeastOne.EcuCount < 1)
+                atLeastOne.EcuCount = 1;
+            placeholders = BuildRunNetwork(atLeastOne, definitions).Nodes;
+        }
+        const std::vector<Node>& nodes = definitions.Nodes.empty() ? placeholders : definitions.Nodes;
+
+        for (const Node& node : nodes)
         {
             os << "\r\n[Node" << node.NodeId << "]\r\n";
             os << "NodeId=" << node.NodeId << "\r\n";

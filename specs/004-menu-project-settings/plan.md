@@ -64,7 +64,7 @@ MFCApplication1/
 ├── MFCApplication1.vcxproj(.filters)   # 変更: 新規ファイルの登録
 └── CanSim/
     ├── CanTypes.h                      # 変更: ProjectSettings を追加
-    ├── ConfigLoader.h / .cpp           # 変更: [Project] セクションの読込み、ノード 0 個の許容
+    ├── ConfigLoader.h / .cpp           # 変更: [Project] セクションの読込み（ノード 0 個は機能 001 FR-001 により拒否）
     ├── ProjectFile.h / .cpp            # 新規: SaveProject、実行用ネットワーク生成 (BuildRunNetwork)
     ├── FrameEvents.h / .cpp            # 新規: LogRow 群 → 再生用フレームイベント列
     ├── BusDiagramLayout.h / .cpp       # 003 で新規（本機能は変更なし）

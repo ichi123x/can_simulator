@@ -30,7 +30,7 @@ TEST(Feature026, SC003to004_FR004to005)
     bool read = true;
     for (const Case& c : legacy)
     {
-        ConfigLoadResult r = LoadText("s026_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n");
+        ConfigLoadResult r = LoadText("s026_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n[Node1]\r\nNodeId=1\r\n");
         read = read && r.Success && r.Project.Speed == c.Expected;
     }
     Check(read, "026 FR-005/SC-004: 古いファイルの Speed -13 / -12 / -11 は -10 として読み込まれ、-10 と 10 はそのまま読まれる");

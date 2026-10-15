@@ -12,10 +12,10 @@ TEST(Feature004, SC003_SC008to009_FR005to006_FR010to011)
 
     // [Project] の既定値と検査（FR-005, FR-006, FR-010）
     {
-        ConfigLoadResult r = LoadText("p_default.canprj", "[Network]\r\nBitRateBps=250000\r\n");
+        ConfigLoadResult r = LoadText("p_default.canprj", "[Network]\r\nBitRateBps=250000\r\n[Node1]\r\nNodeId=1\r\n");
         Check(r.Success && r.Project.EcuCount == 2 && r.Project.DurationSec == 10 &&
-                  r.Project.FrameDisplay && r.Config.Nodes.empty() && r.Config.BitRateBps == 250000,
-            "004 FR-006 / 021: [Project] の既定値は EcuCount=2, DurationSec=10, FrameDisplay=1（021）で、ノード 0 個も許される");
+                  r.Project.FrameDisplay && r.Config.Nodes.size() == 1 && r.Config.BitRateBps == 250000,
+            "004 FR-006 / 021: [Project] の既定値は EcuCount=2, DurationSec=10, FrameDisplay=1（021）");
 
         const char* bad[] = { "EcuCount=17", "EcuCount=-1", "DurationSec=0", "DurationSec=601",
                               "FrameDisplay=2", "EcuCount=abc" };
@@ -28,7 +28,7 @@ TEST(Feature004, SC003_SC008to009_FR005to006_FR010to011)
         Check(allRejected, "004 FR-010: 範囲外の [Project] の値は理由つきで拒否される");
 
         ConfigLoadResult edge = LoadText("p_edge.canprj",
-            "[Project]\r\nEcuCount=16\r\nDurationSec=600\r\nFrameDisplay=1\r\n");
+            "[Project]\r\nEcuCount=16\r\nDurationSec=600\r\nFrameDisplay=1\r\n[Node1]\r\nNodeId=1\r\n");
         Check(edge.Success && edge.Project.EcuCount == 16 && edge.Project.DurationSec == 600 &&
                   edge.Project.FrameDisplay,
             "004 FR-005: 境界値 EcuCount=16, DurationSec=600, FrameDisplay=1 は受け付けられる");
@@ -86,10 +86,11 @@ TEST(Feature004, SC003_SC008to009_FR005to006_FR010to011)
         Check(BuildRunNetwork(s, src.Config).Nodes.empty(), "004 FR-011: EcuCount=0 なら空のネットワークになる");
     }
 
-    // ECU なし・フレームなしの実行はヘッダーだけの CSV を出す（US3 AS5）
+    // ECU なし・フレームなしの実行はヘッダーだけの CSV を出す（US3 AS5）。
+    // ノード 0 個は読込みエラー（001 FR-001）なので、ECU 数 0 はノードを 1 つ定義したまま EcuCount=0 にして表す
     {
-        ConfigLoadResult empty = LoadText("p_zero.canprj", "[Project]\r\nEcuCount=0\r\n");
-        ConfigLoadResult noFrames = LoadText("p_noframes.canprj", "[Project]\r\nEcuCount=2\r\n");
+        ConfigLoadResult empty = LoadText("p_zero.canprj", "[Project]\r\nEcuCount=0\r\n[Node1]\r\nNodeId=1\r\n");
+        ConfigLoadResult noFrames = LoadText("p_noframes.canprj", "[Project]\r\nEcuCount=2\r\n[Node1]\r\nNodeId=1\r\n");
         bool ok = empty.Success && noFrames.Success;
         std::vector<LogRow> rows0, rows2;
         ok = ok && RunProjectToCsv(Join(TempDir(), "p_zero.canprj"), Join(TempDir(), "p_zero"), 1000000LL, &rows0);
@@ -192,4 +193,34 @@ TEST(Feature004, SC003_SC008to009_FR005to006_FR010to011)
     }
     if (BaselineDir().empty())
         std::cout << "[  注記   ] 基準 CSV との比較は省略しました（CANSIM_BASELINE_DIR を設定してください。tools/cansim_runner/README.md 参照）\n";
+}
+
+// 定義が 1 つも無いまま保存したプロジェクト（起動直後の状態など）も読み直せる（SC-003）。
+// ノード 0 個は読込みエラー（001 FR-001）なので、保存のときに BuildRunNetwork の補いと同じノードを書く
+TEST(Feature004, SC003_NoDefinitions_SavedProjectReloads)
+{
+    for (int ecuCount : { 2, 0 })
+    {
+        ProjectSettings s;
+        s.EcuCount = ecuCount;
+        Network empty;
+        const std::string path = Join(TempDir(), "p_nodefs.canprj");
+        ASSERT_TRUE(SaveProject(Widen(path), s, empty)) << "保存できなかった（EcuCount=" << ecuCount << "）";
+
+        ConfigLoadResult back = LoadConfig(Widen(path));
+        ASSERT_TRUE(back.Success) << "保存したファイルを読み直せない（EcuCount=" << ecuCount << "）: "
+                                  << back.ErrorMessage;
+        EXPECT_EQ(back.Project.EcuCount, ecuCount);
+
+        // 読み直した定義から作る実行用ネットワークは、保存前のものと同じ（ノード番号・名前・フレームなし）
+        const Network before = BuildRunNetwork(s, empty);
+        const Network after = BuildRunNetwork(back.Project, back.Config);
+        ASSERT_EQ(after.Nodes.size(), before.Nodes.size()) << "EcuCount=" << ecuCount;
+        for (std::size_t i = 0; i < before.Nodes.size(); ++i)
+        {
+            EXPECT_EQ(after.Nodes[i].NodeId, before.Nodes[i].NodeId);
+            EXPECT_EQ(after.Nodes[i].Name, before.Nodes[i].Name);
+            EXPECT_TRUE(after.Nodes[i].Frames.empty());
+        }
+    }
 }

@@ -15,7 +15,7 @@
 ECU 番号 n は `Node::NodeId` = n に対応する（ECU 番号 1〜EcuCount）。
 
 ## 関数（ASCII のみ）
-- `LoadConfig(path)` → 既存。`[Project]` セクションを読み、ノード 0 個を許容する。エラー時は`Success=false`＋メッセージ。
+- `LoadConfig(path)` → 既存。`[Project]` セクションを読み、ノード 0 個は拒否する（機能 001 FR-001）。エラー時は`Success=false`＋メッセージ。
 - `SaveProject(path, settings, network)` → bool。同形式のテキストを UTF-8 で書く。
 - `BuildRunNetwork(settings, definitions)` → `Network`。research.md 決定2のとおり ECU 1〜EcuCount のノード。
 - `BuildFrameEvents(rows)` → `vector<FrameEvent>`。

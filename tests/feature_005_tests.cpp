@@ -12,7 +12,7 @@ TEST(Feature005, SC004_FR002to003_FR009)
 
     // [Project] のスピード（FR-001, FR-002）
     {
-        ConfigLoadResult def = LoadText("s_default.canprj", "[Project]\r\nEcuCount=2\r\n");
+        ConfigLoadResult def = LoadText("s_default.canprj", "[Project]\r\nEcuCount=2\r\n[Node1]\r\nNodeId=1\r\n");
         Check(def.Success && def.Project.Speed == 0, "005 FR-002: Speed が無いときの既定値は 0");
 
         struct Case { const char* Text; int Expected; };
@@ -20,7 +20,7 @@ TEST(Feature005, SC004_FR002to003_FR009)
         bool accepted = true;
         for (const Case& c : ok)
         {
-            ConfigLoadResult r = LoadText("s_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n");
+            ConfigLoadResult r = LoadText("s_ok.canprj", std::string("[Project]\r\nSpeed=") + c.Text + "\r\n[Node1]\r\nNodeId=1\r\n");
             accepted = accepted && r.Success && r.Project.Speed == c.Expected;
         }
         Check(accepted, "005 FR-002: Speed の +3 / -3 / 10 / -10 / 0 は受け付けられる（026: 範囲は -10..10）");
@@ -38,7 +38,12 @@ TEST(Feature005, SC004_FR002to003_FR009)
         s.Speed = -10;
         const std::string path = Join(TempDir(), "s_roundtrip.canprj");
         ConfigLoadResult back;
-        const bool saved = SaveProject(Widen(path), s, Network());
+        // ノード 0 個は読込みエラー（001 FR-001）なので、ノードを 1 つ持たせて保存する
+        Network oneNode;
+        Node node;
+        node.NodeId = 1;
+        oneNode.Nodes.push_back(node);
+        const bool saved = SaveProject(Widen(path), s, oneNode);
         back = LoadConfig(Widen(path));
         Check(saved && back.Success && back.Project.Speed == -10, "005 FR-002: Speed は保存して読み直しても保たれる");
     }
