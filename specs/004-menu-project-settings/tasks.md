@@ -132,6 +132,7 @@ description: "Task list for feature 004-menu-project-settings"
 - [X] T029 Debug/Release × x64/x86 の全 4 構成で `msbuild MFCApplication1\MFCApplication1.sln` が警告 C4819 なしで通ることを確認する（憲章 II）
 - [X] T030 回帰確認: `checks.exe` の全項目が PASS、T001 の基準データと移行後サンプルの結果 CSV が一致（SC-009）、フレーム表示 ON と OFF で 3 種の CSV が完全一致（SC-006）することを確認する（依存: T029）
 - [X] T031 `quickstart.md` の GUI 手順（2〜7）を実機で通しで実施し、Windows をダークテーマにしても表示部が白のままであることも確認する（機能 003 の SC-004 と 004 の SC-007）（依存: T030）【実施状況】GUI 手順 2〜7 は自動操作スクリプトで実施済み（起動直後の表示、Enter/Esc で閉じない、セッティングの選択肢・キャンセル・時間 0 の拒否、保存→読込み、拡張子違い・壊れた内容・EcuCount=17 の拒否と内容維持、未保存で開始→保存先の指定、ON の再生と途中終了、ON/OFF で CSV 完全一致、再生中の ✖、Alt+S）。ダークテーマでの確認は利用者が実機で実施し（2026-09-29）、ダークモードでもメニュー行より下が白のままであることを確認した（SC-007、003 SC-004）。
+- [X] T032 【のちの追加、2026-10-15】ノード 0 個が読込みエラーになった（機能 001 FR-001）ため、`MFCApplication1/CanSim/ProjectFile.cpp` の `SaveProject` で、ノード定義が 1 つも無いときは `BuildRunNetwork` の補いと同じノード（ECU 1〜EcuCount、0 なら ECU 1）を書く（SC-003、contracts/project-file-format.md）。テスト `Feature004.SC003_NoDefinitions_SavedProjectReloads` を先に書いて失敗を確認してから実装した（憲章 III）。全 4 構成のビルドと ctest（Debug、56 件）が通ることを確認（コミット 3592703）
 
 ---
 
