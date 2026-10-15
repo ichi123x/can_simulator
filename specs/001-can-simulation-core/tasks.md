@@ -46,7 +46,7 @@ description: "Task list template for feature implementation"
 - [X] T004 [P] `MFCApplication1/CanSim/FrameTiming.h/.cpp` に、ビットスタッフィング（同一レベル5ビット連続で反転ビットを1つ挿入）を適用したビット数からフレーム伝送時間を計算する関数を実装する（FR-008, FR-009）。送信完了後3ビットのフレーム間休止期間（インターミッション）の長さも算出できるようにする（FR-010）。
 
 - [X] T005 [P] `MFCApplication1/CanSim/ConfigLoader.h/.cpp` に、`contracts/config-input-format.md` の形式で設定ファイルを読み込み `Network`/`Node`/ `FrameDefinition`（T002）を構築する処理を実装する。以下の検証ルールを満たすこと:
-  - ノード数は「1〜16」。17件以上は読み込み時に拒否する（FR-001）。
+  - ノード数は「1〜16」。17件以上は読み込み時に拒否する（FR-001）。【のちの変更】0 件も読込みエラーにした（FR-001 の追記。機能 004 で一度許容したものを戻した。テストは `F001_FR001_ZeroNodes_Rejected`）。
   - `[Network].BitRateBps` は「125000 / 250000 / 500000 / 1000000 のいずれか」（既定500000）（FR-002）。
   - 「データのバイト数が DLC と合わない構成は拒否する」（FR-003）。
   - 「1つの ID を送信するノードは1つに限る。違反した構成は読み込み時に拒否する」（FR-004）。
