@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "ProjectFile.h"
+#include "FrameEditor.h"
 #include "support/test_helpers.h"
 
 using namespace CanSim;
@@ -31,20 +32,24 @@ TEST(F004Edge, F004_FR010_ProjectKeysOutOfRange_RejectedWithKeyName)
     for (const auto& b : bad)
     {
         const ConfigLoadResult r =
-            LoadFromText("f004_bad.canprj", std::string("[Project]\n") + b.Key + "=" + b.Value + "\n");
+            LoadFromText("f004_bad.canprj", std::string("[Project]\n") + b.Key + "=" + b.Value + "\n[Node1]\nNodeId=1\n");
         EXPECT_FALSE(r.Success) << b.Key << "=" << b.Value << " が受け入れられた";
         EXPECT_NE(std::string::npos, r.ErrorMessage.find(b.Key)) << "メッセージにキーが無い: " << r.ErrorMessage;
     }
-    const ConfigLoadResult lo = LoadFromText("f004_lo.canprj", "[Project]\nEcuCount=0\nDurationSec=1\nFrameDisplay=0\n");
+//    Network definitions;
+//    EnsureNode(definitions, 1); // ノード 0 個の構成は読込みで拒否されるので、ノードを 1 つ入れておく
+    const ConfigLoadResult lo = LoadFromText("f004_lo.canprj", "[Project]\nEcuCount=0\nDurationSec=1\nFrameDisplay=0\n[Node1]\nNodeId=1\n");
+//    ASSERT_TRUE(lo.Success) << lo.ErrorMessage;
+
     ASSERT_TRUE(lo.Success) << lo.ErrorMessage;
     EXPECT_EQ(0, lo.Project.EcuCount);
     EXPECT_EQ(1, lo.Project.DurationSec);
-    const ConfigLoadResult hi = LoadFromText("f004_hi.canprj", "[Project]\nEcuCount=16\nDurationSec=600\nFrameDisplay=1\n");
+//    EnsureNode(definitions, 1); // ノード 0 個の構成は読込みで拒否されるので、ノードを 1 つ入れておく
+    const ConfigLoadResult hi = LoadFromText("f004_hi.canprj", "[Project]\nEcuCount=16\nDurationSec=600\nFrameDisplay=1\n[Node1]\nNodeId=1\n");
     ASSERT_TRUE(hi.Success) << hi.ErrorMessage;
     EXPECT_EQ(16, hi.Project.EcuCount);
     EXPECT_EQ(600, hi.Project.DurationSec);
 }
-
 // ---------------------------------------------------------------------------
 // 契約「実行時の解釈」: 保存はこの形式を書き出し、読み込み直すとノードの設定（受信フィルタ・受信処理遅延・
 //   電源投入・初期化時間）と、EcuCount を超える番号の定義も保たれる。
