@@ -74,7 +74,7 @@ void CSettingsDlg::OnOK()
 	if (!valid)
 	{
 		CString message;
-		message.LoadString(IDS_DURATION_ERROR);
+		VERIFY(message.LoadString(IDS_DURATION_ERROR));
 		AfxMessageBox(message, MB_OK | MB_ICONWARNING);
 		GetDlgItem(IDC_EDIT_DURATION_SEC)->SetFocus();
 		return; // keep the dialog open

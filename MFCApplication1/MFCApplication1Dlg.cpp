@@ -651,7 +651,7 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 		CRect label = ButtonRect(CanSim::ToolbarButtonLabelRect(i, dpi));
 		mem.SetTextColor(enabled ? RGB(255, 255, 255) : kGlyphDisabled);
 		CString name;
-		name.LoadString(kButtonNames[i]);
+		VERIFY(name.LoadString(kButtonNames[i]));
 		mem.SelectObject(&nameFont);
 		// 023: not clipped, since "Load" has three characters, a little wider than
 		// the box; centered, it only reaches into the gap next to the button
@@ -677,7 +677,7 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 			mem.SelectObject(oldCheck);
 		}
 		CString name;
-		name.LoadString(IDS_FRAME_DISPLAY_LABEL);
+		VERIFY(name.LoadString(IDS_FRAME_DISPLAY_LABEL));
 		CRect label = ButtonRect(CanSim::FrameDisplayLabelRect(dpi));
 		mem.SelectObject(&font);
 		mem.SetTextColor(RGB(255, 255, 255));
@@ -688,8 +688,8 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 	{
 		const COLORREF dim = RGB(200, 200, 205);
 		CString caption, unit;
-		caption.LoadString(IDS_SIM_TIME_CAPTION);
-		unit.LoadString(IDS_SIM_TIME_UNIT);
+		VERIFY(caption.LoadString(IDS_SIM_TIME_CAPTION));
+		VERIFY(unit.LoadString(IDS_SIM_TIME_UNIT));
 		mem.SelectObject(&font);
 		mem.SetTextColor(dim);
 		CRect r = ButtonRect(CanSim::SimTimeCaptionRect(dpi));
@@ -712,7 +712,7 @@ void CMFCApplication1Dlg::DrawSimToolbar(CDC& dc)
 	// 019: "Speed:" caption left of the slider
 	{
 		CString caption;
-		caption.LoadString(IDS_SPEED_CAPTION);
+		VERIFY(caption.LoadString(IDS_SPEED_CAPTION));
 		CRect r = ButtonRect(CanSim::SpeedCaptionRect(dpi));
 		mem.SelectObject(&font);
 		mem.SetTextColor(RGB(255, 255, 255));
@@ -958,7 +958,7 @@ namespace
 	CString LoadRcString(UINT id)
 	{
 		CString s;
-		s.LoadString(id);
+		VERIFY(s.LoadString(id));
 		return s;
 	}
 
@@ -2124,7 +2124,7 @@ void CMFCApplication1Dlg::DrawAreaLabel(CDC& dc, const CRect& rect, UINT textId,
 	const int oldMode = dc.SetBkMode(TRANSPARENT);
 	const COLORREF oldColor = dc.SetTextColor(RGB(90, 90, 90));
 	CString text;
-	text.LoadString(textId);
+	VERIFY(text.LoadString(textId));
 	CRect r = rect;
 	dc.DrawText(text, r, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 	dc.SetTextColor(oldColor);

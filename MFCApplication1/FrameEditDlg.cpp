@@ -13,7 +13,7 @@ namespace
 	CString LoadRc(UINT id)
 	{
 		CString s;
-		s.LoadString(id);
+		VERIFY(s.LoadString(id));
 		return s;
 	}
 

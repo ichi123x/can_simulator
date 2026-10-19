@@ -36,6 +36,8 @@ namespace CanSim
             if (value < 0)
                 out.push_back('-');
             while (n > 0)
+         // False positive: the do-while runs at least once, so n >= 1 and digits[-1] is never read.
+#pragma warning(suppress: 6385)
                 out.push_back(digits[--n]);
         }
 
@@ -44,6 +46,7 @@ namespace CanSim
         {
             static const char kHex[] = "0123456789abcdef";
             char digits[8];
+            static_assert(sizeof(canId) <= 4, "digits[8] holds at most 8 hex digits (32-bit canId)");
             int n = 0;
             do
             {
@@ -54,7 +57,9 @@ namespace CanSim
                 digits[n++] = '0';
             out.append("0x");
             while (n > 0)
-                out.push_back(digits[--n]);
+           // False positive: the do-while runs at least once, so n >= 1 and digits[-1] is never read.
+#pragma warning(suppress: 6385)
+              out.push_back(digits[--n]);
         }
 
         // A negative time is the "blank" marker of OVERWRITE rows (feature 008).
