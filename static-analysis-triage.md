@@ -51,3 +51,24 @@
 - 誤検知: 17件（10件は書き方を変えて解消、7件は理由付きで抑制）
 - 誤検知だが要注意: 1件（static_assert で前提を守っている）
 - IntelliSense の ⓘ: 6件を判定（4件は書き方を変えて解消、2件は MFC ハンドラのため対応なし）。VCR102 は対応なし
+
+## 4回目：clang-tidy（VS2022 付属・既定のチェック）
+
+実行コマンド（開発者コマンド プロンプトで）:
+
+```
+msbuild MFCApplication1.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x64 /m /p:EnableClangTidyCodeAnalysis=true
+```
+
+準備: CanSim\*.cpp で「pch.h が見つからない」エラーが18件出た。プロジェクトの「追加のインクルード ディレクトリ」に `$(ProjectDir)` を足して解消（MSVC のビルドには影響なし）。
+
+| コード | 場所 | 内容 | 判定 | 対応 |
+|---|---|---|---|---|
+| inconsistent-missing-override | MFCApplication1Dlg.cpp 46 | DoDataExchange に override が無い | 本物（軽微） | override を追加 |
+| FloatLoopCounter | CanSim/FlowEffect.cpp 97 | double をループの数え役に使っている（誤差で回数がずれる） | 要注意 | int で数えて、double はかけ算で計算 |
+| FloatLoopCounter | CanSim/LogAnalysis.cpp 604 | 同上（NiceTicks の目盛り） | 要注意 | 同上 |
+| C26451 | CanSim/FlowEffect.cpp 97, 102 | 上の修正で新たに発生（i * kFlowSpacing を4バイトで計算） | 本物 | static_cast<double>(i) を先にかける |
+
+結果: MSVC 0件、clang-tidy 0件。
+
+学び: MSVC で0件でも clang-tidy だけが見つける指摘がある。片方を直すともう片方が反応することもあるので、両方をまとめて走らせる。

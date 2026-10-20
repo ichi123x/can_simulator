@@ -94,11 +94,12 @@ namespace CanSim
             const double length = FlowPathLength(*s, *r);
             if (length <= 0.0)
                 continue;
-            for (double d = offset; d <= length; d += kFlowSpacing)
+            for (int i = 0; offset + static_cast<double>(i) * kFlowSpacing <= length; ++i)
             {
                 // Paths from one sender share its stub line and the bus in the
                 // same direction, so the same particle comes up many times:
                 // draw it once (keeps 16 ECUs fast, SC-005).
+                const double d = offset + static_cast<double>(i) * kFlowSpacing;
                 const FlowPoint q = FlowPointAt(*s, *r, d / length);
                 const std::pair<long long, long long> key(std::llround(q.X * 8.0), std::llround(q.Y * 8.0));
                 if (seen.insert(key).second)

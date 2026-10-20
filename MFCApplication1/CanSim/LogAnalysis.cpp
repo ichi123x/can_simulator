@@ -601,8 +601,12 @@ namespace CanSim
             return { lo };
         const double step = NiceCeil((hi - lo) / approxCount);
         std::vector<double> ticks;
-        for (double t = std::ceil(lo / step - 1e-9) * step; t <= hi + step * 1e-9; t += step)
+        const double first = std::ceil(lo / step - 1e-9);
+        for (int i = 0; (first + i) * step <= hi + step * 1e-9; ++i)
+        {
+            const double t = (first + i) * step;
             ticks.push_back(std::fabs(t) < step * 1e-9 ? 0.0 : t);
+        }
         return ticks;
     }
 
