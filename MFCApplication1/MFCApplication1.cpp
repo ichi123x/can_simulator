@@ -3,6 +3,7 @@
 //
 
 #include "pch.h"
+#include <memory>
 #include "framework.h"
 #include "MFCApplication1.h"
 #include "MFCApplication1Dlg.h"
@@ -62,7 +63,7 @@ BOOL CMFCApplication1App::InitInstance()
 
 	// ダイアログにシェル ツリー ビューまたはシェル リスト ビュー コントロールが
 	// 含まれている場合にシェル マネージャーを作成します。
-	CShellManager *pShellManager = new CShellManager;
+	std::unique_ptr<CShellManager> pShellManager = std::make_unique<CShellManager>();
 
 	// MFC コントロールでテーマを有効にするために、"Windows ネイティブ" のビジュアル マネージャーをアクティブ化
 	CMFCVisualManager::SetDefaultManager(RUNTIME_CLASS(CMFCVisualManagerWindows));
@@ -108,10 +109,7 @@ BOOL CMFCApplication1App::InitInstance()
 	}
 
 	// 上で作成されたシェル マネージャーを削除します。
-	if (pShellManager != nullptr)
-	{
-		delete pShellManager;
-	}
+	pShellManager.reset();
 
 #if !defined(_AFXDLL) && !defined(_AFX_NO_MFC_CONTROLS_IN_DIALOGS)
 	ControlBarCleanUp();

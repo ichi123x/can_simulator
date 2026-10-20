@@ -1138,7 +1138,8 @@ void CMFCApplication1Dlg::OnLogViewSimLog()
 		AfxMessageBox(message, MB_OK | MB_ICONINFORMATION);
 		return;
 	}
-
+	// MFC modeless dialog: deletes itself in PostNcDestroy() (delete this).
+#pragma warning(suppress: 26409)
 	CLogViewDlg* viewer = new CLogViewDlg(this, logPath);
 	if (!viewer->Open())
 	{
@@ -1324,6 +1325,8 @@ void CMFCApplication1Dlg::OnAnalysisLatency()
 	CanSim::LatencyAnalysis analysis;
 	if (!RunAnalysis([&analysis](const std::vector<CanSim::LogRecord>& records) { analysis = CanSim::AnalyzeLatency(records); }))
 		return;
+	// MFC modeless dialog: deletes itself in PostNcDestroy() (delete this).
+#pragma warning(suppress: 26409)
 	CLatencyDlg* dlg = new CLatencyDlg(this, ProjectFileName(), analysis);
 	if (!dlg->Open())
 	{
@@ -1345,6 +1348,8 @@ void CMFCApplication1Dlg::OnAnalysisBusLoad()
 	CanSim::BusLoadAnalysis analysis;
 	if (!RunAnalysis([&analysis](const std::vector<CanSim::LogRecord>& records) { analysis = CanSim::AnalyzeBusLoad(records); }))
 		return;
+	// MFC modeless dialog: deletes itself in PostNcDestroy() (delete this).
+#pragma warning(suppress: 26409)
 	CBusLoadDlg* dlg = new CBusLoadDlg(this, ProjectFileName(), analysis);
 	if (!dlg->Open())
 	{
@@ -1380,6 +1385,8 @@ void CMFCApplication1Dlg::OnAnalysisTxWait()
 	CanSim::TxWaitAnalysis analysis;
 	if (!RunAnalysis([&analysis](const std::vector<CanSim::LogRecord>& records) { analysis = CanSim::AnalyzeTxWait(records); }))
 		return;
+	// MFC modeless dialog: deletes itself in PostNcDestroy() (delete this).
+#pragma warning(suppress: 26409)
 	CTxWaitDlg* dlg = new CTxWaitDlg(this, ProjectFileName(), analysis);
 	if (!dlg->Open())
 	{
@@ -1401,6 +1408,8 @@ void CMFCApplication1Dlg::OnAnalysisJitter()
 	CanSim::JitterAnalysis analysis;
 	if (!RunAnalysis([&analysis](const std::vector<CanSim::LogRecord>& records) { analysis = CanSim::AnalyzeJitter(records); }))
 		return;
+	// MFC modeless dialog: deletes itself in PostNcDestroy() (delete this).
+#pragma warning(suppress: 26409)
 	CJitterDlg* dlg = new CJitterDlg(this, ProjectFileName(), analysis);
 	if (!dlg->Open())
 	{
@@ -1527,6 +1536,8 @@ void CMFCApplication1Dlg::OpenFrameEditor(int ecu)
 {
 	// m_ecuCount (not m_settings.EcuCount) so that the node list matches the
 	// diagram that was double-clicked.
+		// MFC modeless dialog: deletes itself in PostNcDestroy() (delete this).
+#pragma warning(suppress: 26409)
 	CFrameEditDlg* editor = new CFrameEditDlg(m_definitions, m_ecuCount, ecu, this);
 	if (!editor->Create(IDD_FRAME_EDIT, this))
 	{
@@ -1755,7 +1766,7 @@ void CMFCApplication1Dlg::OnSimStart()
 	// without the frame display, and even when no frame is sent at all
 	// (005 FR-003, FR-006, FR-007).
 	m_events = CanSim::BuildFrameEvents(m_runRows);
-	m_cursor.reset(new CanSim::ActiveFrameCursor(m_events));
+	m_cursor = std::make_unique<CanSim::ActiveFrameCursor>(m_events);
 	m_active = CanSim::ActiveFrames();
 	m_prevSimUs = 0;
 	m_curSimUs = 0;
