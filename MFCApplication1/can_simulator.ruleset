@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RuleSet Name="can_simulator Rules" Description="Native Recommended + selected Core Check rules for can_simulator" ToolsVersion="17.0">
+  <Include Path="NativeRecommendedRules.ruleset" Action="Default" />
+  <Rules AnalyzerId="Microsoft.Analyzers.NativeCodeAnalysis" RuleNamespace="Microsoft.Rules.Native">
+    <Rule Id="C26409" Action="Warning" />
+    <Rule Id="C26451" Action="Warning" />
+    <Rule Id="C26800" Action="Warning" />
+    <Rule Id="C26815" Action="Warning" />
+    <Rule Id="C26816" Action="Warning" />
+    <Rule Id="C26819" Action="Warning" />
+  </Rules>
+</RuleSet>

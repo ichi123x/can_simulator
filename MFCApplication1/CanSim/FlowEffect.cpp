@@ -9,9 +9,9 @@ namespace CanSim
 {
     double FlowPathLength(const EcuPlacement& s, const EcuPlacement& r)
     {
-        return std::fabs(static_cast<double>(s.LineY1 - kBusY)) +
-            std::fabs(static_cast<double>(r.LineX - s.LineX)) +
-            std::fabs(static_cast<double>(r.LineY1 - kBusY));
+        return std::fabs(static_cast<double>(s.LineY1) - kBusY) +
+            std::fabs(static_cast<double>(r.LineX) - s.LineX) +
+            std::fabs(static_cast<double>(r.LineY1) - kBusY);
     }
 
     FlowPoint FlowPointAt(const EcuPlacement& s, const EcuPlacement& r, double f)
@@ -20,9 +20,9 @@ namespace CanSim
             f = 0.0;
         if (f > 1.0)
             f = 1.0;
-        const double down = std::fabs(static_cast<double>(s.LineY1 - kBusY));
-        const double along = std::fabs(static_cast<double>(r.LineX - s.LineX));
-        const double up = std::fabs(static_cast<double>(r.LineY1 - kBusY));
+        const double down = std::fabs(static_cast<double>(s.LineY1) - kBusY);
+        const double along = std::fabs(static_cast<double>(r.LineX) - s.LineX);
+        const double up = std::fabs(static_cast<double>(r.LineY1) - kBusY);
         double d = f * (down + along + up);
 
         FlowPoint p;

@@ -175,7 +175,8 @@ void CLogTextView::OnPaint()
 			{
 				CRect sel((a - m_left) * m_charWidth, y, (b - m_left) * m_charWidth, y + m_lineHeight);
 				mem.FillSolidRect(sel, kSelectionBack);
-				const std::wstring part = Widen(*text, static_cast<std::size_t>(a), static_cast<std::size_t>(b - a));
+				const int len = b - a;
+				const std::wstring part = Widen(*text, static_cast<std::size_t>(a), static_cast<std::size_t>(len));
 				mem.SetTextColor(kSelectionText);
 				::TextOutW(mem.GetSafeHdc(), sel.left, y, part.c_str(), static_cast<int>(part.size()));
 			}

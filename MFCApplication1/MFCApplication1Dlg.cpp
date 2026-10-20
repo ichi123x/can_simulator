@@ -2237,7 +2237,8 @@ BOOL CMFCApplication1Dlg::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 	ScreenToClient(&client);
 	if (GetLogRect().PtInRect(client))
 	{
-		ScrollLogTo(static_cast<long long>(m_logTop) - (zDelta / WHEEL_DELTA) * kLogWheelLines);
+		const int notches = zDelta / WHEEL_DELTA;
+		ScrollLogTo(static_cast<long long>(m_logTop) - static_cast<long long>(notches) * kLogWheelLines);
 		return TRUE;
 	}
 	return CDialogEx::OnMouseWheel(nFlags, zDelta, pt);

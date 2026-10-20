@@ -102,7 +102,7 @@ namespace CanSim
             {
                 if (*b < '0' || *b > '9')
                     return false;
-                v = v * 10 + (*b - '0');
+                v = v * 10 + (static_cast<long long>(*b) - '0');
             }
             value = negative ? -v : v;
             return true;

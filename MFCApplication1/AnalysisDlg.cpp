@@ -592,7 +592,7 @@ void CBusLoadDlg::CreateContent()
 	const long long sectionMs = m_analysis.SectionUs / 1000;
 	CString from, to, range;
 	from.Format(_T("%lld"), static_cast<long long>(m_analysis.MaxSection) * sectionMs);
-	to.Format(_T("%lld"), static_cast<long long>(m_analysis.MaxSection + 1) * sectionMs);
+	to.Format(_T("%lld"), (static_cast<long long>(m_analysis.MaxSection) + 1) * sectionMs);
 	range.Format(_T("%lld"), m_analysis.RangeUs / 1000);
 	CString summary;
 	summary.Format(LoadRcString(IDS_BUS_SUMMARY), (LPCTSTR)Fixed1(m_analysis.AveragePct), (LPCTSTR)Fixed1(m_analysis.MaxPct),
