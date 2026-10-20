@@ -248,7 +248,7 @@ namespace CanSim
             return true;
         };
 
-        const std::size_t kChunk = 4 * 1024 * 1024;
+        const std::size_t kChunk = std::size_t{ 4 } *1024 * 1024;
         std::vector<char> buffer;
         std::size_t kept = 0; // bytes of an unfinished line at the front of buffer
         long long bytesRead = 0;

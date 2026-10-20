@@ -225,7 +225,7 @@ private:
 
 	// ---- feature 018: flow animation over the frame display ----
 	void DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayout& layout,
-		const std::vector<std::pair<int, int>>& flows, int dpi);
+		const std::vector<std::pair<int, int>>& flows, int dpi) const;
 
 	long long m_flowElapsedUs = 0;   // animation clock: real time while Running only
 	LARGE_INTEGER m_flowLastQpc = {};

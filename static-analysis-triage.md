@@ -30,9 +30,24 @@
 | C26409 | MFCApplication1Dlg.cpp 1758 | m_cursor.reset(new ...) | 本物（書き方） | m_cursor = std::make_unique<...>(...) |
 | C26409 ×6 | MFCApplication1Dlg.cpp 1142, 1327, 1348, 1383, 1404, 1530 | モードレスダイアログを new | 誤検知 | PostNcDestroy() で delete this する MFC の設計。理由コメント＋#pragma warning(suppress: 26409) |
 
+## 3回目: IntelliSense のメッセージ（青い ⓘ、2026-10-20）
+
+ビルドの警告ではなく、エディタの提案。警告0件の条件には入らないが、1件ずつ判定した。
+
+| コード | 場所 | 内容 | 判定 | 対応 |
+|---|---|---|---|---|
+| Int-uninit | MFCApplication1.cpp 52 | InitCtrls が初期化されていない | 誤検知 | 2つのメンバーとも使う前に代入済み。InitCtrls{} で0初期化して解消 |
+| Int-arith | CanSim/LogAnalysis.cpp 251 | 4 * 1024 * 1024 を int で計算 | 誤検知 | 定数で溢れない。std::size_t{4} * 1024 * 1024 に |
+| Int-arith | LogViewDlg.cpp 311 | point.y の計算を int で行って long long に入れる | 誤検知 | 画素位置で溢れない。const long long y = point.y; にし、m_lineHeight - y - 1 の順で計算（引き算は左から評価されるため） |
+| Int-make | LogViewDlg.cpp 431 OnLButtonUp | const にできる | 誤検知・対応なし | MFC のメッセージハンドラは決まった形なので const にできない |
+| Int-make | MFCApplication1Dlg.cpp 934 OnQueryDragIcon | const にできる | 誤検知・対応なし | 同上（ウィザード生成のハンドラ） |
+| Int-make | MFCApplication1Dlg.cpp 466 DrawFlowEffect | const にできる | 本物（書き方・任意） | 自作の描画関数でメンバーを読むだけ。.cpp の定義と .h の宣言の両方に const を付けた |
+| VCR102 | MFCApplication1Dlg.cpp 469〜 など | マクロに関連する操作を参照できない可能性 | 対応なし | IntelliSense が RGB などのマクロを読み切れないときのヒント。ビルドとは無関係 |
+
 ## 集計
 
 - 合計 32件 → 現在 0件
 - 本物・本物（影響小）: 14件（すべて修正）
 - 誤検知: 17件（10件は書き方を変えて解消、7件は理由付きで抑制）
 - 誤検知だが要注意: 1件（static_assert で前提を守っている）
+- IntelliSense の ⓘ: 6件を判定（4件は書き方を変えて解消、2件は MFC ハンドラのため対応なし）。VCR102 は対応なし

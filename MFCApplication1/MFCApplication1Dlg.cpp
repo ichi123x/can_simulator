@@ -463,8 +463,7 @@ void CMFCApplication1Dlg::DrawBusDiagram(CDC& dc)
 	mem.SelectObject(oldBmp);
 }
 
-void CMFCApplication1Dlg::DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayout& layout,
-	const std::vector<std::pair<int, int>>& flows, int dpi)
+void CMFCApplication1Dlg::DrawFlowEffect(CDC& mem, const CanSim::BusDiagramLayout& layout, const std::vector<std::pair<int, int>>& flows, int dpi) const
 {
 	const CanSim::FlowEffect effect = CanSim::ComputeFlowEffect(layout, flows, m_flowElapsedUs);
 	const COLORREF kFlowColor = RGB(255, 140, 0); // 018 revision 1: orange, visible on white and on blue

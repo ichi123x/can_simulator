@@ -49,7 +49,7 @@ BOOL CMFCApplication1App::InitInstance()
 	// Windows XP では InitCommonControlsEx() が必要です (以下の場合: アプリケーション
 	// ComCtl32.dll Version 6 以降の使用を指定する場合は、
 	// Windows XP に InitCommonControlsEx() が必要です。さもなければ、ウィンドウ作成はすべて失敗します。
-	INITCOMMONCONTROLSEX InitCtrls;
+	INITCOMMONCONTROLSEX InitCtrls{};
 	InitCtrls.dwSize = sizeof(InitCtrls);
 	// アプリケーションで使用するすべてのコモン コントロール クラスを含めるには、
 	// これを設定します。
