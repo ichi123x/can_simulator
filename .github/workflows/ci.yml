@@ -1,0 +1,16 @@
+name: build-and-analyze
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build and analyze (Debug x64)
+        working-directory: MFCApplication1
+        run: msbuild MFCApplication1.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x64 /m /p:RunCodeAnalysis=true /p:EnableClangTidyCodeAnalysis=true
