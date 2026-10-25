@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CAN Bus Simulator (Debug x64)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/MFCApplication1/x64/Debug/MFCApplication1.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/MFCApplication1",
+            "stopAtEntry": false,
+            "console": "internalConsole",
+            "preLaunchTask": "build Debug x64"
+        },
+        {
+            "name": "CAN Bus Simulator (Debug x64, sample_vehicle_4ecu)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/MFCApplication1/x64/Debug/MFCApplication1.exe",
+            "args": ["${workspaceFolder}/MFCApplication1/CanSim/SampleConfigs/sample_vehicle_4ecu.canprj"],
+            "cwd": "${workspaceFolder}/MFCApplication1",
+            "stopAtEntry": false,
+            "console": "internalConsole",
+            "preLaunchTask": "build Debug x64"
+        }
+    ]
+}
